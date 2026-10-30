@@ -1,6 +1,6 @@
 /**
  * @file mic_test.c
- * @brief NiceMCU T5 麦克风测试：每 100 ms 在串口打印一行音量条。
+ * @brief NiceMCU T5 音频测试：开机喇叭响两声，然后每 100 ms 在串口打印一行麦克风音量条。
  *
  * 对着麦克风说话、拍手，条会变长；安静时应该很短但不为 0（底噪）。
  * 一直是 0：麦克风没采到数据（驱动 / 板级配置问题）。
@@ -83,6 +83,20 @@ void user_main(void)
     tdl_audio_get_info(audio, &info);
     PR_NOTICE("mic open: %d Hz, %d ch, %d bit, frame %d ms", info.sample_rate, info.sample_ch_num, info.sample_bits,
               info.sample_tm_ms);
+
+    /* 喇叭自检：开机响两声 1 kHz（三角波，0.25 秒），能听到就说明喇叭这条路也通 */
+    static int16_t beep[16000 / 4];   /* 16 kHz × 0.25 s */
+    for (uint32_t i = 0; i < sizeof(beep) / sizeof(beep[0]); i++) {
+        int32_t phase = i % 16;   /* 16 kHz / 16 = 1 kHz */
+        int32_t tri = phase < 8 ? phase * 2 - 8 : 24 - phase * 2;   /* −8 … +8 */
+        beep[i] = (int16_t)(tri * 1200);   /* 约 30% 音量 */
+    }
+    tdl_audio_volume_set(audio, 60);
+    for (int n = 0; n < 2; n++) {
+        PR_NOTICE("SPK beep %d", n + 1);
+        tdl_audio_play(audio, (uint8_t *)beep, sizeof(beep));
+        tal_system_sleep(500);
+    }
 
     char bar[21];
     uint32_t silent = 0;
