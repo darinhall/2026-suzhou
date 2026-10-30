@@ -1,0 +1,5 @@
+logs/
+mic_test/.build/
+mic_test/dist/
+mic_test/.config
+__pycache__/

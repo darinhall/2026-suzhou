@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>DeskBot 模拟器</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="screen.css">
 </head>
 <body>
   <header class="bar">
-    <div class="brand">DeskBot <span>模拟器 · ESP32-S3 · 3.5″ 480×320</span></div>
-    <div class="conn" id="conn"><i></i><span>离线</span></div>
+    <div class="brand">DeskBot <span>模拟器 · 脸 T5（2.8″ 320×240）+ 身体 ESP32</span></div>
+    <div class="bar-right"><a href="lab.html" target="_blank">设计实验室 ↗</a><div class="conn" id="conn"><i></i><span>离线</span></div></div>
   </header>
 
   <main class="layout">
@@ -23,16 +24,17 @@
         <button id="btn-boss">老板来了</button>
       </div>
       <div class="telemetry" id="telemetry"></div>
+      <div class="caption-bar" id="caption"></div>
     </section>
 
     <aside class="panel">
       <div class="group">
         <h3>演示（单机模式）</h3>
         <div class="row">
-          <button data-demo="feishu">▶ 飞书 @我</button>
-          <button data-demo="market">▶ 盯盘异动</button>
-          <button data-demo="stealth">▶ 摸鱼模式</button>
-          <button data-demo="all">▶ 完整剧本</button>
+          <button data-demo="moyu">▶ 盘中摸鱼看盘</button>
+          <button data-demo="feishu">▶ 飞书会议助手</button>
+          <button data-demo="a2a">▶ A2A 盘前简报</button>
+          <button data-demo="all">▶ 三个连播</button>
         </div>
       </div>
       <div class="group">
@@ -56,6 +58,8 @@
           <button data-face="ok">ok</button>
           <button data-face="stealth">stealth</button>
           <button data-face="decoy">decoy</button>
+          <button data-face="meeting">meeting</button>
+          <button data-face="weather">weather</button>
         </div>
       </div>
       <div class="group">

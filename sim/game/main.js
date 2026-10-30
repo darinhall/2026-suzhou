@@ -2,6 +2,7 @@
 // DeskBot 当主持人，指令用的就是机器人协议（face / pose / gesture），以后可以原样转发给真机。
 
 import { Face } from '../face.js';
+import { follow } from '../design.js';
 import { fakeBars, fromBars } from './scenario.js';
 import { DIMS, MARKETS, features, match, recommend } from './persona.js';
 
@@ -11,6 +12,7 @@ const pct = (r, digits = 1) => `${r >= 0 ? '+' : ''}${(r * 100).toFixed(digits)}
 
 // ---------- 主持人 ----------
 const face = new Face($('#screen'), () => {});
+follow($('#screen'));
 const host = {
   send(msg) {
     if (msg.t === 'face') face.set(msg.state, msg.card);

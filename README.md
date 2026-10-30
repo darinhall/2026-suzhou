@@ -11,7 +11,7 @@ pip install websockets && python hub/mock_hub.py   # 可选：假中枢，终端
 ```
 
 - `?ws=ws://<笔记本IP>:8765/robot` 指定中枢地址；https 部署的页面默认单机模式
-- `?demo=feishu|market|all` 打开即自动播放剧本（录 Demo 视频用）
+- `?demo=moyu|feishu|a2a|all` 打开即自动播放三个使用场景（录 Demo 视频用）
 
 ## PandaAI 赛道：寻找你的交易人格 `sim/game.html`
 
@@ -33,3 +33,16 @@ pip install websockets && python hub/mock_hub.py   # 可选：假中枢，终端
 ```
 
 表情对照：≥ +2% 眯眼笑 + 脸红；+0.5~2% 微红；−0.5~−2% 眼皮下垂；≤ −2% 更低更"难过"。偏紫 = 涨，偏青 = 跌。老板键打开时，下行的表情只缓存不显示。
+
+## 屏幕设计实验室 `sim/lab.html`
+
+屏幕全部按 [DeskBot 设计系统](https://claude.ai/artifact/QWRb6EptAeYye9yTq3593V) v1 的 tokens 画（`sim/screen.css`）。实验室把三个使用场景的每一步画成故事板，可以调旋钮看不同版本：
+
+- 旋钮：屏幕尺寸（**2.8″ 320×240 = T5 实机，默认** / 3.5″ 480×320）、主题（浅 / 深）、强调色、数字字体（点阵 / 细体 / 等宽）、卡片（反白 / 安静）、圆角、字号
+- 并排对比：选一个旋钮，每一步同时画出它的所有选项
+- 旋钮存在浏览器里，模拟器和游戏页（同一浏览器的其他标签页）实时跟着变
+- 三个场景和示例数据在 `sim/usecases.js`：盘中摸鱼看盘 / 飞书会议助手 / A2A 盘前简报。每一步都是协议消息，模拟器按顺序播放
+
+两种屏幕各有一套尺寸变量（`sim/screen.css` 里的 `data-size`）：小屏不是等比缩小，正文 ≥13px、说明 ≥10px。并排看时按物理大小对齐（2.8″ 屏放大 1.175 倍）。真机上标题尽量控制在一行。
+
+新增屏幕状态：`meeting`（会议倒计时 + 刻度尺）、`weather`（市场天气）、`agent`（A2A 智能体发言）、`brief`（三条要点）、`ask`（冲动前的护栏）。字段见 `sim/usecases.js` 里的示例。
