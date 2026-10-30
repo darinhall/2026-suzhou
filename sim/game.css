@@ -1,0 +1,77 @@
+body.game { display: block; min-height: 100%; }
+.app { max-width: 480px; margin: 0 auto; padding: 16px 16px 40px; }
+
+/* 主持人：DeskBot 的头，480×320 屏幕按宽度缩放 */
+.host { perspective: 900px; }
+.head {
+  width: 100%; aspect-ratio: 520 / 360; transition: transform .5s ease; position: relative;
+}
+.head-inner {
+  width: 520px; height: 360px; background: var(--shell); border-radius: 18px; position: absolute; left: 0; top: 0;
+  transform-origin: 0 0; transform: scale(var(--k, 1));
+}
+.head .screen { position: absolute; }
+.g-nod { animation: nod .36s ease 2; }
+.g-shake { animation: shake .5s ease 1; }
+@keyframes nod { 50% { transform: scale(var(--k, 1)) translateY(14px); } }
+@keyframes shake { 25% { transform: scale(var(--k, 1)) translateX(-14px); } 75% { transform: scale(var(--k, 1)) translateX(14px); } }
+.say {
+  min-height: 3em; margin: 12px 0 4px; padding: 10px 14px; border-radius: 12px;
+  background: var(--panel); border: 1px solid var(--line); font-size: 15px;
+}
+
+.view h1 { margin: 16px 0 4px; font-size: 28px; }
+.view h2 { margin: 16px 0 4px; }
+.view h3 { margin: 24px 0 8px; font-size: 15px; color: var(--muted); }
+.lead { color: #c3ccd7; }
+.rules { padding-left: 18px; color: #c3ccd7; }
+.legal { font-size: 11px; color: var(--muted); text-align: center; margin-top: 16px; }
+.kicker { margin: 16px 0 0; color: var(--muted); }
+.tag { margin: 0; color: var(--accent); font-weight: 600; }
+
+button.primary, a.primary {
+  display: block; width: 100%; padding: 14px; border-radius: 12px; text-align: center;
+  background: var(--accent); border: 0; color: #1b1b1b; font-weight: 700; font-size: 16px; text-decoration: none;
+}
+
+.hud { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0; }
+.hud div { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.hud span { display: block; font-size: 11px; color: var(--muted); }
+.hud b { font-size: 18px; font-variant-numeric: tabular-nums; }
+
+.chart { width: 100%; height: 180px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .price { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.chart .mark { stroke: var(--panel); stroke-width: 2; }
+
+.actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; visibility: hidden; }
+.actions.on { visibility: visible; }
+.actions button { padding: 16px 0; font-size: 17px; font-weight: 700; border-radius: 12px; }
+.actions button:disabled { opacity: .3; }
+.actions .buy { border-color: var(--up); color: var(--up); }
+.actions .sell { border-color: var(--down); color: var(--down); }
+
+.choices { display: grid; gap: 8px; }
+.choices button { padding: 14px; font-size: 16px; border-radius: 12px; }
+
+.traits { display: grid; gap: 8px; margin: 16px 0; }
+.trait { display: grid; grid-template-columns: 4.5em 1fr 2.5em; align-items: center; gap: 8px; font-size: 13px; }
+.trait .track { height: 10px; background: #1e2733; border-radius: 4px; overflow: hidden; }
+.trait .fill { height: 100%; background: var(--eye); border-radius: 0 4px 4px 0; }
+.trait b { text-align: right; font-variant-numeric: tabular-nums; }
+
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cols div { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; font-size: 13px; }
+.cols span { color: var(--muted); }
+.cols p { margin: 4px 0 0; }
+
+.reveal { margin-top: 12px; padding: 10px 12px; border-radius: 10px; border: 1px dashed var(--line); font-size: 13px; color: #c3ccd7; }
+.recs { padding-left: 20px; }
+.recs li { margin-bottom: 10px; }
+.recs a { color: var(--text); font-weight: 700; }
+.recs p { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+.next { display: grid; gap: 8px; }
+.next button { padding: 12px; border-radius: 12px; }
+.next button.done { border-color: var(--ok); color: var(--ok); }
+details { margin-top: 20px; font-size: 12px; color: var(--muted); }
+pre { white-space: pre-wrap; word-break: break-all; background: var(--panel); padding: 10px; border-radius: 8px; }
