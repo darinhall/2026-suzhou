@@ -1,0 +1,178 @@
+/* DeskBot 屏幕样式。颜色、字体、间距、圆角来自 DeskBot 设计系统 tokens.json v1
+   (https://claude.ai/artifact/QWRb6EptAeYye9yTq3593V)。改设计系统时同步改这里的变量。
+   设计实验室的旋钮通过 .screen 上的 data-* 属性和 --fs 变量覆盖默认值。
+
+   两种屏幕尺寸（data-size）：
+   - s：2.8″ 320×240，NiceMCU T5 实机（ST7789 横屏），默认
+   - l：3.5″ 480×320，设计系统最初的尺寸
+   所有尺寸都是变量，按屏幕各定义一套；小屏的字号不是等比缩小，正文和说明文字有下限，保证一米外能看清。 */
+
+@import url("https://fonts.googleapis.com/css2?family=Doto:wght@600;800&family=Geist:wght@200;300;400;500;600&family=Geist+Mono:wght@400;500&display=swap");
+
+.screen {
+  /* color · light */
+  --ground: #e9e9e6; --surface: #f5f5f3; --surface-sunk: #dededa;
+  --card: #161616; --on-card: #f2f2ef; --on-card-muted: #a3a39e;
+  --ink: #121212; --on-ink: #f5f5f3; --ink-muted: #5f5f5c; --ink-faint: #9a9a96;
+  --rule: #c9c9c4; --accent: #ff5b14; --on-accent: #121212; --lilac: #9b7ef0;
+  --up: #c8281e; --down: #137044;
+  /* type families */
+  --sans: Geist, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  --dot: Doto, "Geist Mono", monospace;
+  --numeral: var(--dot); --numeral-weight: 800;
+  --fs: 1;   /* 字号旋钮 */
+  --rk: 1;   /* 圆角旋钮 */
+
+  /* ---- l：3.5″ 480×320（设计系统原始值） ---- */
+  --W: 480px; --H: 320px;
+  --t-xl: 120px; --t-md: 48px; --t-lg: 72px; --t-title: 28px; --t-head: 20px; --t-body: 15px;
+  --t-cap: 11px; --t-label: 12px; --t-chip: 13px; --t-sign: 28px;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s6: 24px; --s8: 32px;
+  --rb-sm: 8px; --rb-md: 16px; --rb-lg: 24px;
+  --eye-w: 56px; --eye-h: 96px; --eye-gap: 96px; --eye-line: 12px; --arc-h: 36px; --shut: 8px;
+  --mouth-top: 232px; --mouth-w: 24px; --mouth-h: 6px;
+  --badge: 40px; --check: 96px; --check-fs: 56px; --live: 10px;
+  --spark-h: 72px; --ruler-h: 22px; --tick-h: 12px; --split-h: 10px;
+  --blush-top: 206px; --blush-x: 116px; --blush-w: 56px; --blush-h: 16px;
+  --fx-bottom: 40px; --wave-h: 30px; --dot-d: 12px;
+
+  --r-sm: calc(var(--rb-sm) * var(--rk)); --r-md: calc(var(--rb-md) * var(--rk)); --r-lg: calc(var(--rb-lg) * var(--rk));
+  position: absolute; left: 20px; top: 20px; width: var(--W); height: var(--H); overflow: hidden;
+  border-radius: var(--r-lg); background: var(--ground); color: var(--ink); font-family: var(--sans);
+}
+
+/* ---- s：2.8″ 320×240（T5 实机）。约 2/3，但正文 ≥13px、说明 ≥10px ---- */
+.screen[data-size="s"] {
+  --W: 320px; --H: 240px;
+  --t-xl: 80px; --t-md: 32px; --t-lg: 48px; --t-title: 20px; --t-head: 16px; --t-body: 13px;
+  --t-cap: 10px; --t-label: 11px; --t-chip: 12px; --t-sign: 20px;
+  --s1: 3px; --s2: 6px; --s3: 8px; --s4: 12px; --s6: 16px; --s8: 20px;
+  --rb-sm: 6px; --rb-md: 10px; --rb-lg: 16px;
+  --eye-w: 38px; --eye-h: 64px; --eye-gap: 64px; --eye-line: 8px; --arc-h: 24px; --shut: 6px;
+  --mouth-top: 156px; --mouth-w: 16px; --mouth-h: 4px;
+  --badge: 28px; --check: 64px; --check-fs: 36px; --live: 8px;
+  --spark-h: 44px; --ruler-h: 16px; --tick-h: 9px; --split-h: 8px;
+  --blush-top: 138px; --blush-x: 78px; --blush-w: 38px; --blush-h: 11px;
+  --fx-bottom: 26px; --wave-h: 20px; --dot-d: 8px;
+}
+
+.screen[data-theme="dark"] {
+  --ground: #0e0e0e; --surface: #1b1b1a; --surface-sunk: #262625;
+  --card: #efefec; --on-card: #121212; --on-card-muted: #5f5f5c;
+  --ink: #efefec; --on-ink: #121212; --ink-muted: #a6a6a1; --ink-faint: #6e6e6a;
+  --rule: #333331; --accent: #ff6a26; --lilac: #b39cff; --up: #ff5a4e; --down: #3ec27a;
+}
+/* 实验室旋钮 */
+.screen[data-accent="amber"] { --accent: #ffb000; }
+.screen[data-accent="cobalt"] { --accent: #4d7cff; }
+.screen[data-numeral="sans"] { --numeral: var(--sans); --numeral-weight: 200; }
+.screen[data-numeral="mono"] { --numeral: var(--mono); --numeral-weight: 500; }
+.screen[data-radius="sharp"] { --rk: 0.25; }
+.screen[data-radius="round"] { --rk: 1.5; }
+/* quiet：不反白，loud 卡片改成 surface 底 */
+.screen[data-card="quiet"] .loud { background: var(--surface); color: var(--ink); }
+.screen[data-card="quiet"] .loud .label, .screen[data-card="quiet"] .loud .meta { color: var(--ink-muted); }
+
+.screen > * { position: absolute; inset: 0; }
+
+/* ---------- 字体样式（对应 tokens 里的 type 组） ---------- */
+.numeral-xl { font: var(--numeral-weight) calc(var(--t-xl) * var(--fs))/0.85 var(--numeral); letter-spacing: -2px; }
+.numeral-md { font: var(--numeral-weight) calc(var(--t-md) * var(--fs))/1 var(--numeral); }
+.numeral-lg { font: 300 calc(var(--t-lg) * var(--fs))/1 var(--sans); letter-spacing: -2px; }
+.numeral-lg span { color: var(--ink-muted); }
+.title { font: 500 calc(var(--t-title) * var(--fs))/1.1 var(--sans); letter-spacing: -0.5px; text-wrap: balance; }   /* 避免中文末尾单字成行；真机上请把标题控制在一行内 */
+.headline { font: 600 calc(var(--t-head) * var(--fs))/1.2 var(--sans); }
+.body { font: 400 calc(var(--t-body) * var(--fs))/1.35 var(--sans); }
+.caption { font: 400 var(--t-cap)/1.3 var(--sans); color: var(--ink-muted); }
+.label { font: 400 var(--t-label)/1.35 var(--mono); letter-spacing: 0.2px; color: var(--ink-muted); }
+
+/* 大数字里的小数点：一个方点，贴着基线 */
+.numeral-xl .pt { display: inline-block; width: 0.12em; height: 0.12em; margin: 0 0.06em; background: currentColor; vertical-align: baseline; }
+
+/* ---------- 版式 ---------- */
+.pane { display: flex; flex-direction: column; gap: var(--s3); padding: var(--s4); }
+.row { display: flex; align-items: center; gap: var(--s2); }
+.grow { flex: 1; min-height: 0; }
+.loud { background: var(--card); color: var(--on-card); border-radius: var(--r-lg); padding: var(--s6); display: flex; flex-direction: column; gap: var(--s2); }
+.loud .label, .loud .meta { color: var(--on-card-muted); }
+.hint { font: 400 calc(var(--t-body) * var(--fs))/1.35 var(--sans); color: var(--ink); }
+.foot { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--s2); }
+.chip { display: inline-flex; align-items: center; gap: var(--s1); padding: 0.25em 0.9em; border-radius: 999px; background: var(--surface); font: 500 var(--t-chip)/1.4 var(--sans); white-space: nowrap; }
+.chip.ai { background: var(--lilac); color: #121212; }
+.chip.accent { background: var(--accent); color: var(--on-accent); }
+.live { width: var(--live); height: var(--live); border-radius: 50%; background: var(--accent); animation: live 1s steps(1) infinite; flex: none; }
+@keyframes live { 50% { opacity: .25; } }
+.up { color: var(--up); }
+.down { color: var(--down); }
+
+/* 刻度尺（设计系统的标志性图形）：过去 ink，现在 accent，未来 rule */
+.ruler { display: flex; align-items: flex-end; gap: 3px; height: var(--ruler-h); }
+.ruler i { flex: 1; height: var(--tick-h); background: var(--rule); border-radius: 1px; }
+.ruler i.past { background: var(--ink); }
+.ruler i.now { height: var(--ruler-h); background: var(--accent); }
+.screen[data-size="s"] .ruler { gap: 2px; }
+
+/* ---------- 表情 ---------- */
+.eyes { display: flex; justify-content: center; align-items: center; gap: var(--eye-gap); transition: transform .16s ease-out; }
+.eye { width: var(--eye-w); height: var(--eye-h); border-radius: calc(var(--eye-w) / 2); background: var(--ink); transition: height .08s, background .3s; }
+.eyes.shut .eye { height: var(--shut); }
+.eyes.happy .eye { height: var(--arc-h); background: transparent; border: var(--eye-line) solid var(--ink); border-bottom: 0; border-radius: var(--arc-h) var(--arc-h) 0 0; }
+.eyes.ai .eye { background: var(--lilac); }
+.eyes.up { transform: translate(calc(var(--eye-gap) / 4), calc(var(--eye-h) / -3)); }
+.screen > .mouth { left: 50%; top: var(--mouth-top); right: auto; bottom: auto; width: var(--mouth-w); height: var(--mouth-h); margin-left: calc(var(--mouth-w) / -2); border-radius: 3px; background: var(--accent); }
+.badge {
+  position: absolute; inset: var(--s4) var(--s4) auto auto; width: var(--badge); height: var(--badge); border-radius: 50%;
+  background: var(--accent); color: var(--on-accent); display: grid; place-items: center; font: 600 calc(var(--badge) * .45)/1 var(--sans);
+}
+.dots, .wave { inset: auto 0 var(--fx-bottom) 0; display: flex; justify-content: center; gap: calc(var(--dot-d) * .8); }
+.dots i { width: var(--dot-d); height: var(--dot-d); border-radius: 50%; background: var(--lilac); animation: dot 1.2s infinite; }
+.dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; }
+.wave i { width: calc(var(--dot-d) * .66); height: var(--wave-h); border-radius: 4px; background: var(--lilac); animation: wave .8s infinite ease-in-out; }
+.wave i:nth-child(2n) { animation-delay: .15s; } .wave i:nth-child(3n) { animation-delay: .3s; }
+@keyframes dot { 0%, 100% { opacity: .2; } 50% { opacity: 1; } }
+@keyframes wave { 0%, 100% { transform: scaleY(.3); } 50% { transform: scaleY(1); } }
+
+.check { display: grid; place-items: center; align-content: center; gap: var(--s4); }
+.check b { width: var(--check); height: var(--check); border-radius: 50%; background: var(--ink); color: var(--on-ink); display: grid; place-items: center; font: 300 var(--check-fs)/1 var(--sans); }
+
+/* ---------- 行情卡 ---------- */
+.mkt .hero { display: flex; align-items: flex-end; gap: var(--s2); }
+.mkt .sign { font: 500 calc(var(--t-sign) * var(--fs))/1 var(--sans); padding-bottom: calc(var(--t-sign) * .2); }
+.mkt svg { width: 100%; height: var(--spark-h); display: block; }
+
+/* ---------- 摸鱼模式 ---------- */
+.stealth { --lid: 0; --blush: 0; --breath: 4s; animation: breath var(--breath) ease-in-out infinite; }
+.stealth .eyes { position: absolute; inset: 0; }
+.stealth .eye { position: relative; overflow: hidden; transition: height .3s; }
+.stealth .eye::before {   /* 上眼皮，外侧往下斜 = 难过 */
+  content: ""; position: absolute; left: -25%; right: -25%; top: 0; background: var(--ground);
+  height: calc(var(--lid) * 100%); transform-origin: 50% 100%; transition: height 1.2s ease, transform 1.2s ease;
+}
+.stealth .eye:first-child::before { transform: rotate(calc(var(--lid) * -40deg)); }
+.stealth .eye:last-child::before { transform: rotate(calc(var(--lid) * 40deg)); }
+.stealth.joy .eye { height: var(--arc-h); background: transparent; border: var(--eye-line) solid var(--ink); border-bottom: 0; border-radius: var(--arc-h) var(--arc-h) 0 0; }
+.stealth.joy .eye::before { display: none; }
+.stealth .blush { position: absolute; top: var(--blush-top); width: var(--blush-w); height: var(--blush-h); border-radius: 50%; background: var(--up); opacity: calc(var(--blush) * .45); filter: blur(5px); transition: opacity 1.5s; }
+.stealth .blush:nth-of-type(1) { left: var(--blush-x); }
+.stealth .blush:nth-of-type(2) { right: var(--blush-x); }
+.stealth.ping .eyes { animation: ping 1.2s ease; }
+.stealth.ping .eye:last-child { animation: wink 1.2s ease; }
+@keyframes breath { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+@keyframes ping { 20% { transform: scale(1.12); } 40%, 100% { transform: scale(1); } }
+@keyframes wink { 45% { height: var(--eye-h); } 55% { height: var(--shut); } 70% { height: var(--eye-h); } }
+
+/* ---------- 盘前简报 ---------- */
+.brief ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--s3); counter-reset: n; }
+.brief li { display: flex; gap: var(--s3); counter-increment: n; }
+.brief li::before { content: counter(n); font: 500 var(--t-label)/1.8 var(--mono); color: var(--ink-muted); width: 1.8em; height: 1.8em; border-radius: 50%; background: var(--surface); text-align: center; flex: none; }
+.steps { display: flex; gap: 6px; }
+.steps i { width: calc(var(--s6) * 1); height: 4px; border-radius: 2px; background: var(--rule); }
+.steps i.on { background: var(--lilac); }
+.split { height: var(--split-h); border-radius: 4px; background: var(--surface-sunk); overflow: hidden; display: flex; gap: 2px; }
+.split i { display: block; height: 100%; }
+
+/* ---------- 装进机器人头里（模拟器 3D 头盒 520×360、游戏页主持人）----------
+   2.8″ 屏物理宽约 57.6 mm，3.5″ 约 73.4 mm。头盒里 480 px ≈ 73.4 mm，
+   所以 320×240 的屏放大 1.175 倍（= 376×282）居中，看到的是真实比例的边框。 */
+.screen[data-size="s"].in-head { left: 72px; top: 39px; transform: scale(1.175); transform-origin: 0 0; }

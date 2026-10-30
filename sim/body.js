@@ -55,7 +55,7 @@ export class Body {
     this.head.className = 'part';
     const shell = at(box('shell head', 520, 360, 200), 0, 0);
     this.screen = document.createElement('div');
-    this.screen.className = 'screen';
+    this.screen.className = 'screen in-head';
     shell.querySelector('.front').appendChild(this.screen);
     const cam = document.createElement('div');
     cam.className = 'cam';

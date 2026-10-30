@@ -1,7 +1,8 @@
 import { Body } from './body.js';
 import { Face } from './face.js';
 import { Link, defaultUrl } from './link.js';
-import * as demos from './demo.js';
+import { demos } from './demo.js';
+import { follow } from './design.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -15,6 +16,7 @@ const face = new Face(body.screen, (x, y) => {
   lastTap = now;
   up({ t: 'touch', x, y });
 });
+follow(body.screen);   // 设计实验室里调的主题 / 字体等，这里实时跟着变
 // ?face=decoy 之类：直接打开某个表情，方便看屏幕设计
 face.set(new URLSearchParams(location.search).get('face') || 'idle');
 
@@ -76,6 +78,7 @@ function toggleBoss() {
 
 const bot = {
   handle,
+  caption: (text) => ($('#caption').textContent = text),
   waitPress: (ms) => new Promise((resolve) => {
     pressWaiters.push(resolve);
     setTimeout(() => resolve(false), ms);
@@ -136,6 +139,6 @@ function fit() {
 fit();
 new ResizeObserver(fit).observe($('#stage'));
 
-// ?demo=market 打开就自动播放，方便录 Demo 视频
+// ?demo=moyu 打开就自动播放，方便录 Demo 视频
 const autoplay = new URLSearchParams(location.search).get('demo');
 if (autoplay in demos) document.querySelector(`[data-demo="${autoplay}"]`).click();
