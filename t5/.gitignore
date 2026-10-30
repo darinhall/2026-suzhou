@@ -3,3 +3,6 @@ mic_test/.build/
 mic_test/dist/
 mic_test/.config
 __pycache__/
+face_demo/.build/
+face_demo/dist/
+face_demo/.config
