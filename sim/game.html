@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>寻找你的交易人格</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="game.css">
+</head>
+<body class="game">
+  <div class="app">
+    <!-- DeskBot 当主持人：同一张 480×320 屏幕、同一套表情 -->
+    <div class="host">
+      <div class="head" id="head"><div class="head-inner" id="head-inner"><div class="screen" id="screen"></div></div></div>
+      <p class="say" id="say"></p>
+    </div>
+
+    <section class="view" id="v-intro">
+      <h1>寻找你的交易人格</h1>
+      <p class="lead">陪 DeskBot 走一段真实的历史行情。每到关键时刻，由你来做决定。<br>不问你"是什么样的人"，只看你"怎么做"。</p>
+      <ul class="rules">
+        <li>开局半仓，6 个关键时刻，每次三选一：<b>加仓 / 持有 / 减仓</b></li>
+        <li>股票名字先隐藏，结束后揭晓</li>
+        <li>大约 1 分钟</li>
+      </ul>
+      <button class="primary" id="btn-start">开始</button>
+      <p class="legal">示例数据 · 不构成投资建议</p>
+    </section>
+
+    <section class="view" id="v-play" hidden>
+      <div class="hud">
+        <div><span>关卡</span><b id="hud-stop">0/6</b></div>
+        <div><span>仓位</span><b id="hud-pos">50%</b></div>
+        <div><span>你的收益</span><b id="hud-pnl">0.00%</b></div>
+      </div>
+      <svg class="chart" id="chart" viewBox="0 0 440 180" preserveAspectRatio="none" role="img" aria-label="行情走势"></svg>
+      <div class="actions" id="actions">
+        <button data-act="1" class="buy">加仓</button>
+        <button data-act="0">持有</button>
+        <button data-act="-1" class="sell">减仓</button>
+      </div>
+    </section>
+
+    <section class="view" id="v-ask" hidden>
+      <h2>最后一个问题</h2>
+      <p class="lead">你平时最关注哪类市场？</p>
+      <div class="choices" id="markets"></div>
+    </section>
+
+    <section class="view" id="v-result" hidden>
+      <p class="kicker">你的交易人格</p>
+      <h1 id="r-name"></h1>
+      <p class="tag" id="r-tag"></p>
+      <p class="lead" id="r-line"></p>
+
+      <div class="traits" id="r-traits"></div>
+
+      <div class="cols">
+        <div><span>✓ 优势</span><p id="r-good"></p></div>
+        <div><span>! 盲点</span><p id="r-blind"></p></div>
+      </div>
+
+      <div class="reveal" id="r-reveal"></div>
+
+      <h3>为你推荐</h3>
+      <ol class="recs" id="r-recs"></ol>
+
+      <h3>下一步</h3>
+      <div class="next">
+        <a class="primary" id="r-go" target="_blank" rel="noopener">去 PandaAI 试试 →</a>
+        <button id="r-sub">让 DeskBot 每天提醒我</button>
+        <button id="r-again">换一段行情再玩</button>
+      </div>
+
+      <details>
+        <summary>画像 JSON（发给 DeskBot 和推荐引擎的数据）</summary>
+        <pre id="r-json"></pre>
+      </details>
+      <p class="legal">示例数据 · 不构成投资建议</p>
+    </section>
+  </div>
+  <script type="module" src="game/main.js"></script>
+</body>
+</html>

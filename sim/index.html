@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>DeskBot 模拟器</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="brand">DeskBot <span>模拟器 · ESP32-S3 · 3.5″ 480×320</span></div>
+    <div class="conn" id="conn"><i></i><span>离线</span></div>
+  </header>
+
+  <main class="layout">
+    <section class="stage" id="stage">
+      <div class="fit" id="fit">
+        <div class="robot" id="robot"></div>
+      </div>
+      <div class="stage-tools">
+        <button id="btn-cam">视角</button>
+        <button id="btn-press" class="accent">按头</button>
+        <button id="btn-boss">老板来了</button>
+      </div>
+      <div class="telemetry" id="telemetry"></div>
+    </section>
+
+    <aside class="panel">
+      <div class="group">
+        <h3>演示（单机模式）</h3>
+        <div class="row">
+          <button data-demo="feishu">▶ 飞书 @我</button>
+          <button data-demo="market">▶ 盯盘异动</button>
+          <button data-demo="stealth">▶ 摸鱼模式</button>
+          <button data-demo="all">▶ 完整剧本</button>
+        </div>
+      </div>
+      <div class="group">
+        <h3>动作</h3>
+        <div class="row">
+          <button data-gesture="nod">点头</button>
+          <button data-gesture="shake">扭两下</button>
+          <button data-gesture="look_up">抬头</button>
+          <button data-gesture="look_down">低头</button>
+          <button data-gesture="home">回中</button>
+        </div>
+      </div>
+      <div class="group">
+        <h3>表情</h3>
+        <div class="row">
+          <button data-face="idle">idle</button>
+          <button data-face="blink">blink</button>
+          <button data-face="happy">happy</button>
+          <button data-face="listening">listening</button>
+          <button data-face="thinking">thinking</button>
+          <button data-face="ok">ok</button>
+          <button data-face="stealth">stealth</button>
+          <button data-face="decoy">decoy</button>
+        </div>
+      </div>
+      <div class="group">
+        <h3>注入下行 JSON <small>（模拟笔记本发来的消息）</small></h3>
+        <textarea id="inject" spellcheck="false">{"t": "pose", "yaw": 30, "pitch": -10, "ms": 600}</textarea>
+        <div class="row"><button id="btn-inject">发送到机器人</button></div>
+      </div>
+      <div class="group">
+        <h3>连接</h3>
+        <div class="row">
+          <input id="ws-url" spellcheck="false">
+          <button id="btn-connect">连接</button>
+        </div>
+      </div>
+      <div class="group grow">
+        <h3>消息日志 <small>↓ 下行 ↑ 上行</small></h3>
+        <ol class="log" id="log"></ol>
+      </div>
+    </aside>
+  </main>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
