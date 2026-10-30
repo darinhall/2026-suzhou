@@ -1,0 +1,13 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DeskBot Design System</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono&display=swap">
+<style>body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font-sans)}header{display:flex;justify-content:space-between;align-items:center;padding:var(--space-4) var(--space-6);border-bottom:1px solid var(--rule)}h1{font-size:20px;font-weight:600;margin:0}button{background:var(--ink);color:var(--on-ink);border:0;border-radius:var(--radius-pill);padding:8px 16px;font:inherit;cursor:pointer}
+main{padding:var(--space-6);display:grid;gap:var(--space-6)}section h2{font:12px var(--font-mono);color:var(--ink-muted);margin:0 0 var(--space-2);font-weight:400}iframe{width:100%;border:1px solid var(--rule);border-radius:var(--radius-md);background:var(--ground)}</style></head>
+<body><header><h1>DeskBot</h1><button id="t">dark</button></header><main id="m"></main>
+<script>
+const C=[["Cover",300],["MessageCard",250],["MarketCard",300],["Numeral",200],["Face",420],["TickRuler",170],["DayPicker",100],["Button",110]];
+let th="light";const m=document.getElementById("m");
+function draw(){document.documentElement.dataset.theme=th;m.innerHTML=C.map(([n,h])=>`<section><h2>${n}</h2><iframe height="${h}" src="components/${n}/preview.html?theme=${th}"></iframe></section>`).join("")}
+document.getElementById("t").onclick=e=>{th=th==="light"?"dark":"light";e.target.textContent=th==="light"?"dark":"light";draw()};draw();
+</script></body></html>
