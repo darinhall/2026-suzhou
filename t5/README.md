@@ -10,8 +10,8 @@
 | 日志 | **460800**，和烧录共用同一个串口（UART0） | ✅ |
 | 屏幕 | 2.8″ ST7789，240×320，横屏显示（实际 **320×240**），SPI0：CLK P44 · MOSI P46 · CS P45 · DC P47 · RST P6 · 背光 P9（高电平亮） | ✅ |
 | 触摸 | CST816（芯片 ID 0xB6），I2C1：SCL P20 · SDA P21 · RST P23 | ✅ |
-| 喇叭 | 功放使能 P7 | ✅ 开机有提示音 |
-| 麦克风 | T5 片上音频 ADC，16 kHz 单声道，带回声消除 | 待测 |
+| 喇叭 | 功放使能 P7 | ✅ 出厂固件有提示音；mic_test 开机两声 1 kHz，麦克风也录到了（peak ≈ 8500） |
+| 麦克风 | T5 片上音频 ADC，16 kHz 单声道，20 ms 一帧，带回声消除 + 降噪 + 压缩 | ✅ 安静 rms≈15–20；说话 rms≈200–700、peak≈1000–2800（拍手也不会超过 ~3000，因为有压缩） |
 | 按键 | P8 | — |
 | 摄像头 | GC2145（没装，日志里的 `gc2145 i2c write err` 可以忽略） | — |
 
@@ -31,7 +31,22 @@ uv run --with pyserial python t5/serial_probe.py                       # 三个�
 uv run --with pyserial python t5/serial_probe.py monitor --seconds 20  # 460800 录 20 秒，存到 t5/logs/
 ```
 
-`t5/mic_test/`：TuyaOpen 小程序，串口每 100 ms 打印一行麦克风音量条（未编译验证）。
+`t5/mic_test/`：TuyaOpen 小程序，开机喇叭响两声，然后串口每 100 ms 打印一行麦克风音量条。已在实机验证。
+
+## TuyaOpen 编译与烧录（Mac）
+
+```bash
+git clone --depth 1 https://github.com/tuya/TuyaOpen.git ~/code/TuyaOpen
+ln -s "$PWD/t5/mic_test" ~/code/TuyaOpen/apps/deskbot_mic_test
+cd ~/code/TuyaOpen
+export OPEN_COUNTRY_CODE=Other TUYAOPEN_CN_DOWNLOAD=0   # 必须：否则在国内时区会走 gitee 镜像，子模块要登录、编译失败
+. ./export.sh
+cd apps/deskbot_mic_test
+tos.py build
+tos.py flash -p /dev/cu.usbserial-210 -b 460800       # 必须 -b 460800：默认 921600 握手后会断
+```
+
+烧录会自动复位板子，不用按 RESET；约 2 分钟。只擦写固件大小的范围（约 2 MB），不碰 OTP 里的授权。想恢复出厂聊天固件：用 NiceMCU 仓库里的 `firmware/your_chat_bot_QIO_1.0.1.bin`，同样 460800 烧录。
 
 ## 烧录注意
 
