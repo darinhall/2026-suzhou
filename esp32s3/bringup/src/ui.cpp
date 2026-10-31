@@ -121,6 +121,27 @@ static void clockFace() {
   T->drawString(mm, x0 + wh, y0, 8);
 }
 
+// ---------- 右上角连接图标：连上中枢 = 实心三道弧，没连上 = 淡色加一道斜线 ----------
+static bool linkOk = false;
+static const int ICON_W = 48, ICON_H = 36, ICON_PAD = 4;   // 图标占的方块，右上角
+static int iconX() { return W() - ICON_W - ICON_PAD; }
+
+static void drawLink(TFT_eSPI &g, int ox, int oy) {   // ox/oy：目标的左上角在屏幕上的位置（画进 sprite 时用）
+  const int cx = iconX() + ICON_W / 2 - ox, cy0 = ICON_PAD + ICON_H - 5 - oy;   // 底部那个点
+  const uint16_t fg = C(linkOk ? MUTED : RULE);
+  g.fillCircle(cx, cy0, 3, fg);
+  for (int r = 10; r <= 26; r += 8)   // 三道向上张开的弧（±45°），用小圆点一圈圈点出来
+    for (int a = -45; a <= 45; a += 3) g.fillCircle(cx + (int)(r * sinf(a * DEG_TO_RAD)), cy0 - (int)(r * cosf(a * DEG_TO_RAD)), 1, fg);
+  if (!linkOk) {
+    for (int o = -1; o <= 1; o++) g.drawLine(cx - 18 + o, cy0 + 2, cx + 18 + o, cy0 - 26, C(INK));
+  }
+}
+
+static void paintLink() {
+  T->fillRect(iconX(), ICON_PAD, ICON_W, ICON_H, C(GROUND));
+  drawLink(*T, 0, 0);
+}
+
 // ---------- 待机小动画 ----------
 // 玩球：橙色小球重力 + 反弹，眼睛跟着它（小球是这一屏的 accent，所以不画嘴）
 static const int BALL_R = 20;
@@ -128,15 +149,53 @@ static float bx, by, bvx, bvy, bsq;
 static uint32_t bLast;
 static int gazeX = 0, gazeY = 0;
 
-static void eyeBandBig() { T->fillRect(0, cy() - EYE_H / 2 - 40, W(), EYE_H + 80, C(GROUND)); }   // 眼睛左右上下都会移，擦宽一点
+// 不直接在屏幕上"擦了再画"（会闪）：每帧把球附近的一块方形区域在 sprite 里画好（底色、眼睛、图标、球），一次推上屏。
+static TFT_eSprite *ballSpr = nullptr, *eyeSpr = nullptr;
+static const int BS = 128;                 // 球的 sprite 边长：装得下球（压扁时宽 54）加一帧的位移
+static const int EW = 144, EH = 192;       // 单只眼睛的 sprite
+static int obx, oby;                       // 上一帧球心
 
-static void drawBall() {
+static int eyeBoxX(int i) { return W() / 2 + (i == 0 ? -EYE_GAP / 2 - EYE_W : EYE_GAP / 2) - (EW - EYE_W) / 2; }
+static int eyeBoxY() { return cy() - EH / 2; }
+
+static void drawEyesInto(TFT_eSPI &g, int ox, int oy) {
+  const int r = EYE_W / 2;
+  for (int i = 0; i < 2; i++) {
+    const int x = W() / 2 + gazeX + (i == 0 ? -EYE_GAP / 2 - EYE_W : EYE_GAP / 2);
+    g.fillRoundRect(x - ox, cy() + gazeY - EYE_H / 2 - oy, EYE_W, EYE_H, r, C(INK));
+  }
+}
+
+static void drawBallInto(TFT_eSPI &g, int ox, int oy) {
   const float sx = 1 + 0.35f * bsq, sy = 1 - 0.35f * bsq;
   const int rx = (int)(BALL_R * sx), ry = (int)(BALL_R * sy);
-  T->fillEllipse((int)bx, (int)by + (BALL_R - ry), rx, ry, C(ACCENT));
+  g.fillEllipse((int)bx - ox, (int)by + (BALL_R - ry) - oy, rx, ry, C(ACCENT));
+}
+
+static void composeAndPush(TFT_eSprite *sp, int x, int y, int w, int h, bool withBall) {
+  sp->fillSprite(C(GROUND));
+  drawEyesInto(*sp, x, y);
+  drawLink(*sp, x, y);
+  if (withBall) drawBallInto(*sp, x, y);
+  sp->pushSprite(x, y);
+}
+
+static void pushBall() {
+  const int cxm = ((int)bx + obx) / 2, cym = ((int)by + oby) / 2;
+  const int x = constrain(cxm - BS / 2, 0, W() - BS), y = constrain(cym - BS / 2, 0, H() - BS);
+  composeAndPush(ballSpr, x, y, BS, BS, true);
+  obx = (int)bx; oby = (int)by;
+}
+
+static void pushEyes() {
+  for (int i = 0; i < 2; i++) composeAndPush(eyeSpr, eyeBoxX(i), eyeBoxY(), EW, EH, true);
 }
 
 static void playStart() {
+  if (!ballSpr) {
+    ballSpr = new TFT_eSprite(T); ballSpr->setColorDepth(16); ballSpr->createSprite(BS, BS);
+    eyeSpr = new TFT_eSprite(T); eyeSpr->setColorDepth(16); eyeSpr->createSprite(EW, EH);
+  }
   bx = W() * (0.15f + random(0, 20) / 100.0f);
   by = H() * 0.3f;
   bvx = (random(2) ? 1 : -1) * W() * 0.3f;
@@ -144,18 +203,15 @@ static void playStart() {
   bsq = 0;
   bLast = millis();
   gazeX = gazeY = 0;
+  obx = (int)bx; oby = (int)by;
   T->fillScreen(C(GROUND));
-  eyesPill(INK, EYE_H);
+  pushEyes();
+  pushBall();
 }
 
 static void playStep(uint32_t now) {
-  const float dt = min(0.05f, (now - bLast) / 1000.0f), G = H() * 2.6f;
+  const float dt = min(0.04f, (now - bLast) / 1000.0f), G = H() * 2.6f;
   bLast = now;
-  const int bandTop = cy() - EYE_H / 2 - 40, bandBot = cy() + EYE_H / 2 + 40;
-  auto touchesBand = [&]() { return by + BALL_R + 12 > bandTop && by - BALL_R - 12 < bandBot; };
-  bool needEyes = touchesBand();
-  T->fillRect((int)bx - BALL_R - 12, (int)by - BALL_R - 12, 2 * BALL_R + 24, 2 * BALL_R + 24, C(GROUND));   // 擦掉上一帧的球
-
   bvy += G * dt; bx += bvx * dt; by += bvy * dt;
   if (bx < BALL_R) { bx = BALL_R; bvx = fabsf(bvx); }
   if (bx > W() - BALL_R) { bx = W() - BALL_R; bvx = -fabsf(bvx); }
@@ -163,18 +219,13 @@ static void playStep(uint32_t now) {
   if (by < BALL_R) { by = BALL_R; bvy = fabsf(bvy) * 0.5f; }
   bsq = max(0.0f, bsq - dt * 6);
 
-  const int tgx = constrain((int)((bx - W() / 2) * 0.14f), -34, 34) & ~1, tgy = constrain((int)((by - H() / 2) * 0.12f), -18, 18) & ~1;   // 眼睛跟着球
-  if (tgx != gazeX || tgy != gazeY) { gazeX = tgx; gazeY = tgy; needEyes = true; }
-  if (touchesBand()) needEyes = true;
-  if (needEyes) { eyeBandBig(); eyesPill(INK, EYE_H, gazeX, gazeY); }
-  drawBall();
+  // 眼睛跟着球；4 px 一档，免得每帧都重推眼睛
+  const int tgx = constrain((int)((bx - W() / 2) * 0.14f), -34, 34) / 4 * 4, tgy = constrain((int)((by - H() / 2) * 0.12f), -18, 18) / 4 * 4;
+  pushBall();
+  if (tgx != gazeX || tgy != gazeY) { gazeX = tgx; gazeY = tgy; pushEyes(); pushBall(); }
 }
 
 // 睡觉：向下弯的两条线（闭眼）、飘上去的 z、左上角的梦泡泡（轮流梦到金币、涨停、往上的线）
-static int dreamIdx = 0;
-static uint32_t dreamAt = 0;
-static const int BUB_X = 24, BUB_Y = 19, BUB_W = 202, BUB_H = 99;
-
 static void sleepEyes() {
   const int cx = W() / 2, ytop = cy() + 16;
   for (int i = 0; i < 2; i++) {
@@ -185,37 +236,8 @@ static void sleepEyes() {
   }
 }
 
-static void bubbleFrame() {
-  T->fillRoundRect(BUB_X, BUB_Y, BUB_W, BUB_H, 16, C(RULE));
-  T->fillRoundRect(BUB_X + 2, BUB_Y + 2, BUB_W - 4, BUB_H - 4, 14, C(SURFACE));
-  T->fillCircle(BUB_X + (int)(BUB_W * 0.62f), BUB_Y + BUB_H + 11, 8, C(RULE));
-  T->fillCircle(BUB_X + (int)(BUB_W * 0.62f), BUB_Y + BUB_H + 11, 6, C(SURFACE));
-  T->fillCircle(BUB_X + (int)(BUB_W * 0.74f), BUB_Y + BUB_H + 29, 6, C(RULE));
-  T->fillCircle(BUB_X + (int)(BUB_W * 0.74f), BUB_Y + BUB_H + 29, 4, C(SURFACE));
-}
-
-static void dreamContent(uint32_t now) {
-  const int cx = BUB_X + BUB_W / 2, cyb = BUB_Y + BUB_H / 2;
-  T->fillRoundRect(BUB_X + 4, BUB_Y + 4, BUB_W - 8, BUB_H - 8, 12, C(SURFACE));
-  switch (dreamIdx % 3) {
-    case 0:   // 金币，轻轻跳
-      T->fillCircle(cx, cyb - (int)(4 + 5 * sinf(now / 170.0f)), 20, C(ACCENT));
-      break;
-    case 1:   // ▲ +10%（涨停）
-      T->fillTriangle(cx - 66, cyb + 12, cx - 40, cyb + 12, cx - 53, cyb - 14, C(UPC));
-      T->setTextColor(C(UPC), C(SURFACE));
-      T->drawString("+10%", cx - 28, cyb - 13, 4);
-      break;
-    default: {   // 一路往上的线
-      const int pts[6][2] = {{-56, 20}, {-34, 8}, {-14, 14}, {8, -6}, {28, 0}, {54, -24}};
-      for (int i = 0; i < 5; i++)
-        for (int o = -2; o <= 2; o++) T->drawLine(cx + pts[i][0], cyb + pts[i][1] + o, cx + pts[i + 1][0], cyb + pts[i + 1][1] + o, C(UPC));
-    }
-  }
-}
-
 static void zzz(uint32_t now) {
-  T->fillRect(366, 24, 114, 150, C(GROUND));
+  T->fillRect(366, 50, 114, 124, C(GROUND));   // 避开右上角的连接图标
   for (int i = 0; i < 3; i++) {
     const float ph = fmodf(now / 1000.0f + i * 1.2f, 3.6f) / 3.6f;
     const float a = ph < 0.22f ? ph / 0.22f : ph > 0.8f ? (1 - ph) / 0.2f : 1;
@@ -227,10 +249,6 @@ static void zzz(uint32_t now) {
 static void sleepStart() {
   T->fillScreen(C(GROUND));
   sleepEyes();
-  bubbleFrame();
-  dreamIdx = random(3);
-  dreamAt = millis();
-  dreamContent(dreamAt);
 }
 
 static void startle() {   // 被吵醒：眼睛一下睁大
@@ -262,6 +280,7 @@ static void render() {
     T->setTextColor(C(MUTED), C(GROUND));
     T->drawCentreString(statusLine, W() / 2, H() - 22, 2);
   }
+  if (cur != State::Play) paintLink();   // 玩球时图标由 sprite 一起画
 }
 
 void begin(TFT_eSPI *tft) {
@@ -298,6 +317,12 @@ void status(const char *line) {
   if (!bossOn) render();
 }
 
+void setLink(bool ok) {
+  if (ok == linkOk) return;
+  linkOk = ok;
+  if (!bossOn && cur != State::Play) paintLink();   // 玩球时下一帧 sprite 里会带上
+}
+
 void setBoss(bool on) {
   bossOn = on;
   lastClock = 0;
@@ -317,8 +342,6 @@ void tick(uint32_t now) {
   if (cur == State::Play && now - lastAnim > 28) { lastAnim = now; playStep(now); return; }
   if (cur == State::Sleep && now - lastAnim > 100) {
     lastAnim = now;
-    if (now - dreamAt > 3600) { dreamAt = now; dreamIdx++; dreamContent(now); }
-    else if (dreamIdx % 3 == 0) dreamContent(now);   // 金币在跳，要每帧重画
     zzz(now);
     return;
   }

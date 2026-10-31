@@ -12,6 +12,7 @@ void begin(TFT_eSPI *tft);
 void set(State s, int count = 0, float pct = 0, float vol = 0.3f, bool alert = false, const char *label = nullptr);
 void status(const char *line);      // 屏幕底部一行小字（只给启动阶段用：wifi… / hub…），"" 清掉
 void tick(uint32_t now);            // 眨眼、波形、点点的动画
+void setLink(bool ok);              // 右上角连接图标：连上中枢 = 实心，没连上 = 淡色 + 斜线
 void poke();                        // 有人动过它：待机计时重新开始
 void wake();                        // 摸一下：玩球 / 睡觉都醒过来（睡着的会被吓一跳）
 void setBoss(bool on);              // 老板键：伪装成办公助手的时钟

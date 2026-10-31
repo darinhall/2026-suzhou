@@ -21,7 +21,9 @@ export function defaultToken() {
 }
 
 export class Link {
-  constructor({ onMessage, onStatus }) {
+  constructor({ onMessage, onStatus, quiet = false }) {
+    this.quiet = quiet;   // true：不往中枢报告自己的连接事件（日志页自己用）
+    this.pending = [];    // 离线时发生的事，连上之后补报
     this.onMessage = onMessage;
     this.onStatus = onStatus;
     this.ws = null;
@@ -47,6 +49,7 @@ export class Link {
     ws.onopen = () => {
       this.onStatus('on', '已连接');
       this.send({ t: 'hello', fw: 'sim-0.1.0', ...(this.token ? { token: this.token } : {}) });   // 中枢要求第一条是 hello（本机免令牌）
+      for (const e of this.pending.splice(0)) this.send(e);
     };
     ws.onmessage = (e) => {
       let msg;
@@ -58,6 +61,7 @@ export class Link {
       this.ws = null;
       // 被中枢以 1008 断开 = 令牌不对 / 被锁，不要每 2 秒去撞（5 次错误会锁 30 秒）
       if (e.code === 1008) return this.onStatus('off', `被中枢拒绝：${e.reason || '令牌不对'}`);
+      this.report('warn', 'LINK_LOST', '网页和中枢的连接断了，2 秒后重连');
       this.onStatus('off', '离线，2 秒后重连');
       this.retry = setTimeout(() => this.open(), 2000);
     };
@@ -68,6 +72,14 @@ export class Link {
     const ws = this.ws;
     this.ws = null;
     ws?.close();
+  }
+
+  // 往中枢的日志里报一条；离线时先存着（最多 20 条），连上后补发
+  report(lvl, code, msg) {
+    if (this.quiet) return;
+    const e = { t: 'log', lvl, src: 'sim', code, msg };
+    if (this.connected) this.send(e);
+    else if (this.pending.length < 20) this.pending.push(e);
   }
 
   get connected() { return this.ws?.readyState === WebSocket.OPEN; }

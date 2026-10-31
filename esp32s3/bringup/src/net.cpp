@@ -25,6 +25,41 @@ static uint32_t lastTry = 0;
 static int tries = 0, wsFails = 0;
 static bool wsUp = false;
 
+// ---------- 日志 ----------
+struct LogItem { char lvl[6], code[24], msg[96]; uint32_t up; };
+static LogItem pend[16];
+static int pendN = 0;
+
+static void sendLog(const LogItem &it) {
+  JsonDocument d;
+  d["t"] = "log";
+  d["lvl"] = it.lvl;
+  d["src"] = "face";
+  d["code"] = it.code;
+  d["msg"] = it.msg;
+  d["up"] = it.up;   // 开机后的毫秒数：补发的旧日志靠它排先后
+  String out;
+  serializeJson(d, out);
+  ws.sendTXT(out);
+}
+
+void log(const char *lvl, const char *code, const char *msg) {
+  Serial.printf("[%s] %s %s\n", lvl, code, msg);
+  LogItem it;
+  strlcpy(it.lvl, lvl, sizeof it.lvl);
+  strlcpy(it.code, code, sizeof it.code);
+  strlcpy(it.msg, msg, sizeof it.msg);
+  it.up = millis();
+  if (wsUp) { sendLog(it); return; }
+  if (pendN == 16) { memmove(pend, pend + 1, sizeof(LogItem) * 15); pendN = 15; }   // 满了丢最旧的
+  pend[pendN++] = it;
+}
+
+static void flushLogs() {
+  for (int i = 0; i < pendN; i++) sendLog(pend[i]);
+  pendN = 0;
+}
+
 static void onWsEvent(WStype_t type, uint8_t *payload, size_t length) {
   switch (type) {
     case WStype_CONNECTED: {
@@ -41,10 +76,15 @@ static void onWsEvent(WStype_t type, uint8_t *payload, size_t length) {
       ws.sendTXT(out);
       ui::status("");
       Serial.printf("[ws] 已连上中枢 %s:%u\n", hubHost.c_str(), hubPort);
+      flushLogs();
+      { char m[64]; snprintf(m, sizeof m, "已连上中枢 %s:%u", hubHost.c_str(), hubPort); log("info", "WS_UP", m); }
       break;
     }
     case WStype_DISCONNECTED:
-      if (wsUp) Serial.println("[ws] 断开");
+      if (wsUp) {
+        wsUp = false;
+        log("warn", "WS_DOWN", "和中枢的连接断了，自动重连");
+      }
       wsUp = false;
       wsFails++;
       // 令牌错误连续 5 次会被中枢锁 30 秒：失败几次之后放慢重连，别去撞
@@ -115,7 +155,7 @@ void loop() {
       wsUp = false;
       ws.disconnect();
       ui::status("wifi...");
-      Serial.println("[wifi] 断了");
+      log("warn", "WIFI_LOST", "WiFi 断了，重新连接");
     }
     static uint32_t lastLog = 0;
     if (now - lastLog > 5000) {
@@ -126,6 +166,7 @@ void loop() {
         scanned = true;
         const int n = WiFi.scanNetworks();
         Serial.printf("[wifi] 扫到 %d 个：\n", n);
+        if (n >= 0) { bool seen = false; for (int i = 0; i < n; i++) seen |= WiFi.SSID(i) == DB_WIFI_SSID; if (!seen) log("error", "WIFI_NOT_FOUND", "扫描不到 " DB_WIFI_SSID "（只支持 2.4 GHz，离路由近一点）"); }
         for (int i = 0; i < n && i < 12; i++) Serial.printf("  %-24s ch%-2d %d dBm\n", WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i));
       }
     }
@@ -143,6 +184,7 @@ void loop() {
     lastTry = 0;
     Serial.printf("[wifi] 已连接 · IP %s · 信号 %d dBm · 网关 %s\n", WiFi.localIP().toString().c_str(), WiFi.RSSI(), WiFi.gatewayIP().toString().c_str());
     ui::status("hub...");
+    { char m[80]; snprintf(m, sizeof m, "WiFi 已连接 IP %s，信号 %d dBm", WiFi.localIP().toString().c_str(), WiFi.RSSI()); log("info", "WIFI_OK", m); }
     udp.begin(DB_DISCOVERY_PORT + 1);
     configTime(8 * 3600, 0, "ntp.aliyun.com", "pool.ntp.org");   // 老板键的时钟要用
   }
@@ -151,7 +193,7 @@ void loop() {
     lastTry = now;
     tries++;
     if (discoverOnce()) {
-      Serial.printf("[hub] 发现 %s:%u%s\n", hubHost.c_str(), hubPort, hubPath.c_str());
+      { char m[64]; snprintf(m, sizeof m, "发现中枢 %s:%u", hubHost.c_str(), hubPort); log("info", "HUB_FOUND", m); }
       prefs.putString("hub", hubHost);
       startWs();
     } else if (tries == 5) {
@@ -162,7 +204,7 @@ void loop() {
         startWs();
       }
     } else if (tries % 10 == 0) {
-      Serial.println("[hub] 还在找中枢…（电脑上起了 ./hub/run.sh 吗？同一个 WiFi 吗？）");
+      log("warn", "HUB_NOT_FOUND", "还在找中枢：电脑上起了 ./hub/run.sh 吗？同一个 WiFi 吗？");
     }
   }
 
@@ -173,7 +215,7 @@ void loop() {
       phase = Phase::Discover;
       tries = 0;
       ws.disconnect();
-      Serial.println("[ws] 连不上，重新发现中枢");
+      log("warn", "WS_DOWN", "连不上中枢，重新发现（令牌不对会被锁 30 秒）");
     }
   }
 }

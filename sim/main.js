@@ -19,6 +19,7 @@ const face = new Face(body.screen, (x, y) => {
   lastTap = now;
   up({ t: 'touch', x, y });
 }, { idleAfter: idleParam === null ? 25 : Number(idleParam) });
+body.screen.dataset.link = 'off';
 follow(body.screen);   // 设计实验室里调的主题 / 字体等，这里实时跟着变
 // ?face=decoy 之类：直接打开某个表情，方便看屏幕设计
 face.set(new URLSearchParams(location.search).get('face') || 'idle');
@@ -78,6 +79,7 @@ function onHub(m) {
     return;
   }
   if (m.t === 'notice') {
+    if (m.level === 'error') link.report('error', 'REQ_FAILED', String(m.text).slice(0, 200));
     endPending();
     log('sys', m.text);
     bot.caption(m.text);
@@ -144,6 +146,7 @@ setInterval(() => {
 
 // ---------- 连接 ----------
 function onStatus(kind, text) {
+  body.screen.dataset.link = kind === 'on' ? 'on' : 'off';   // 屏幕右上角的连接图标
   $('#conn').className = `conn ${kind}`;
   $('#conn span').textContent = kind === 'on' ? '已连接' : kind === 'wait' ? '连接中' : '离线（单机模式）';
   log('sys', text);

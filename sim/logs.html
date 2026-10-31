@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DeskBot 日志</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="logs.css">
+</head>
+<body class="logs-page">
+  <header class="bar">
+    <div class="brand">DeskBot 日志 <span>真机、中枢、网页的实时事件</span></div>
+    <div class="bar-right">
+      <a href="index.html" target="_blank">模拟器 ↗</a>
+      <div class="conn" id="conn"><i></i><span>离线</span></div>
+    </div>
+  </header>
+
+  <section class="peers" id="peers" aria-label="已连接的设备">
+    <span class="peer" id="p-face"><i></i>脸 <b>0</b></span>
+    <span class="peer" id="p-body"><i></i>身体 <b>0</b></span>
+    <span class="peer" id="p-view"><i></i>网页 <b>0</b></span>
+    <span class="peer-note" id="p-note"></span>
+  </section>
+
+  <section class="tools" aria-label="筛选">
+    <span class="seg" id="f-lvl">
+      <label><input type="radio" name="lvl" value="all" checked>全部</label>
+      <label><input type="radio" name="lvl" value="warn">警告+</label>
+      <label><input type="radio" name="lvl" value="error">错误</label>
+    </span>
+    <span class="seg" id="f-src">
+      <label><input type="radio" name="src" value="all" checked>全部来源</label>
+      <label><input type="radio" name="src" value="face">脸</label>
+      <label><input type="radio" name="src" value="body">身体</label>
+      <label><input type="radio" name="src" value="hub">中枢</label>
+      <label><input type="radio" name="src" value="sim">网页</label>
+    </span>
+    <span class="spacer"></span>
+    <span class="count" id="count"></span>
+    <button id="btn-pause" aria-pressed="false">暂停</button>
+    <button id="btn-clear">清空</button>
+  </section>
+
+  <ol class="logs-list" id="log" aria-live="polite"></ol>
+  <div class="empty" id="empty">还没有日志。真机一上电就会有 BOOT、WIFI_OK、WS_UP。</div>
+
+  <script type="module" src="logs.js"></script>
+</body>
+</html>

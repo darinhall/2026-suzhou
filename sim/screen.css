@@ -217,19 +217,14 @@
 }
 
 /* 梦泡泡：左上角一个大泡泡，两个小圆点连向脸 */
-.dream { position: absolute; left: 5%; top: 6%; width: 42%; height: 31%; }
-.bubble { position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden; background: var(--surface); border: 2px solid var(--rule); border-radius: var(--r-md); }
-.dream .d1, .dream .d2 { position: absolute; border-radius: 50%; background: var(--surface); border: 2px solid var(--rule); }
-.dream .d2 { width: calc(var(--s3) + 2px); height: calc(var(--s3) + 2px); left: 62%; top: calc(100% + 4px); }
-.dream .d1 { width: calc(var(--s2) + 1px); height: calc(var(--s2) + 1px); left: 72%; top: calc(100% + var(--s4) + 6px); }
-.dream-item { display: grid; place-items: center; gap: 4px; width: 76%; animation: dreamin .5s ease-out; }
-.dream-item svg { width: 100%; height: auto; display: block; }
-.dream-big { font: 600 calc(var(--t-title) * 1.05)/1 var(--sans); }
-.dream-sub { font: 500 var(--t-body)/1 var(--sans); color: var(--ink-muted); }
-.dream-coin { width: calc(var(--ball) * 1.1); height: calc(var(--ball) * 1.1); border-radius: 50%; background: var(--accent); animation: coin .55s ease-in-out infinite alternate; }
-@keyframes dreamin { from { opacity: 0; transform: translateY(6px) scale(.9); } }
-@keyframes coin { to { transform: translateY(-18%) scaleY(.92); } }
 
 /* 被吵醒：眼睛一下睁大 */
 .screen.waking .eye { animation: startle .3s ease-out; }
 @keyframes startle { 0% { transform: scaleY(.12); } 55% { transform: scaleY(1.15); } 100% { transform: none; } }
+
+/* 右上角连接图标：data-link="on" 连上中枢，"off" 没连上。不设这个属性就不显示（实验室、游戏页） */
+.screen[data-link]::after { content: ""; position: absolute; top: 3.2%; right: 2.6%; width: 7.5%; aspect-ratio: 4 / 3; background: var(--ink-muted); pointer-events: none;
+  -webkit-mask: var(--wifi) center / contain no-repeat; mask: var(--wifi) center / contain no-repeat; }
+.screen[data-link="off"]::after { background: var(--rule); -webkit-mask-image: var(--wifi-off); mask-image: var(--wifi-off); }
+.screen { --wifi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 36' fill='none' stroke='black' stroke-width='4' stroke-linecap='round'%3E%3Cpath d='M5 15a27 27 0 0 1 38 0M13 23a16 16 0 0 1 22 0'/%3E%3Ccircle cx='24' cy='31' r='2.5' fill='black'/%3E%3C/svg%3E");
+  --wifi-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 36' fill='none' stroke='black' stroke-width='4' stroke-linecap='round'%3E%3Cpath d='M5 15a27 27 0 0 1 38 0M13 23a16 16 0 0 1 22 0'/%3E%3Ccircle cx='24' cy='31' r='2.5' fill='black'/%3E%3Cpath d='M6 34L42 4' stroke-width='5'/%3E%3C/svg%3E"); }
