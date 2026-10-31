@@ -13,6 +13,7 @@
 #include "demo_cards.h"
 #include "net.h"
 #include "screens.h"
+#include "servotest.h"
 #include "ui.h"
 
 #ifndef SCREEN_ROTATION
@@ -42,6 +43,7 @@ static void mapTouch(int rx, int ry, int &x, int &y) {
 // 中枢发来的消息：这块板只管脸，pose / gesture / torque 之类给身体的直接忽略
 static void onMessage(JsonDocument &d) {
   const char *t = d["t"] | "";
+  if (!strcmp(t, "servo_test")) { servotest::run(); return; }
   if (!strcmp(t, "audio_test")) { audio::selfTest(); return; }   // 中枢 / 网页可以再跑一次音频自检
   if (!strcmp(t, "hello")) { audio::hello(d["vol"] | 0.15f); return; }
   if (!strcmp(t, "chime")) { audio::chime(d["vol"] | 0.08f); return; }
@@ -97,7 +99,7 @@ void setup() {
   digitalWrite(TFT_BL, LOW);   // 背光低电平点亮
   ui::begin(&tft);
   screens::begin(&tft);
-  if (audio::begin()) { audio::hello(0.15f); delay(150); audio::chime(0.08f); }   // 开机测试：说一句话 + 弹一小段旋律（低音量）；完整自检含麦克风：长按左上角
+  if (audio::begin()) audio::chime(0.08f);   // 开机低音量弹一小段旋律（语音 + 麦克风自检：长按左上角）
 
   tp.begin();
   tp.setRotation(ROTATION_NORMAL);
