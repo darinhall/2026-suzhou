@@ -141,6 +141,7 @@ void setup() {
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, LOW);   // 背光低电平点亮
   ui::begin(&tft);
+  servotest::setFrameHook([]() { ui::tick(millis()); });   // 开机摆动时脸跟着头动
   screens::begin(&tft);
   if (audio::begin()) audio::chime(0.08f);
   delay(1500);
@@ -156,6 +157,7 @@ void setup() {
   }
   servotest::wiggle(1, 1);   // 开机：两个舵机轮流在原位附近来回摆一下（ID1 ±20°、ID2 ±10°，30% 扭矩，摆完放松）
   servotest::wiggle(2, 1);
+  ui::set(ui::State::Happy);   // 摆完笑一下
   delay(500);
   audio::calibrate(3000);   // 舵机和喇叭都停了以后，量 3 秒背景音量；之后超过它 4 倍才算有人说话
 
