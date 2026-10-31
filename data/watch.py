@@ -328,14 +328,14 @@ def index_state(day: dict, i: int | None = None) -> dict:
     return {"name": ix["name"], "pct": ix["pct"]}
 
 
-def watch_card(day: dict, mode: str = "close", i: int | None = None, alert_codes: tuple = (), start: int = 0) -> dict:
+def watch_card(day: dict, mode: str = "close", i: int | None = None, alert_codes: tuple = (), start: int = 0, rows_n: int = MAX_ROWS) -> dict:
     """watch 卡（v2）：
     {title, asof, mode:close|replay|live|sample, index:{name,pct}（旧字段）,
      indices:[{name,value,pct[,amount(亿，仅收盘)]}]≤4, avg_pct,
      rows:[{name,code,pct,price,open,high,low,prev_close,amount,amp,vol_ratio,spark≤24[,alert]}]≤5（start = 从第几只开始，翻页用）, alert?}"""
     at = None if mode == "close" else i
     rows = []
-    for k in range(start, min(start + MAX_ROWS, len(day["stocks"]))):
+    for k in range(start, min(start + rows_n, len(day["stocks"]))):
         r = stock_state(day, k, at)
         series = r.pop("_series")
         for key in ("volume", "limit_up", "limit_down", "range20"):   # 这些只给单股 mkt 卡

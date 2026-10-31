@@ -4,6 +4,7 @@
 - watch 盯盘：条目 = 自选股。view=single（默认）每只一张整屏 `mkt` 行情卡，每 interval 秒换下一只；view=list 是 `watch` 列表（一页 5 行，多了翻页）。
   行情默认回放最近一个交易日的 5 分钟线（数字在跳），第一次触及 ±2% / ±3% 的股票跳到它的整屏行情 alert_hold 秒。
   真机点一下（touch）= 下一只；{"t":"open","code":"688981"} = 点了列表里的某一行：这只的整屏行情停 12 秒再回来。
+- list 自选（列表）：`watch` 列表整屏，一页 5 行（简洁显示 3 行、紧凑 4 行），行情照样回放；多于一页时每 watch.interval 秒翻页，touch / mode_ctl next = 下一页。
 - weather 天气：整屏 `sky` 卡，在 weather.cities 里每 interval 秒换一个城市；touch = 下一个城市。
 - today 今天（起床后）：`today` 卡，每分钟刷新；today.brief 打开时第二页是盘前简报。
 - clock 时钟：老板键的时钟在真机本地画，中枢只是发 face decoy 并停止推卡片。
@@ -20,7 +21,7 @@
 消息（client = 网页 / 真机）：
     client→hub  {"t":"profile","set":{…部分设置，深度合并…}}      → 回给发送者 {"t":"profile_result","ok":true|false,"error":"…"}
     hub→所有人  {"t":"profile","profile":{…完整设置，watch.stocks 带名称…}}   每次变化、新连上时
-    client→hub  {"t":"mode","name":"watch|weather|today|clock|idle|booth"}
+    client→hub  {"t":"mode","name":"watch|list|weather|today|clock|idle|booth"}
     client→hub  {"t":"open","code":"688981"}                      点某只股票看详情
     client→hub  {"t":"symbols","q":"宁德"}                        → 回给发送者 {"t":"symbols_result","items":[{"code","name"},…≤8]}
     hub→所有人  {"t":"scene_state","name":"watch","page":2,"of":5,"label":"中芯国际","item":"中芯国际",["clock":"13:35","sub":30,"subof":48]}
@@ -38,9 +39,9 @@ from pathlib import Path
 
 from scenes import DEFAULTS, SceneEngine
 
-MODES = ("watch", "weather", "today", "clock", "idle", "booth")
+MODES = ("watch", "list", "weather", "today", "clock", "idle", "booth")
 DISPLAY_MODES = ("simple", "compact", "pro")
-ROTATING = ("watch", "weather", "today")
+ROTATING = ("watch", "list", "today")   # 展台轮流演的模式（天气模式还在，只是展台不放了）
 MAX_STOCKS, MAX_CITIES = 8, 6
 OPEN_HOLD = 12.0   # 点了某只股票：整屏行情停多久（秒）
 REFRESH = 2.0      # 行情卡刷新间隔（秒）
@@ -56,7 +57,7 @@ DEFAULT_PROFILE = {
     "booth": {"enabled": False, "dwell": 30},
     "replay": {"enabled": True, "speed": 1.0, "loop": True},
 }
-LABEL = {"watch": "盯盘", "weather": "天气", "today": "今天", "clock": "时钟", "idle": "待机", "booth": "展台"}
+LABEL = {"watch": "盯盘", "list": "自选", "weather": "天气", "today": "今天", "clock": "时钟", "idle": "待机", "booth": "展台"}
 
 
 class ProfileError(ValueError):
@@ -277,13 +278,15 @@ class ModeEngine(SceneEngine):
         self._save()
         await self.log("info", "PROFILE_SET", "设置已更新：" + ", ".join(k for k in part if k in new)[:100])
         await self.bc({"t": "profile", "profile": self.public_profile()})
-        if new["display"] != old["display"] and self.display_hook:   # 显示模式也可以通过 profile.set 改：同步给 {"t":"display"} 的订阅者
-            await self.display_hook(new["display"])
+        if new["display"] != old["display"]:
+            if self.display_hook:   # 显示模式也可以通过 profile.set 改：同步给 {"t":"display"} 的订阅者
+                await self.display_hook(new["display"])
+            await self._display_changed()
         self.prefetch()
         mode_changed = new["mode"] != old["mode"] or (self.name in MODES and self.name != new["mode"])
         if mode_changed:
             await self.set_mode(new["mode"], persist=False)
-        elif self.name in ("watch", "weather", "today", "booth") and any(old[k] != new[k] for k in ("watch", "weather", "today", "booth", "replay")):
+        elif self.name in ("watch", "list", "weather", "today", "booth") and any(old[k] != new[k] for k in ("watch", "weather", "today", "booth", "replay")):
             await self._start_mode(self.name)   # 条目变了：从头滚
         return True, "", ""
 
@@ -318,7 +321,7 @@ class ModeEngine(SceneEngine):
 
     async def open(self, code: str) -> None:
         """点了某只股票：整屏行情停 OPEN_HOLD 秒。只在盯盘模式里有意义。"""
-        if self.name not in ("watch", "booth") or not re.fullmatch(r"\d{6}", str(code)):
+        if self.name not in ("watch", "list", "booth") or not re.fullmatch(r"\d{6}", str(code)):
             await self.log("warn", "OPEN_BAD", f"现在不在盯盘模式，或代码不对：{str(code)[:10]}")
             return
         self.open_code = str(code)
@@ -343,12 +346,19 @@ class ModeEngine(SceneEngine):
             self.profile["display"] = mode
             self._save()
             await self.bc({"t": "profile", "profile": self.public_profile()})
+            await self._display_changed()
+
+    async def _display_changed(self) -> None:
+        """自选列表一页画几行跟显示模式走（5 / 4 / 3）：正在演列表的话，按新的行数重新分页。"""
+        if self.name == "list" or (self.name == "booth" and self.sub == "list"):
+            await self._start_mode(self.name)
 
     async def boot(self) -> None:
         """中枢启动：先把天气 / 行情拉进缓存，再进入上次保存的模式（真机一连上就有画面，不用等）。"""
         self.prefetch()
         await self.warm()
-        await self.set_mode(self.profile["mode"], persist=False)
+        if self.name != self.profile["mode"]:   # 启动期间用户已经切过模式的话，别再重启一遍
+            await self.set_mode(self.profile["mode"], persist=False)
 
     # ---------- 旧的 scene 消息 ----------
     async def handle(self, msg: dict) -> None:
@@ -509,13 +519,23 @@ class ModeEngine(SceneEngine):
         return day
 
     # ----- 盯盘 -----
+    def rows_per_page(self) -> int:
+        """自选列表一页画几行：和真机一致（专业 5 行，紧凑 4 行，简洁 3 行）。"""
+        return {"simple": 3, "compact": 4}.get(self.profile["display"], 5)
+
     async def _m_watch(self) -> None:
-        from watch import MAX_ROWS, TIMES, mover_card, stock_state, watch_card
+        await self._watch_loop(True)
+
+    async def _m_list(self) -> None:
+        await self._watch_loop(False)
+
+    async def _watch_loop(self, single: bool) -> None:
+        from watch import TIMES, mover_card, stock_state, watch_card
+        MAX_ROWS = self.rows_per_page()
 
         P, R = self.profile["watch"], self.profile["replay"]
         day = await self._day_for(P["codes"])
         n = len(day["stocks"])
-        single = P["view"] == "single"
         items = n if single else -(-n // MAX_ROWS)
         nbars = len(TIMES)
         i: int | None = 0 if R["enabled"] else None
@@ -572,7 +592,7 @@ class ModeEngine(SceneEngine):
                     s = day["stocks"][item]
                     await self._push("mkt", mover_card(day, item, i, mode, alert=False), item + 1, items, s["name"], **extra)
                 else:
-                    await self._push("watch", watch_card(day, mode, i, (), start=item * MAX_ROWS), item + 1, items, f"自选 {item + 1}/{items}", **extra)
+                    await self._push("watch", watch_card(day, mode, i, (), start=item * MAX_ROWS, rows_n=MAX_ROWS), item + 1, items, f"自选 {item + 1}/{items}", **extra)
             # 等一小格；touch = 下一只（详情里 = 回到滚动）
             skipped = await self._wait(TICK)
             if self.open_code:
