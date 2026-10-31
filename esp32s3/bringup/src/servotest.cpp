@@ -10,6 +10,10 @@ namespace servotest {
 static const int RX = 47, TX = 21;
 static const int STEPS_10DEG = 114;   // 4096 步 = 360°，10° ≈ 114 步
 
+// 每个舵机允许的摆幅（单边，步数）。连线复杂：所有动作都不能超出开机摆动的范围。
+// 11-01：ID1（转头）加大一倍到 ±20°；ID2（点头）仍是 ±10°
+int amp(uint8_t id) { return id == 1 ? 2 * STEPS_10DEG : STEPS_10DEG; }
+
 static void report(const char *lvl, const char *code, const char *fmt, ...) {
   char m[160];
   va_list ap; va_start(ap, fmt); vsnprintf(m, sizeof m, fmt, ap); va_end(ap);
@@ -29,8 +33,10 @@ static bool readPosRetry(uint8_t id, int &pos) {
 
 // 走到 target，等它到位，返回实际位置（读不到返回 -1）
 static int goAndRead(uint8_t id, int target) {
+  int from = -1;
+  readPosRetry(id, from);
   servo::move(id, target, 400, 20);   // 400 步/秒 ≈ 35°/秒，慢慢走
-  delay(700);
+  delay(from < 0 ? 1500 : 300 + abs(target - from) * 1000 / 400);   // 按距离等：±20° 一趟要 1 秒多
   int p = -1;
   readPosRetry(id, p);
   return p;
@@ -41,13 +47,14 @@ void wiggle(uint8_t id, int times) {
   delay(100);
   int p0 = -1;
   if (!pingRetry(id) || !readPosRetry(id, p0)) { report("error", "SERVO_TIMEOUT", "ID%d 没应答", id); return; }
-  const int c0 = constrain(p0, STEPS_10DEG + 10, 4095 - STEPS_10DEG - 10);
+  const int a = amp(id);
+  const int c0 = constrain(p0, a + 10, 4095 - a - 10);
   servo::setTorqueLimit(id, 300);
   servo::setTorqueEnable(id, true);
-  for (int i = 0; i < times; i++) { goAndRead(id, c0 - STEPS_10DEG); goAndRead(id, c0 + STEPS_10DEG); }
+  for (int i = 0; i < times; i++) { goAndRead(id, c0 - a); goAndRead(id, c0 + a); }
   const int end = goAndRead(id, p0);
   servo::setTorqueEnable(id, false);
-  report("info", "SERVO_WIGGLE", "ID%d 来回摆了 %d 次（±10°），回到 %d（原位 %d）", id, times, end, p0);
+  report("info", "SERVO_WIGGLE", "ID%d 来回摆了 %d 次（±%d°），回到 %d（原位 %d）", id, times, (int)lroundf(a * 360.0f / 4096), end, p0);
 }
 
 void nod() {
@@ -89,13 +96,13 @@ void rebasePitch(float deg) {
   servo::setTorqueLimit(id, 300);
   servo::setTorqueEnable(id, true);
   const int steps = (int)lroundf(deg * 4096.0f / 360.0f);
-  servo::move(id, p1 + steps, 300, 20);   // 开机摆动第一下是往位置减小的方向，这里反过来：位置增大
+  servo::move(id, p1 + steps, 300, 20);   // deg > 0：位置增大（开机摆动第一下的反方向）；deg < 0：和开机第一下同方向
   delay(900);
   readPosRetry(id, p2);
   setCenterHere(id);                 // 新位置定为基准（2048）
   readPosRetry(id, p3);
   servo::setTorqueEnable(id, false);
-  report("info", "SERVO_REBASE", "ID2 定基准：原来 %d → 校正后 %d → 转 +%d 步（约 %d°）到 %d → 新基准 %d（应接近 2048）", p0, p1, steps, (int)lroundf(deg), p2, p3);
+  report("info", "SERVO_REBASE", "ID2 定基准：原来 %d → 校正后 %d → 转 %+d 步（约 %+d°）到 %d → 新基准 %d（应接近 2048）", p0, p1, steps, (int)lroundf(deg), p2, p3);
 }
 
 void run() {
@@ -120,9 +127,9 @@ void run() {
     okCount++;
     servo::setTorqueLimit(id, 300);   // 30% 扭矩：卡住也不会太猛
     servo::setTorqueEnable(id, true);
-    // 位置在 0 / 4095 边上时不能跨过去：中心点往里收一点，保证 ±10° 都在 0–4095 里（离原位最多 ~10°）
-    const int c0 = constrain(p0, STEPS_10DEG + 10, 4095 - STEPS_10DEG - 10);
-    const int t1 = c0 + STEPS_10DEG, t2 = c0 - STEPS_10DEG;
+    // 位置在 0 / 4095 边上时不能跨过去：中心点往里收一点，保证摆幅都在 0–4095 里
+    const int c0 = constrain(p0, amp(id) + 10, 4095 - amp(id) - 10);
+    const int t1 = c0 + amp(id), t2 = c0 - amp(id);
     const int a = goAndRead(id, t1);
     const int b = goAndRead(id, t2);
     const int c = goAndRead(id, p0);
