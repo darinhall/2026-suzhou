@@ -24,11 +24,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "data"))
 
-SCENES = {   # 旧的播放列表式场景；天气（sky）和市场天气（weather）页已移除
-    "morning": ["today", "brief", "watch_close"],
+SCENES = {   # 旧的播放列表式场景；天气、市场天气、今天、简报页都已移除
+    "morning": ["watch_close"],
     "watch": ["replay", "watch_close"],
-    "close": ["watch_close", "summary"],
-    "booth": ["today", "brief", "watch_close", "replay", "summary"],
+    "close": ["watch_close"],
+    "booth": ["replay", "watch_close"],
 }
 LOOPING = {"booth"}
 LABEL = {"today": "今天", "sky": "天气", "brief": "盘前简报", "watch_close": "自选（收盘）", "replay": "自选回放",
