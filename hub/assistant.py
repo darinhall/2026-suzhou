@@ -130,8 +130,9 @@ class Assistant:
         """一次"表态"：先合成语音（板子这时一直是"想一想"），再同时发 卡片 + 动作 + 语音。hold 秒内模式循环不覆盖这张卡。"""
         pcm = await self._tts(say) if say else b""
         if face:
+            from brain import fontsafe
             self.engine.hold(hold)
-            msg = {"t": "face", "state": face["state"], "card": face["card"]}
+            msg = {"t": "face", "state": face["state"], "card": fontsafe.card(face["card"])}   # 板子字体里没有的字换掉，不留空白
             self.engine.last_face = msg
             await self.bc(msg)
         if gesture:

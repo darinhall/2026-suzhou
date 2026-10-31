@@ -36,7 +36,7 @@ def _card(base: dict, closes: list[float], pct: float, alert: Alert, vol_ratio) 
     card.update({"pct": round(pct, 2), "price": round(price, 2), "spark": [round(x, 2) for x in closes],
                  "high": round(max(card.get("high", price), price), 2), "low": round(min(card.get("low", price), price), 2),
                  "alert": True, "say": alert.say, "level": alert.level, "mode": "sample",
-                 "asof": "模拟异动", "legal": "模拟异动 · 基准价为最近收盘 · 不构成投资建议", "hint": "说「停止模拟」结束"})
+                 "asof": "模拟异动", "legal": "模拟异动 · 基准价为最近收盘 · 不构成投资建议", "hint": "说“停止模拟”结束"})
     if vol_ratio:
         card["vol_ratio"] = vol_ratio
     return card

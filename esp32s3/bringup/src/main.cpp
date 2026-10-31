@@ -55,7 +55,7 @@ static void restoreFace() {
 static int16_t *spkBuf = nullptr;
 static size_t spkN = 0, spkPos = 0, spkCap = 0;
 static bool spkOn = false, spkEnded = false, spkPlaying = false, spkUlaw = true;
-static float spkVol = 0.4f;   // 11-01：0.2 → 0.4（音量翻倍）
+static float spkVol = 0.6f;   // 11-01：0.2 → 0.4 → 0.6（用户要求）
 static const size_t SPK_PREROLL = 16000 * 4 / 10;
 static bool micStreaming = false;   // 正在边说边传
 
@@ -81,7 +81,7 @@ static void onMessage(JsonDocument &d) {
   if (!strcmp(t, "spk_start")) {   // 中枢要说话：准备收音频（边收边放）
     if (!spkBuf) { spkCap = 16000 * 20; spkBuf = (int16_t *)ps_malloc(spkCap * 2); }   // 最长 20 秒
     spkN = spkPos = 0; spkOn = spkBuf != nullptr; spkEnded = spkPlaying = false;
-    spkVol = d["vol"] | 0.4f;
+    spkVol = d["vol"] | 0.6f;
     spkUlaw = !strcmp(d["fmt"] | "ulaw", "ulaw");
     waitReplyUntil = 0;
     return;
