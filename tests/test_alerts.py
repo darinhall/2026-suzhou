@@ -20,7 +20,7 @@ def tick(pct, code="300750", name="宁德时代", closes=None, **kw):
     return Tick(code, name, pct, price, closes or [price, price], **kw)   # 默认最后 5 分钟没动：不算急涨急跌
 
 
-def watcher(pid="guardian"):
+def watcher(pid="guardian"):   # 用稳健型测阈值逻辑（3% 转头），和默认 standard 无关
     clk = Clock()
     return AlertWatcher(persona.load(pid), clock=clk), clk
 
