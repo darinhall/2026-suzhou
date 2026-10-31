@@ -29,6 +29,14 @@ static uint32_t lastTry = 0;
 static int tries = 0, wsFails = 0;
 static bool wsUp = false;
 
+#ifndef DB_AP_SSID
+#define DB_AP_SSID "DeskBot-Demo"     // 最后的退路：板子自己开一个热点，Mac 直接连它（不依赖场馆 Wi-Fi / 手机热点）
+#define DB_AP_PASS "deskbot1234"
+#endif
+static bool apMode = false;
+static bool linkUp() { return WiFi.status() == WL_CONNECTED || (apMode && WiFi.softAPgetStationNum() > 0); }
+
+
 // ---------- 日志 ----------
 struct LogItem { char lvl[6], code[24], msg[96]; uint32_t up; };
 static LogItem pend[16];
@@ -86,7 +94,9 @@ static void onWsEvent(WStype_t type, uint8_t *payload, size_t length) {
     case WStype_DISCONNECTED:
       if (wsUp) {
         wsUp = false;
-        log("warn", "WS_DOWN", "和中枢的连接断了，自动重连");
+        char m[96];
+        snprintf(m, sizeof m, "和中枢的连接断了，自动重连（WiFi %s，%d dBm，空闲堆 %u KB）", WiFi.status() == WL_CONNECTED ? "在线" : "已断", (int)WiFi.RSSI(), ESP.getFreeHeap() / 1024);
+        log("warn", "WS_DOWN", m);
       }
       wsUp = false;
       wsFails++;
@@ -107,14 +117,15 @@ static void startWs() {
   ws.begin(hubHost.c_str(), hubPort, hubPath.c_str());
   ws.onEvent(onWsEvent);
   ws.setReconnectInterval(2000);
-  ws.enableHeartbeat(15000, 4000, 2);
+  ws.enableHeartbeat(20000, 15000, 3);   // 弱信号下回包慢：15 秒内没收到 pong 才算一次失败，连续 3 次才断
   phase = Phase::Ws;
   wsFails = 0;
 }
 
 // 广播 {"t":"deskbot?"}，等回复；回复包的源 IP 就是中枢的地址
 static bool discoverOnce() {
-  const IPAddress targets[2] = {IPAddress((uint32_t)WiFi.localIP() | ~(uint32_t)WiFi.subnetMask()),   // 子网广播（有 VPN 的 Mac 上只有它能出去）
+  const bool viaAp = apMode && WiFi.status() != WL_CONNECTED;
+  const IPAddress targets[2] = {viaAp ? IPAddress((uint32_t)WiFi.softAPIP() | ~(uint32_t)WiFi.softAPSubnetMask()) : IPAddress((uint32_t)WiFi.localIP() | ~(uint32_t)WiFi.subnetMask()),   // 子网广播（有 VPN 的 Mac 上只有它能出去）
                                 IPAddress(255, 255, 255, 255)};
   for (const IPAddress &t : targets) {
     udp.beginPacket(t, DB_DISCOVERY_PORT);
@@ -150,6 +161,12 @@ static void startScan() {
 }
 
 static void joinBest(int n) {
+  for (int i = 0; i < n && i < 40; i++) {   // 调试：信号 > -50 dBm 的 AP，连 SSID 的原始字节一起打出来（热点名字对不上时看这个）
+    if (WiFi.RSSI(i) < -50) continue;
+    String ss = WiFi.SSID(i), hx;
+    for (size_t k = 0; k < ss.length() && k < 20; k++) { char b[4]; snprintf(b, sizeof b, "%02X", (uint8_t)ss[k]); hx += b; }
+    Serial.printf("[scan] ch%d %d dBm len=%u hex=%s\n", (int)WiFi.channel(i), (int)WiFi.RSSI(i), (unsigned)ss.length(), hx.c_str());
+  }
   // 配了备用热点（你自己的手机）且扫得到，就优先连它：现场 NAMI-guest 在 2.4 GHz 上又弱又不稳
   bool fbAvailable = false;
 #ifdef DB_WIFI_FB1_SSID
@@ -234,6 +251,7 @@ void begin(MessageCb cb) {
   prefs.begin("deskbot", false);
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);   // 不省电，换低延迟
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);   // 发射功率拉满：信号弱的地方，上行也是瓶颈
   WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);          // 现场同一个 SSID 有很多个 AP：扫完所有信道，挑信号最强的，
   WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);      // 而不是连上第一个扫到的（可能是远处那个，连得慢甚至连不上）
   WiFi.setAutoReconnect(true);
@@ -249,7 +267,15 @@ void loop() {
     if (n != WIFI_SCAN_RUNNING) { scanning = false; lastTry = now; joinBest(n < 0 ? 0 : n); }
   }
 
-  if (WiFi.status() != WL_CONNECTED) {
+  if (!apMode && now > 45000 && WiFi.status() != WL_CONNECTED) {   // 开机 45 秒还没连上任何 Wi-Fi：自己开热点
+    apMode = true;
+    WiFi.mode(WIFI_AP_STA);
+    WiFi.softAP(DB_AP_SSID, DB_AP_PASS, 6, 0, 4);
+    Serial.printf("[wifi] 没连上任何 Wi-Fi，板子自己开了热点 %s（密码 %s），把 Mac 连上去\n", DB_AP_SSID, DB_AP_PASS);
+    log("warn", "WIFI_AP_ON", "没连上任何 Wi-Fi，已开热点 " DB_AP_SSID "：Mac 连它，中枢在 192.168.4.2");
+  }
+
+  if (!linkUp()) {
     if (phase != Phase::Wifi) {
       phase = Phase::Wifi;
       wsUp = false;
@@ -261,7 +287,7 @@ void loop() {
       lastLog = now;
       Serial.printf("[wifi] 状态 %d（1=没找到 4=连接失败 6=断开）\n", (int)WiFi.status());
     }
-    if (now - lastTry > 12000) {   // 12 秒还没连上就重来一次
+    if (now - lastTry > (apMode ? 40000 : 12000)) {   // 12 秒还没连上就重来一次（开了自己的热点后放慢：扫描会打断热点上的客户端）
       lastTry = now;
       WiFi.disconnect();
       if (!scanning) startScan();
@@ -273,8 +299,12 @@ void loop() {
     phase = Phase::Discover;
     tries = 0;
     lastTry = 0;
-    Serial.printf("[wifi] 已连接 · IP %s · 信号 %d dBm · 网关 %s\n", WiFi.localIP().toString().c_str(), WiFi.RSSI(), WiFi.gatewayIP().toString().c_str());
-    { char m[80]; snprintf(m, sizeof m, "WiFi 已连接 IP %s，信号 %d dBm", WiFi.localIP().toString().c_str(), WiFi.RSSI()); log("info", "WIFI_OK", m); }
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.printf("[wifi] 已连接 · IP %s · 信号 %d dBm · 网关 %s\n", WiFi.localIP().toString().c_str(), WiFi.RSSI(), WiFi.gatewayIP().toString().c_str());
+      { char m[80]; snprintf(m, sizeof m, "WiFi 已连接 IP %s，信号 %d dBm", WiFi.localIP().toString().c_str(), WiFi.RSSI()); log("info", "WIFI_OK", m); }
+    } else {
+      Serial.println("[wifi] 热点上有客户端了（直连模式）");
+    }
     udp.begin(DB_DISCOVERY_PORT + 1);
     configTime(8 * 3600, 0, "ntp.aliyun.com", "pool.ntp.org");   // 老板键的时钟要用
   }
@@ -285,6 +315,10 @@ void loop() {
     if (discoverOnce()) {
       { char m[64]; snprintf(m, sizeof m, "发现中枢 %s:%u", hubHost.c_str(), hubPort); log("info", "HUB_FOUND", m); }
       prefs.putString("hub", hubHost);
+      startWs();
+    } else if (tries == 3 && apMode && WiFi.status() != WL_CONNECTED) {
+      hubHost = "192.168.4.2";   // 板子自己的热点里，第一个连上来的客户端就是 192.168.4.2（Mac）
+      Serial.println("[hub] 直连模式：直接试 192.168.4.2");
       startWs();
     } else if (tries == 5) {
       const String saved = prefs.getString("hub", "");

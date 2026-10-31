@@ -3,3 +3,4 @@ data/cache/
 esp32s3/bringup/fonts.bin
 config/network_local.json
 hub/profile.json
+config/network_local.json*
