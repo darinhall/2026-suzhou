@@ -107,8 +107,36 @@ def _watchlist(intent: Intent, watch_codes, refuse: bool = False) -> dict:
     return _reply(intent, facts, _msg(f"自选 · {_asof(day)}", facts, meta=f"PandaAI · {LEGAL}"), "nod", 1)
 
 
-def answer(intent: Intent, watch_codes) -> dict | None:
+_last = {"date": "未知", "at": 0.0}
+
+
+def _last_trade_date() -> str:
+    """最近交易日：10 分钟缓存（每个问题都去问一次要多花 1–2 秒）。"""
+    import time
+    if time.time() - _last["at"] > 600:
+        try:
+            from panda_client import PandaClient, login
+            login()
+            _last.update(date=PandaClient().last_trade_date() or "未知", at=time.time())
+        except BaseException:
+            pass
+    return _last["date"]
+
+
+def _agent(intent: Intent, log=print) -> dict | None:
+    """规则答不了的：大模型 + PandaAI MCP 工具（brain/agent.py）。不是对我说的 → None。"""
+    from brain import agent
+    d = agent.answer(intent.text, _last_trade_date(), log=log)
+    if not d or not d.get("for_me") or not d.get("say"):
+        return None
+    say = d["say"]
+    return _reply(intent, say, _msg(d.get("title") or "PandaAI 数据", say, meta=f"PandaAI 数据 · {LEGAL}"))
+
+
+def answer(intent: Intent, watch_codes, log=print) -> dict | None:
     k = intent.kind
+    if k in ("quote", "yesno") and intent.period_days > 1:   # 「最近一周 / 一个月」：要日线区间，交给 agent（period_return）
+        return _agent(intent, log)
     if k in ("quote", "yesno"):
         return _quote(intent)
     if k == "compare":
@@ -125,11 +153,5 @@ def answer(intent: Intent, watch_codes) -> dict | None:
                       "nod", 1, action="sim_start")
     if k == "sim_stop":
         return _reply(intent, "好，模拟结束。", None, "nod", 1, action="sim_stop")
-    if k == "explain":
-        return None   # TODO：拿上一次的指标让大模型解释
-    from brain import llm   # unknown：交给大模型判断是不是在跟我说话
-    d = llm.triage(intent.text)
-    if not d or not d.get("for_me") or not d.get("say"):
-        return None
-    say = str(d["say"])[:60]
-    return _reply(intent, say, {"state": "agent", "card": {"name": "DeskBot", "source": "问答", "say": say, "of": 1, "n": 1, "legal": False}})
+    # explain / unknown：大模型 + PandaAI 数据工具；它也负责判断是不是在跟我说话（背景闲聊 → None）
+    return _agent(intent, log)

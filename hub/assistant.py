@@ -56,7 +56,7 @@ class Assistant:
     def mic_start(self, ws, msg: dict) -> None:
         self.mic[ws] = bytearray()
         self.mic_fmt = str(msg.get("fmt", "s16le"))
-        self.engine.hold(25)   # 有人在跟它说话：自选滚动别把"在听 / 想一想"的表情盖掉
+        self.engine.hold(40)   # 有人在跟它说话：自选滚动别把"在听 / 想一想"的表情盖掉
 
     def mic_data(self, ws, data: bytes) -> None:
         buf = self.mic.get(ws)
