@@ -114,6 +114,46 @@ def _sector(intent: Intent) -> dict:
     return _reply(intent, say, _msg(f"{alias} · {r['name']}", body, meta=f"PandaAI · {code} · {LEGAL}"))
 
 
+def sector_movers(index_code: str) -> dict:
+    """行业指数成分股在最近一个交易日的涨跌，从高到低。成分来自 PandaAI get_index_weights，行情来自 get_stock_daily。"""
+    import panda_data
+    from panda_client import login
+    login()
+    last = _last_trade_date()
+    w = panda_data.get_index_weights(index_symbol=index_code, start_date=last, end_date=last)
+    if w is None or not len(w):   # 有的指数权重不是每天都有：取最近一期
+        import datetime as dt
+        start = (dt.datetime.strptime(last, "%Y%m%d") - dt.timedelta(days=40)).strftime("%Y%m%d")
+        w = panda_data.get_index_weights(index_symbol=index_code, start_date=start, end_date=last)
+        w = w[w["date"] == w["date"].max()] if w is not None and len(w) else w
+    if w is None or not len(w):
+        return {"error": f"{index_code} 没有成分股数据"}
+    syms = sorted(set(w["stock_symbol"].astype(str)))
+    df = panda_data.get_stock_daily(symbol=syms, start_date=last, end_date=last)
+    df = df[(df["pre_close"] > 0) & (df["trade_status"] == 0)] if "trade_status" in df.columns else df[df["pre_close"] > 0]
+    df = df.assign(pct=(df["close"] / df["pre_close"] - 1) * 100).sort_values("pct", ascending=False)
+    rows = [{"name": str(r["name"]), "code": str(r["symbol"])[:6], "pct": round(float(r["pct"]), 2)} for _, r in df.iterrows()]
+    return {"date": last, "n": len(syms), "rows": rows, "up": sum(1 for r in rows if r["pct"] > 0)}
+
+
+def _sector_top(intent: Intent, refuse: bool = False) -> dict:
+    alias, code, _ = intent.sector
+    m = sector_movers(code)
+    if "error" in m or not m["rows"]:
+        say = f"我不推荐个股。{alias}成分股的数据暂时没取到。" if refuse else f"{alias}成分股的数据暂时没取到。"
+        return _reply(intent, say, _msg(alias, m.get("error", "没有数据")), "shake" if refuse else None, 2 if refuse else 1)
+    d = m["date"]
+    when = f"{int(d[4:6])}月{int(d[6:])}日"
+    top = m["rows"][:3]
+    tops = "、".join(f"{r['name']}{_ud(r['pct'])} {_pct(r['pct'])}" for r in top)
+    facts = f"{alias}指数 {m['n']} 只成分股，{when}有 {m['up']} 只上涨，涨得最多的是{tops}。"
+    body = f"{when} {m['up']}/{m['n']} 只上涨。领涨：" + "，".join(f"{r['name']} {'+' if r['pct'] >= 0 else '-'}{_pct(r['pct'])}" for r in top)
+    if refuse:
+        return _reply(intent, "我不推荐个股，只讲数据。" + facts, _msg(f"不做推荐 · {alias}", body, hint="只是数据，不是买卖建议", meta=f"PandaAI · {code} 成分股 · {LEGAL}"),
+                      "shake", 2)
+    return _reply(intent, facts, _msg(f"{alias} · 成分股", body, meta=f"PandaAI · {code} 成分股 · {LEGAL}"))
+
+
 def _watchlist(intent: Intent, watch_codes, refuse: bool = False) -> dict:
     from watch import top_movers
     day = _day(watch_codes)
@@ -163,10 +203,12 @@ def answer(intent: Intent, watch_codes, log=print) -> dict | None:
         return _overview(intent, watch_codes)
     if k == "sector":
         return _sector(intent)
+    if k == "sector_top":
+        return _sector_top(intent)
     if k == "watchlist":
         return _watchlist(intent, watch_codes)
-    if k == "advice":
-        return _watchlist(intent, watch_codes, refuse=True)
+    if k == "advice":   # 不推荐；说到了行业就讲行业成分股的数据，没说就讲自选的
+        return _sector_top(intent, refuse=True) if intent.sector else _watchlist(intent, watch_codes, refuse=True)
     if k == "sim_start":
         return _reply(intent, "好，开始行情异动模拟。我替你盯着自选股，有异动就转头提醒你。",
                       _msg("行情异动模拟", "我替你盯着自选股，有异动就转头提醒你。", hint="说“停止模拟”结束", meta="模拟数据 · " + LEGAL),

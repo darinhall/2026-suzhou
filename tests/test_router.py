@@ -82,3 +82,13 @@ def test_stock_suffix_never_swapped():
     assert series.stock_suffix_error("300750.SZ") is None
     assert "不要自己换后缀" in series.stock_suffix_error("000933.SH")   # 000 开头是深市股票；800医卫指数要走指数目录
     assert series.stock_suffix_error("600519.SZ")
+
+
+def test_this_sector_refers_to_previous_sector():
+    r = router.Router()
+    assert r.route("帮我看看食品饮料板块。").kind == "sector"
+    it = r.route("这个板块有没有什么值得推荐的个股？")   # 11-01 现场原话
+    assert it.kind == "advice" and it.sector[1] == "000807.SH"
+    it = r.route("这个板块里哪只涨得最好")
+    assert it.kind == "sector_top" and it.sector[1] == "000807.SH"
+    assert r.route("今天推荐什么股票").sector == ()   # 没提板块：还是自选的数据
