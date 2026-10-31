@@ -1,0 +1,24 @@
+[project]
+name = "deskbot"
+version = "0.2.0"
+description = "DeskBot 桌面盯盘搭子：中枢 + 大脑（PandaAI 数据、语音问答、点头 / 摇头）"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "websockets>=13",
+    "panda-data==1.0.5",
+    "pandas",
+    "numpy",
+    "openai>=1.40",     # 方舟（豆包）和 Ollama 都走 OpenAI 兼容接口
+    "pypinyin",         # 股票名拼音纠错
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+voice = ["mlx-whisper", "opencc-python-reimplemented"]   # 只在 Mac 上装（T09）
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "data", "hub"]
