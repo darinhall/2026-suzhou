@@ -20,6 +20,7 @@ static WebSocketsClient ws;
 static WiFiUDP udp;
 static Preferences prefs;
 static MessageCb onMsg = nullptr;
+static BinaryCb onBin = nullptr;
 
 enum class Phase { Wifi, Discover, Ws };
 static Phase phase = Phase::Wifi;
@@ -113,6 +114,9 @@ static void onWsEvent(WStype_t type, uint8_t *payload, size_t length) {
       wsFails++;
       // 令牌错误连续 5 次会被中枢锁 30 秒：失败几次之后放慢重连，别去撞
       if (wsFails == 3) ws.setReconnectInterval(31000);
+      break;
+    case WStype_BIN:   // 中枢下发的音频（spk_start 和 spk_end 之间）
+      if (onBin) onBin(payload, length);
       break;
     case WStype_TEXT: {
       JsonDocument d;
@@ -370,6 +374,13 @@ void loop() {
 }
 
 bool connected() { return wsUp; }
+
+void onBinary(BinaryCb cb) { onBin = cb; }
+
+bool sendBin(const uint8_t *data, size_t n) {
+  if (!wsUp) return false;
+  return ws.sendBIN(data, n);
+}
 
 void send(const JsonDocument &d) {
   if (!wsUp) return;
