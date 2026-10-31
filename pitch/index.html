@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>招财机器人 路演</title>
+<!--
+  招财机器人 路演 slides：浏览器直接打开这个文件。
+  ← → / 空格 / 点击 = 翻页 · F = 全屏 · N = 演讲备注 · 打印（Ctrl/⌘+P）= 每页一张的 PDF
+  字体只用系统自带的（苹方 / 微软雅黑 / 楷体），不连 Google Fonts：国内网络可能打不开，会卡住页面。
+  画布 1920×1080，按窗口大小等比缩放。图片在 pitch/assets/。
+-->
+<style>
+  :root {
+    --ink: #161616; --paper: #F4F1EA; --card: #FBF9F4; --rule: #E2DCCF; --muted: #5F5F5C; --faint: #8A857A;
+    --dark-card: #24221F; --on-dark: #C9C4B8; --on-dark-faint: #A3A39E;
+    --red: #D7262B; --gold: #F2B33D;
+    --sans: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Hiragino Sans GB", "Source Han Sans SC", sans-serif;
+    --brush: "STXingkai", "Xingkai SC", "KaiTi", "STKaiti", "Kaiti SC", serif;
+    --mono: "SF Mono", "Cascadia Mono", "Consolas", "Menlo", monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: #0E0E0E; overflow: hidden; }
+  body { font-family: var(--sans); }
+  #stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: center center; }
+  section.slide { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; visibility: hidden; opacity: 0; transition: opacity .35s ease; }
+  section.slide.active { visibility: visible; opacity: 1; }
+  section.slide aside { display: none; }
+  .mono { font-family: var(--mono); }
+  .brush { font-family: var(--brush); }
+  .eyebrow { font-family: var(--sans); font-size: 24px; font-weight: 500; letter-spacing: 3px; }
+  .footer { position: absolute; bottom: 64px; font-size: 24px; }
+  .pageno { position: absolute; right: 128px; bottom: 64px; width: 200px; text-align: right; font-family: var(--mono); font-size: 24px; }
+  .mark { position: absolute; right: 128px; top: 40px; width: 84px; height: 70px; }
+  table.qa { width: 100%; border-collapse: collapse; font-size: 24px; color: var(--ink); }
+  table.qa th, table.qa td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; line-height: 1.4; }
+  table.qa th { font-weight: 700; border-bottom: 2px solid var(--ink); }
+  #notes { position: fixed; left: 0; right: 0; bottom: 0; max-height: 38vh; overflow: auto; padding: 16px 24px; background: rgba(20,20,20,.94); color: #EDE8DC;
+           font: 16px/1.6 var(--sans); white-space: pre-wrap; display: none; border-top: 2px solid var(--gold); }
+  #notes.on { display: block; }
+  #hint { position: fixed; right: 12px; bottom: 8px; color: #666; font: 12px var(--sans); }
+  @media print {
+    @page { size: 1920px 1080px; margin: 0; }
+    html, body { overflow: visible; height: auto; background: none; }
+    #stage { position: static; transform: none !important; width: 1920px; height: auto; }
+    section.slide { position: relative; visibility: visible; opacity: 1; page-break-after: always; break-after: page; }
+    #notes, #hint { display: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 招财熊猫：和真机屏幕上的脸同一套比例（esp32s3/bringup/src/ui.cpp）。panda-head = 小标志，panda-full = 举爪招财 + 项圈铜钱 -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <g id="panda-face">
+      <ellipse cx="144" cy="156" rx="56" ry="80" fill="#161616" transform="rotate(24 144 156)"/>
+      <ellipse cx="336" cy="156" rx="56" ry="80" fill="#161616" transform="rotate(-24 336 156)"/>
+      <ellipse cx="138" cy="256" rx="27" ry="12" fill="#F4B3AB"/>
+      <ellipse cx="342" cy="256" rx="27" ry="12" fill="#F4B3AB"/>
+      <ellipse cx="240" cy="231" rx="16" ry="11" fill="#161616"/>
+    </g>
+    <g id="panda-eyes-open">
+      <rect x="125" y="104" width="54" height="92" rx="27" fill="#F7F4EC"/>
+      <rect x="301" y="104" width="54" height="92" rx="27" fill="#F7F4EC"/>
+      <circle cx="156" cy="142" r="12" fill="#161616"/>
+      <circle cx="332" cy="142" r="12" fill="#161616"/>
+      <path d="M224 243 A8 8 0 0 0 240 243 A8 8 0 0 0 256 243" fill="none" stroke="#161616" stroke-width="5" stroke-linecap="round"/>
+    </g>
+    <g id="panda-eyes-happy">
+      <path d="M127 170 A26 26 0 0 1 179 170" fill="none" stroke="#F7F4EC" stroke-width="11" stroke-linecap="round"/>
+      <path d="M301 170 A26 26 0 0 1 353 170" fill="none" stroke="#F7F4EC" stroke-width="11" stroke-linecap="round"/>
+      <ellipse cx="240" cy="254" rx="13" ry="10" fill="#161616"/>
+      <ellipse cx="240" cy="259" rx="8" ry="5" fill="#E0605A"/>
+    </g>
+    <g id="panda-collar-paw">
+      <rect x="140" y="298" width="200" height="28" rx="14" fill="#D7262B"/>
+      <circle cx="240" cy="338" r="28" fill="#F2B33D" stroke="#B7791F" stroke-width="5"/>
+      <rect x="231" y="329" width="18" height="18" fill="#A81C20"/>
+      <line x1="372" y1="336" x2="410" y2="290" stroke="#F4F1EA" stroke-width="66" stroke-linecap="round"/>
+      <line x1="372" y1="336" x2="410" y2="290" stroke="#161616" stroke-width="56" stroke-linecap="round"/>
+      <circle cx="412" cy="268" r="38" fill="#161616" stroke="#F4F1EA" stroke-width="5"/>
+      <ellipse cx="412" cy="278" rx="15" ry="13" fill="#F2A7A0"/>
+      <circle cx="391" cy="256" r="8" fill="#F2A7A0"/><circle cx="404" cy="244" r="8" fill="#F2A7A0"/>
+      <circle cx="420" cy="244" r="8" fill="#F2A7A0"/><circle cx="433" cy="256" r="8" fill="#F2A7A0"/>
+    </g>
+  </defs>
+  <symbol id="panda-head" viewBox="30 -32 420 350">
+    <circle cx="86" cy="22" r="50" fill="#161616"/><circle cx="394" cy="22" r="50" fill="#161616"/>
+    <ellipse cx="240" cy="165" rx="205" ry="150" fill="#FBF9F4" stroke="#161616" stroke-width="14"/>
+    <use href="#panda-face"/><use href="#panda-eyes-open"/>
+  </symbol>
+  <symbol id="panda-full" viewBox="0 -40 480 510">
+    <circle cx="86" cy="22" r="50" fill="#161616" stroke="#F4F1EA" stroke-width="6"/><circle cx="394" cy="22" r="50" fill="#161616" stroke="#F4F1EA" stroke-width="6"/>
+    <ellipse cx="240" cy="165" rx="205" ry="150" fill="#F4F1EA" stroke="#161616" stroke-width="8"/>
+    <use href="#panda-face"/><use href="#panda-eyes-open"/><use href="#panda-collar-paw"/>
+  </symbol>
+  <symbol id="panda-full-happy" viewBox="0 -40 480 510">
+    <circle cx="86" cy="22" r="50" fill="#161616" stroke="#F4F1EA" stroke-width="6"/><circle cx="394" cy="22" r="50" fill="#161616" stroke="#F4F1EA" stroke-width="6"/>
+    <ellipse cx="240" cy="165" rx="205" ry="150" fill="#F4F1EA" stroke="#161616" stroke-width="8"/>
+    <use href="#panda-face"/><use href="#panda-eyes-happy"/><use href="#panda-collar-paw"/>
+  </symbol>
+</svg>
+
+<div id="stage">
+
+<!-- ================= 1 项目简介 ================= -->
+<section class="slide" style="background:var(--ink);color:var(--paper);padding:128px;display:grid;grid-template-columns:1fr 600px;gap:64px;align-items:center">
+  <div style="display:flex;flex-direction:column;gap:32px">
+    <p class="eyebrow" style="color:var(--on-dark-faint)">2026 苏客松 · AI+生活办公 × PandaAI 赛道</p>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <h1 class="brush" style="font-size:168px;font-weight:400;line-height:1.05;color:var(--gold)">招财机器人</h1>
+      <h2 style="font-size:56px;font-weight:500;line-height:1.2">坐在工位上的 AI 盯盘熊猫</h2>
+    </div>
+    <p style="font-size:32px;line-height:1.5;color:var(--on-dark)">开口问，它用 PandaAI 真实数据当场回答，点头或摇头；<br>不用盯盘，它替你盯，有异动就转头叫你。</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+      <div style="display:flex;flex-direction:column;gap:8px;padding:24px;background:var(--dark-card);border-radius:20px">
+        <h3 style="font-size:36px;font-weight:700;color:var(--gold)">会说话</h3>
+        <p style="font-size:24px;line-height:1.4;color:var(--on-dark)">语音问答：个股、板块、龙虎榜、港股</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;padding:24px;background:var(--dark-card);border-radius:20px">
+        <h3 style="font-size:36px;font-weight:700;color:var(--gold)">会盯盘</h3>
+        <p style="font-size:24px;line-height:1.4;color:var(--on-dark)">有异动，转头看你、开口叫你</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;padding:24px;background:var(--dark-card);border-radius:20px">
+        <h3 style="font-size:36px;font-weight:700;color:var(--gold)">守底线</h3>
+        <p style="font-size:24px;line-height:1.4;color:var(--on-dark)">问买卖建议，它摇头，只讲数据</p>
+      </div>
+    </div>
+  </div>
+  <div style="position:relative;width:600px;height:810px">
+    <img src="assets/device.jpg" alt="招财机器人实物：白色机身、圆形头部，屏幕显示 PandaAI 行情" style="position:absolute;left:80px;top:0;width:520px;height:700px;object-fit:cover;border-radius:28px">
+    <svg style="position:absolute;left:0;top:480px;width:310px;height:329px" role="img" aria-label="招财熊猫吉祥物：举起一只爪子招财，红项圈上挂着一枚铜钱"><use href="#panda-full"/></svg>
+  </div>
+  <aside>（约 30 秒）
+大家好，我们做的是招财机器人：一只坐在你工位旁边的招财熊猫。
+上班想看行情，要切窗口、被通知轰炸、数字还看不懂。招财机器人只做三件事：
+一、会说话：你开口问，它用 PandaAI 的真实数据当场回答，屏幕上一张答案卡，再点头或摇头表态；
+二、会盯盘：你不用盯，它替你盯，有异动就转头看你、开口叫你；
+三、守底线：问它买什么，它摇头——只讲数据，不做买卖建议。
+它的脸就是一只招财熊猫：会眨眼、会笑，头怎么动，脸就怎么动。
+关键词：招财 zhāocái · 盯盘 dīng pán · 熊猫 xióngmāo</aside>
+</section>
+
+<!-- ================= 2 为什么是实体：提醒阶梯 ================= -->
+<section class="slide" style="background:var(--paper);color:var(--ink);padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+  <svg class="mark" role="img" aria-label="招财机器人标志"><use href="#panda-head"/></svg>
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <p class="eyebrow" style="color:var(--red)">为什么是一只实体熊猫</p>
+    <h2 style="font-size:72px;font-weight:700;line-height:1.15">它不发通知，它转头看你</h2>
+    <p style="font-size:32px;line-height:1.4;color:var(--muted)">人的余光对“动”最敏感：屏幕角落的行情小组件等于不存在，转过头来的熊猫你一定会看见。</p>
+  </div>
+  <div style="display:flex;flex-direction:row;gap:40px">
+    <div style="width:1040px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="display:flex;flex-direction:column;gap:8px;padding:28px;background:var(--card);border:2px solid var(--rule);border-radius:20px">
+        <p class="mono" style="font-size:40px;line-height:1;color:var(--faint)">0</p>
+        <h3 style="font-size:40px;font-weight:700;line-height:1.2">安静</h3>
+        <p style="font-size:24px;line-height:1.4;color:var(--muted)">普通波动：熊猫眨眨眼，数字照常更新</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;padding:28px;background:var(--card);border:2px solid var(--rule);border-radius:20px">
+        <p class="mono" style="font-size:40px;line-height:1;color:var(--faint)">1</p>
+        <h3 style="font-size:40px;font-weight:700;line-height:1.2">瞥一眼</h3>
+        <p style="font-size:24px;line-height:1.4;color:var(--muted)">接近阈值：轻轻转一下头</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;padding:28px;background:var(--ink);border-radius:20px">
+        <p class="mono" style="font-size:40px;line-height:1;color:var(--gold)">2</p>
+        <h3 style="font-size:40px;font-weight:700;line-height:1.2;color:var(--paper)">转头看你</h3>
+        <p style="font-size:24px;line-height:1.4;color:var(--on-dark)">触及 ±2%：转头 + 整屏异动卡 + 念出来</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;padding:28px;background:var(--red);border-radius:20px">
+        <p class="mono" style="font-size:40px;line-height:1;color:#F9DCA0">3</p>
+        <h3 style="font-size:40px;font-weight:700;line-height:1.2;color:#FBF9F4">叫你</h3>
+        <p style="font-size:24px;line-height:1.4;color:#FBE9E6">5 分钟急涨急跌、放量：再点头或摇头</p>
+      </div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:space-between;gap:24px;padding:36px;background:var(--card);border:2px solid var(--rule);border-radius:24px">
+      <div style="display:flex;flex-direction:row;align-items:flex-end;gap:12px">
+        <p class="mono" style="font-size:160px;line-height:0.85">3</p>
+        <p style="font-size:56px;font-weight:700;line-height:1">次</p>
+      </div>
+      <p style="font-size:30px;font-weight:500;line-height:1.4">PandaAI 10-30 真实分时回放：一整天它只转头 3 次，不重要的事不打扰你。</p>
+      <p style="font-size:24px;line-height:1.4;padding:12px 20px;background:var(--ink);color:var(--gold);border-radius:999px;text-align:center">现场演示：说“行情异动模拟”</p>
+    </div>
+  </div>
+  <p class="footer" style="left:128px;width:1300px;color:var(--faint)">阈值由交易人格决定（brain/personas.json）：稳健型少打扰，短线型更敏感</p>
+  <p class="pageno" style="color:var(--faint)">2 / 5</p>
+  <aside>（约 40 秒）
+为什么一定要做成实体，而不是一个 App？因为人对余光里的“动”最敏感。你专心工作时，屏幕角落的股票小组件等于不存在；但一只熊猫转过头来看你，你一定会注意到。
+所以它不发通知，按重要程度“动”：普通波动只眨眨眼；接近阈值，轻轻转一下头；触及正负 2%，转头看你，整屏异动卡，并且念出来；5 分钟急涨急跌或者放量，再加点头或摇头。
+我们用 PandaAI 10 月 30 日的真实分时数据回放测过：一整天它只转头 3 次，不重要的事不打扰你。
+现场演示：对它说“行情异动模拟”。周末没有行情，它用最近一个交易日的真实收盘做基准，演一遍完整的提醒阶梯。
+关键词：余光 yúguāng · 提醒阶梯 tíxǐng jiētī · 阈值 yùzhí · 异动 yìdòng</aside>
+</section>
+
+<!-- ================= 3 语音问答 ================= -->
+<section class="slide" style="background:var(--paper);color:var(--ink);padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+  <svg class="mark" role="img" aria-label="招财机器人标志"><use href="#panda-head"/></svg>
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <p class="eyebrow" style="color:var(--red)">核心功能 · 语音问答</p>
+    <h2 style="font-size:72px;font-weight:700;line-height:1.15">开口问，PandaAI 真实数据当场回答</h2>
+  </div>
+  <div style="display:flex;flex-direction:row;gap:48px;align-items:flex-start">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <!-- 真机答案卡（480×320 屏放大 1.6 倍）：宁德时代 10-30 的真实分时 vs 创业板指 -->
+      <div style="background:var(--ink);padding:12px;border-radius:32px;align-self:flex-start;width:792px">
+        <div style="position:relative;width:768px;height:512px;background:#F1E8D2;border-radius:22px;overflow:hidden">
+          <svg style="position:absolute;left:20px;top:14px;width:48px;height:40px" role="img" aria-label="熊猫小头像"><use href="#panda-head"/></svg>
+          <p style="position:absolute;left:78px;top:16px;width:480px;font-size:24px;color:#625A47">“宁德时代今天涨了吗”</p>
+          <p style="position:absolute;left:640px;top:12px;width:104px;font-size:24px;font-weight:700;text-align:center;padding:2px 0;background:#FF5B14;color:#1A1710;border-radius:999px">点头</p>
+          <p style="position:absolute;left:24px;top:70px;width:300px;font-size:44px;font-weight:700;color:#1A1710">涨了</p>
+          <p class="mono" style="position:absolute;left:24px;top:138px;width:320px;font-size:54px;font-weight:700;color:#BD241A;white-space:nowrap">▲+1.68%</p>
+          <p style="position:absolute;left:24px;top:220px;width:330px;font-size:24px;color:#625A47">300750 · 宁德时代</p>
+          <svg style="position:absolute;left:354px;top:70px" width="390" height="166" viewBox="0 0 390 166" role="img" aria-label="10-30 分时：宁德时代全天在昨收之上，收涨 1.68%；创业板指全天在昨收之下，收跌 4.13%">
+            <line x1="0" y1="76.2" x2="390" y2="76.2" stroke="#8D846C" stroke-width="2" stroke-dasharray="6 6"/>
+            <polyline fill="none" stroke="#8D846C" stroke-width="3" stroke-linejoin="round" points="0.0,123.0 8.3,130.8 16.6,133.4 24.9,141.7 33.2,143.2 41.5,122.8 49.8,130.6 58.1,124.0 66.4,107.2 74.7,105.3 83.0,105.3 91.3,118.7 99.6,122.8 107.9,123.4 116.2,127.2 124.5,127.9 132.8,128.1 141.1,128.5 149.4,127.2 157.7,130.8 166.0,136.4 174.3,133.8 182.6,123.2 190.9,101.3 199.1,85.1 207.4,84.7 215.7,99.8 224.0,102.3 232.3,107.9 240.6,107.2 248.9,108.9 257.2,108.9 265.5,114.0 273.8,113.4 282.1,117.0 290.4,120.4 298.7,128.5 307.0,130.2 315.3,136.1 323.6,132.5 331.9,140.6 340.2,139.6 348.5,151.5 356.8,153.4 365.1,143.4 373.4,152.7 381.7,157.2 390.0,164.0"/>
+            <polyline fill="none" stroke="#BD241A" stroke-width="5" stroke-linejoin="round" points="0.0,49.4 8.3,43.5 16.6,54.5 24.9,49.8 33.2,25.8 41.5,33.7 49.8,42.0 58.1,41.3 66.4,35.2 74.7,37.5 83.0,47.5 91.3,47.5 99.6,47.7 107.9,44.5 116.2,46.6 124.5,44.1 132.8,43.7 141.1,40.3 149.4,39.6 157.7,44.9 166.0,47.3 174.3,43.5 182.6,38.4 190.9,30.1 199.1,22.8 207.4,2.0 215.7,16.0 224.0,20.5 232.3,24.3 240.6,20.3 248.9,21.1 257.2,21.3 265.5,24.3 273.8,25.2 282.1,27.3 290.4,33.0 298.7,39.4 307.0,40.7 315.3,40.3 323.6,34.5 331.9,39.6 340.2,35.0 348.5,40.7 356.8,37.1 365.1,31.6 373.4,36.0 381.7,33.3 390.0,40.5"/>
+          </svg>
+          <p style="position:absolute;left:354px;top:240px;width:390px;font-size:24px;color:#625A47"><span style="color:#BD241A">━ 宁德时代</span>　━ 创业板指</p>
+          <div style="position:absolute;left:24px;top:282px;width:720px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">
+            <div><p style="font-size:24px;color:#625A47">收盘</p><p class="mono" style="font-size:28px;color:#1A1710">232.92</p></div>
+            <div><p style="font-size:24px;color:#625A47">振幅</p><p class="mono" style="font-size:28px;color:#1A1710">4.2%</p></div>
+            <div><p style="font-size:24px;color:#625A47">量比</p><p class="mono" style="font-size:28px;color:#1A1710">0.8</p></div>
+            <div><p style="font-size:24px;color:#625A47">成交额</p><p class="mono" style="font-size:28px;color:#1A1710">103亿</p></div>
+          </div>
+          <p style="position:absolute;left:16px;top:368px;width:736px;font-size:24px;line-height:1.4;padding:12px 22px;background:#1B1810;color:#F4ECD8;border-radius:20px">涨了。宁德时代10月30日收盘报 232.92 元，涨 1.68%，量比 0.8。</p>
+          <p style="position:absolute;left:24px;top:470px;width:400px;font-size:24px;color:#625A47">PandaAI · 10-30 收盘</p>
+          <p style="position:absolute;left:444px;top:470px;width:300px;font-size:24px;text-align:right;color:#625A47">不构成投资建议</p>
+        </div>
+      </div>
+      <p style="font-size:24px;color:var(--muted)">真机屏幕上的答案卡：结论 · 大数字 · 分时走势 · 指标 · 字幕（喇叭同时念出来）</p>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:16px">
+      <table class="qa">
+        <tr><th style="width:38%">你问</th><th style="width:44%">它答（PandaAI 真实数据）</th><th style="width:18%">动作</th></tr>
+        <tr><td>宁德时代今天涨了吗</td><td>涨了，收涨 1.68%</td><td>点头</td></tr>
+        <tr><td>生物医药现在怎么样</td><td>指数涨 0.25%，近 5 日跌 2.98%</td><td>—</td></tr>
+        <tr><td>宁德时代属于哪些概念</td><td>76 个：麒麟电池、宁组合…</td><td>—</td></tr>
+        <tr><td>昨天龙虎榜成交额最大</td><td>海洋王，126.04 亿</td><td>—</td></tr>
+        <tr><td>今天推荐什么股票</td><td>不荐股，只讲自选数据</td><td>摇头</td></tr>
+        <tr><td>把工商银行加到自选</td><td>已加入，现在 6 只</td><td>点头</td></tr>
+      </table>
+      <p style="font-size:24px;line-height:1.5;color:var(--muted)">常见问题约 1 秒出数据；其余问题由大模型调用 PandaAI MCP 查，背景闲聊自动忽略。</p>
+    </div>
+  </div>
+  <p class="footer" style="left:128px;width:1300px;color:var(--faint)">Python 算数，大模型只解释：说出来的每个数字都要在 PandaAI 返回的数据里找得到</p>
+  <p class="pageno" style="color:var(--faint)">3 / 5</p>
+  <aside>（约 60 秒，边讲边现场演示）
+现场演示，按顺序问：
+1. “宁德时代今天涨了吗？”——它点头，屏幕上是这张答案卡：涨了，收涨 1.68%，红线是宁德时代当天的分时，灰线是创业板指，喇叭同时念出来。
+2. “生物医药现在怎么样？”——行业指数，最新一天和最近 5 个交易日。
+3. “宁德时代属于哪些概念？”——这是 PandaAI MCP 查的，76 个概念。
+4. “今天推荐什么股票？”——它摇头：不推荐个股，只讲数据。
+5. “把工商银行加到自选”——点头，自选多一只。
+说话时熊猫在听，说完它在想，并且把听到的话显示出来；回答完回到熊猫脸。
+数据：周末没有行情，所以都是 10 月 30 日（上周五）收盘的真实数据，卡片上写明了日期。
+原则：Python 算数，大模型只解释。说出来的每个数字都要在 PandaAI 返回的数据里找得到，对不上就不说数字。</aside>
+</section>
+
+<!-- ================= 4 怎么做的 · 完成度 ================= -->
+<section class="slide" style="background:var(--paper);color:var(--ink);padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+  <svg class="mark" role="img" aria-label="招财机器人标志"><use href="#panda-head"/></svg>
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <p class="eyebrow" style="color:var(--red)">怎么做的 · 完成度</p>
+    <h2 style="font-size:72px;font-weight:700;line-height:1.15">设备直连云端，数据来自 PandaAI</h2>
+  </div>
+  <div style="display:flex;flex-direction:row;gap:16px;align-items:center">
+    <div style="flex:1;display:flex;flex-direction:column;gap:8px;padding:28px;background:var(--card);border:2px solid var(--rule);border-radius:20px">
+      <h3 style="font-size:32px;font-weight:700">招财机器人</h3>
+      <p style="font-size:24px;line-height:1.4;color:var(--muted)">ESP32-S3 · 3.5″ 屏 · 2 个舵机<br>麦克风 + 喇叭：边说边传、边收边放</p>
+    </div>
+    <svg width="56" height="28" viewBox="0 0 56 28" aria-hidden="true"><path d="M0 9 H34 V0 L56 14 L34 28 V19 H0 Z" fill="#161616"/></svg>
+    <div style="flex:1;display:flex;flex-direction:column;gap:8px;padding:28px;background:var(--ink);border-radius:20px">
+      <h3 style="font-size:32px;font-weight:700;color:var(--paper)">云端中枢 · 腾讯云</h3>
+      <p style="font-size:24px;line-height:1.4;color:var(--on-dark)">HTTPS / WSS，不依赖电脑<br>听 → 懂 → 算 → 说 → 做</p>
+    </div>
+    <svg width="56" height="28" viewBox="0 0 56 28" aria-hidden="true"><path d="M0 9 H34 V0 L56 14 L34 28 V19 H0 Z" fill="#161616"/></svg>
+    <div style="flex:1;display:flex;flex-direction:column;gap:8px;padding:28px;background:var(--card);border:2px solid var(--rule);border-radius:20px">
+      <h3 style="font-size:32px;font-weight:700">PandaAI + 火山引擎</h3>
+      <p style="font-size:24px;line-height:1.4;color:var(--muted)">PandaAI SDK + MCP · 305 个接口<br>豆包语音 · DeepSeek V4.1</p>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
+    <div style="display:flex;flex-direction:column;gap:12px;padding:28px;background:var(--card);border:2px solid var(--rule);border-radius:20px">
+      <div style="display:flex;flex-direction:row;gap:12px;align-items:center">
+        <svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="16" fill="none" stroke="#D7262B" stroke-width="3"/><path d="M10 18 L16 24 L27 12" fill="none" stroke="#D7262B" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <h3 style="font-size:32px;font-weight:700">已完成，今天能现场演示</h3>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 32px">
+        <p style="font-size:24px;line-height:1.5">语音问答：识别 &lt;1 秒，数据约 1 秒</p>
+        <p style="font-size:24px;line-height:1.5">全市场 5,223 只 A 股 + 21 个行业板块</p>
+        <p style="font-size:24px;line-height:1.5">自由提问：大模型查 PandaAI MCP</p>
+        <p style="font-size:24px;line-height:1.5">主动提醒：提醒阶梯 + 行情异动模拟</p>
+        <p style="font-size:24px;line-height:1.5">招财熊猫表情，跟着舵机点头、摇头</p>
+        <p style="font-size:24px;line-height:1.5">语音增删自选 · 不荐股护栏</p>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;padding:28px;background:var(--ink);border-radius:20px">
+      <div style="display:flex;flex-direction:row;gap:12px;align-items:center">
+        <svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true"><path d="M18 3 A11 11 0 0 1 25 22 V26 H11 V22 A11 11 0 0 1 18 3 Z" fill="none" stroke="#F2B33D" stroke-width="3" stroke-linejoin="round"/><path d="M13 31 H23" stroke="#F2B33D" stroke-width="3" stroke-linecap="round"/></svg>
+        <h3 style="font-size:32px;font-weight:700;color:var(--paper)">下一步</h3>
+      </div>
+      <p style="font-size:24px;line-height:1.5;color:var(--on-dark)">交易人格：提醒因人而异</p>
+      <p style="font-size:24px;line-height:1.5;color:var(--on-dark)">交易日盘中实时行情</p>
+      <p style="font-size:24px;line-height:1.5;color:var(--on-dark)">用资金流向解释“为什么”</p>
+    </div>
+  </div>
+  <p class="pageno" style="color:var(--faint)">4 / 5</p>
+  <aside>（约 40 秒）
+怎么做的：招财机器人是 ESP32-S3 加 3.5 寸屏、两个舵机、麦克风和喇叭，直接连腾讯云上的中枢，不依赖电脑。
+你说话时，它边说边把声音传上去；云端用豆包语音识别听懂，Python 用 PandaAI 的数据算出答案，再合成语音，边下载边播放。
+数据有两条路：常见问题走 PandaAI 的 Python SDK，一秒左右；其余问题交给 DeepSeek，让它调用 PandaAI 的 MCP，305 个数据接口都能用，说出来的数字逐个核对。
+今天能现场演示的：语音问答、全市场 A 股和 21 个行业、自由提问、提醒阶梯和异动模拟、跟着舵机动的招财熊猫、语音增删自选和不荐股护栏。
+下一步：按交易人格调整提醒、交易日的盘中实时行情、用资金流向解释“为什么”。
+关键词：云端 yúnduān · 中枢 zhōngshū · 语音识别 yǔyīn shíbié · 护栏 hùlán</aside>
+</section>
+
+<!-- ================= 5 团队 ================= -->
+<section class="slide" style="background:var(--ink);color:var(--paper);padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <p class="eyebrow" style="color:var(--gold)">团队</p>
+    <h2 style="font-size:72px;font-weight:700;line-height:1.15">软硬件 + 数据，两个人做出一只会说话的熊猫</h2>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 360px;gap:32px;align-items:end">
+    <div style="display:flex;flex-direction:column;gap:20px;padding:28px;background:var(--dark-card);border-radius:24px">
+      <img src="assets/shi-pu.jpg" alt="石璞" style="width:100%;height:300px;object-fit:cover;object-position:30% 40%;border-radius:16px">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <h3 style="font-size:44px;font-weight:700;line-height:1.2">石璞</h3>
+        <p style="font-size:26px;line-height:1.5;color:var(--on-dark)">前谷歌员工，15 年工作经验，精通软硬件开发，连续创业者。</p>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:20px;padding:28px;background:var(--dark-card);border-radius:24px">
+      <img src="assets/darin.jpg" alt="Darin Hall（杜汉文）" style="width:100%;height:300px;object-fit:cover;object-position:50% 22%;border-radius:16px">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <h3 style="font-size:44px;font-weight:700;line-height:1.2">Darin Hall（杜汉文）</h3>
+        <p style="font-size:26px;line-height:1.5;color:var(--on-dark)">美国留学生，就读上海交大；凯斯西储大学数据科学本科，全栈工程师。</p>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:20px;align-items:center">
+      <svg style="width:340px;height:361px" role="img" aria-label="招财熊猫吉祥物：笑眯眯地举爪招财"><use href="#panda-full-happy"/></svg>
+      <p class="brush" style="font-size:56px;line-height:1.1;text-align:center;color:var(--gold)">招财机器人</p>
+    </div>
+  </div>
+  <p class="footer" style="left:128px;width:1300px;font-size:28px;color:var(--paper)">不用盯盘，它替你盯。谢谢！</p>
+  <p class="pageno" style="color:var(--on-dark-faint)">5 / 5</p>
+  <aside>（约 20 秒）
+我们是两个人的团队。
+石璞：前谷歌员工，15 年工作经验，软硬件都做，连续创业者。
+Darin Hall（杜汉文）：从美国来上海交大留学，凯斯西储大学数据科学本科，全栈工程师。
+招财机器人：不用盯盘，它替你盯；该提醒时转头看你，该拦你时对你摇头。谢谢大家！</aside>
+</section>
+
+</div>
+
+<div id="notes"></div>
+<div id="hint">← → 翻页 · F 全屏 · N 备注</div>
+
+<script>
+  const slides = [...document.querySelectorAll('section.slide')];
+  const stage = document.getElementById('stage'), notes = document.getElementById('notes');
+  let cur = Math.min(Math.max(parseInt(location.hash.slice(1)) || 1, 1), slides.length) - 1;
+
+  function fit() {
+    const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+    stage.style.transform = `translate(-50%, -50%) scale(${s})`;
+  }
+  function show(i) {
+    cur = (i + slides.length) % slides.length;
+    slides.forEach((el, k) => el.classList.toggle('active', k === cur));
+    const a = slides[cur].querySelector('aside');
+    notes.textContent = `${cur + 1} / ${slides.length}\n` + (a ? a.textContent.trim() : '');
+    history.replaceState(null, '', '#' + (cur + 1));
+  }
+  addEventListener('resize', fit);
+  addEventListener('keydown', (e) => {
+    if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].includes(e.key)) { e.preventDefault(); show(cur + 1); }
+    else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); show(cur - 1); }
+    else if (e.key === 'Home') show(0);
+    else if (e.key === 'End') show(slides.length - 1);
+    else if (e.key === 'f' || e.key === 'F') document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+    else if (e.key === 'n' || e.key === 'N') notes.classList.toggle('on');
+  });
+  addEventListener('click', (e) => { if (!notes.contains(e.target)) show(cur + (e.clientX < innerWidth / 3 ? -1 : 1)); });
+  fit(); show(cur);
+</script>
+</body>
+</html>
