@@ -83,3 +83,14 @@
 ```jsonc
 {"t":"profile","set":{"persona":"surfer|hunter|guardian|holder|flash"}}
 ```
+
+## 自选增删（T18）
+
+```jsonc
+// 语音 / 打字：走 ask，路由出 watch_add / watch_remove / watch_list
+// 板子触摸：长按自选列表的一行再确认
+{"t":"watch_remove","code":"600036"}
+// 中枢 → 所有人：结果（模拟器记录；板子看 gesture + face）
+{"t":"watch_result","op":"add|remove","code":"002594","name":"比亚迪","result":"ok|exists|missing|full|unknown|empty","say":"已加入自选：比亚迪（第 6 只）"}
+// 成功后：face watch 卡带 "hl":"002594"（高亮那一行），3 秒后回到原来的模式
+```
