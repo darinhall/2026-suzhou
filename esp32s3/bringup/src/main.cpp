@@ -119,6 +119,5 @@ void loop() {
   wasTouched = touched;
 
   probeTouch(now);
-  ui::setLink(net::connected());
   ui::tick(now);
 }

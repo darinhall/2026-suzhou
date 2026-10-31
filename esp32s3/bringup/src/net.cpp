@@ -74,7 +74,6 @@ static void onWsEvent(WStype_t type, uint8_t *payload, size_t length) {
       String out;
       serializeJson(d, out);
       ws.sendTXT(out);
-      ui::status("");
       Serial.printf("[ws] 已连上中枢 %s:%u\n", hubHost.c_str(), hubPort);
       flushLogs();
       { char m[64]; snprintf(m, sizeof m, "已连上中枢 %s:%u", hubHost.c_str(), hubPort); log("info", "WS_UP", m); }
@@ -143,7 +142,6 @@ void begin(MessageCb cb) {
   WiFi.setAutoReconnect(true);
   WiFi.begin(DB_WIFI_SSID, DB_WIFI_PASS);
   Serial.printf("[wifi] 连接 %s …\n", DB_WIFI_SSID);
-  ui::status("wifi...");
 }
 
 void loop() {
@@ -154,7 +152,6 @@ void loop() {
       phase = Phase::Wifi;
       wsUp = false;
       ws.disconnect();
-      ui::status("wifi...");
       log("warn", "WIFI_LOST", "WiFi 断了，重新连接");
     }
     static uint32_t lastLog = 0;
@@ -183,7 +180,6 @@ void loop() {
     tries = 0;
     lastTry = 0;
     Serial.printf("[wifi] 已连接 · IP %s · 信号 %d dBm · 网关 %s\n", WiFi.localIP().toString().c_str(), WiFi.RSSI(), WiFi.gatewayIP().toString().c_str());
-    ui::status("hub...");
     { char m[80]; snprintf(m, sizeof m, "WiFi 已连接 IP %s，信号 %d dBm", WiFi.localIP().toString().c_str(), WiFi.RSSI()); log("info", "WIFI_OK", m); }
     udp.begin(DB_DISCOVERY_PORT + 1);
     configTime(8 * 3600, 0, "ntp.aliyun.com", "pool.ntp.org");   // 老板键的时钟要用

@@ -221,10 +221,3 @@
 /* 被吵醒：眼睛一下睁大 */
 .screen.waking .eye { animation: startle .3s ease-out; }
 @keyframes startle { 0% { transform: scaleY(.12); } 55% { transform: scaleY(1.15); } 100% { transform: none; } }
-
-/* 右上角连接图标：data-link="on" 连上中枢，"off" 没连上。不设这个属性就不显示（实验室、游戏页） */
-.screen[data-link]::after { content: ""; position: absolute; top: 3.2%; right: 2.6%; width: 7.5%; aspect-ratio: 4 / 3; background: var(--ink-muted); pointer-events: none;
-  -webkit-mask: var(--wifi) center / contain no-repeat; mask: var(--wifi) center / contain no-repeat; }
-.screen[data-link="off"]::after { background: var(--rule); -webkit-mask-image: var(--wifi-off); mask-image: var(--wifi-off); }
-.screen { --wifi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 36' fill='none' stroke='black' stroke-width='4' stroke-linecap='round'%3E%3Cpath d='M5 15a27 27 0 0 1 38 0M13 23a16 16 0 0 1 22 0'/%3E%3Ccircle cx='24' cy='31' r='2.5' fill='black'/%3E%3C/svg%3E");
-  --wifi-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 36' fill='none' stroke='black' stroke-width='4' stroke-linecap='round'%3E%3Cpath d='M5 15a27 27 0 0 1 38 0M13 23a16 16 0 0 1 22 0'/%3E%3Ccircle cx='24' cy='31' r='2.5' fill='black'/%3E%3Cpath d='M6 34L42 4' stroke-width='5'/%3E%3C/svg%3E"); }
