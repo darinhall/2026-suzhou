@@ -19,6 +19,19 @@ static const int LOOK_DIR = 1;   // 「转头看你」往哪边转：+1 = 位置
 // 11-01：ID1（点头）±20°；ID2（转头）±10°
 int amp(uint8_t id) { return id == PITCH ? 2 * STEPS_10DEG : STEPS_10DEG; }
 
+// 屏幕上的脸跟着头动：记下每个舵机"从哪到哪、什么时候开始、要走多久"，ui 按时间插值出现在偏了几度
+static int estFrom[3] = {0, 0, 0}, estTo[3] = {0, 0, 0};
+static uint32_t estStart[3] = {0, 0, 0}, estDur[3] = {1, 1, 1};
+static void (*frameHook)() = nullptr;
+static void markMove(uint8_t id, int from, int to, int speed) {
+  estFrom[id] = from; estTo[id] = to; estStart[id] = millis();
+  estDur[id] = max(1, abs(to - from) * 1000 / max(1, speed) + 120);
+}
+void setFrameHook(void (*hook)()) { frameHook = hook; }
+static void waitAnimating(uint32_t ms) {   // 阻塞等待时也让脸动起来（开机摆动）
+  for (uint32_t t0 = millis(); millis() - t0 < ms;) { if (frameHook) frameHook(); delay(10); }
+}
+
 // 开机摆动实际走过的范围 [lo, hi] 和原位：之后所有动作都夹在这里面
 static int lo[3] = {0, -1, -1}, hi[3] = {0, -1, -1}, rest[3] = {0, -1, -1};
 
@@ -58,7 +71,8 @@ static int goAndRead(uint8_t id, int target) {
   int from = -1;
   readPosRetry(id, from);
   servo::move(id, target, 400, 20);   // 400 步/秒 ≈ 35°/秒，慢慢走
-  delay(from < 0 ? 1500 : 300 + abs(target - from) * 1000 / 400);   // 按距离等：±20° 一趟要 1 秒多
+  if (from >= 0) markMove(id, from, target, 400);
+  waitAnimating(from < 0 ? 1500 : 300 + abs(target - from) * 1000 / 400);   // 按距离等：±20° 一趟要 1 秒多
   int p = -1;
   readPosRetry(id, p);
   return p;
@@ -184,12 +198,23 @@ void tick() {
     return;
   }
   const Step &s = q[qi++];
+  int from = rest[s.id];
+  for (int k = qi - 2; k >= 0; k--) if (q[k].id == s.id) { from = q[k].target; break; }
+  markMove(s.id, from, s.target, s.speed);
   if (!torqueOn[s.id]) { servo::setTorqueLimit(s.id, 300); servo::setTorqueEnable(s.id, true); torqueOn[s.id] = true; }
   servo::move(s.id, s.target, s.speed, 40);
   nextAt = millis() + s.waitMs;
 }
 
 void nod() { gesture("nod", 1, 8, 0); }
+
+float offsetDeg(uint8_t id) {
+  if (id > 2 || rest[id] < 0) return 0;
+  float t = (millis() - estStart[id]) / (float)estDur[id];
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  t = t * t * (3 - 2 * t);   // 缓入缓出，和舵机的加减速差不多
+  return (estFrom[id] + (estTo[id] - estFrom[id]) * t - rest[id]) * 360.0f / 4096;
+}
 
 // STS 系列：往寄存器 40（扭矩开关）写 128 = 把当前位置校正为 2048（中位）。要先解锁 EEPROM（55 = 0）
 static bool setCenterHere(uint8_t id) {

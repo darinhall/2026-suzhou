@@ -105,7 +105,10 @@ class Assistant:
             intent = self.router.route(text)
             await self.bc({"t": "ask_state", "id": aid, "stage": "thinking", "text": text})
             try:
-                rep = await self._thread(qa.answer, intent, self.engine.profile["watch"]["codes"])
+                if intent.kind in ("watch_add", "watch_remove", "watch_list"):
+                    rep = await self._watch(intent)
+                else:
+                    rep = await self._thread(qa.answer, intent, self.engine.profile["watch"]["codes"])
             except Exception as e:
                 await self.log("error", "QA_FAIL", f"「{text}」→ {intent.kind}：{type(e).__name__}: {e}"[:300])
                 rep = None
@@ -126,6 +129,36 @@ class Assistant:
             if rep["action"] == "sim_start":
                 await self.start_sim()
 
+    async def _watch(self, intent) -> dict:
+        """语音增删自选（T18）：brain/watchlist.py 判断，ModeEngine.profile_set 保存（名称解析、上限、广播都在那里）。"""
+        import names
+        from brain import qa, watchlist
+        cur = list(self.engine.profile["watch"]["codes"])
+        nm = lambda c: names.lookup(c) or c
+        if intent.kind == "watch_list":
+            lst = "、".join(nm(c) for c in cur)
+            face = qa._ans(f"自选 {len(cur)} 只", "flat", "", "你的自选", pts=[nm(c) for c in cur[:3]],
+                           stats=[[str(i + 1), nm(c)] for i, c in enumerate(cur[:4])], src="DeskBot 自选")
+            return qa._reply(intent, f"你的自选有 {len(cur)} 只：{lst}。", face, "nod", 1)
+        op = "add" if intent.kind == "watch_add" else "remove"
+        code = intent.codes[0] if intent.codes else None
+        new, res = watchlist.apply(op, code, cur)
+        name = nm(code) if code else "这只股票"
+        if res == "ok":
+            ok, msg, _ = await self.engine.profile_set({"watch": {"codes": new}})
+            if not ok:
+                res = "fail"
+        say = {"ok": f"已{'加入' if op == 'add' else '移出'}自选：{name}，现在 {len(new)} 只。",
+               "exists": f"{name}已经在自选里了。", "missing": f"{name}本来就不在自选里。",
+               "full": f"自选最多 {watchlist.MAX} 只，先删一只吧。", "empty": "自选至少留一只。",
+               "unknown": "没听出是哪只股票。", "fail": "自选没保存成功。"}[res]
+        good = res == "ok"
+        await self.log("info", "WATCH_EDIT", f"{op} {code} → {res}（{len(new)} 只）")
+        face = qa._ans(("已加入" if op == "add" else "已移出") if good else "没改", "up" if good else "warn", name if good else "",
+                       f"自选 {len(new if good else cur)} 只", pts=[say[:14]],
+                       stats=[[str(i + 1), nm(c)] for i, c in enumerate((new if good else cur)[-4:])], src="DeskBot 自选")
+        return qa._reply(intent, say, face, "nod" if good else "shake", 1)
+
     async def perform(self, say: str, face: dict | None, gesture: dict | None, hold: float = 20) -> None:
         """一次"表态"：先合成语音（板子这时一直是"想一想"），再同时发 卡片 + 动作 + 语音。hold 秒内模式循环不覆盖这张卡。"""
         pcm = await self._tts(say) if say else b""
@@ -139,6 +172,15 @@ class Assistant:
             await self.bc({"t": "gesture", "name": gesture["name"], "times": gesture.get("times", 1), **({"hold": gesture["hold"]} if "hold" in gesture else {})})
         if pcm:
             await self._send_audio(pcm, say)
+        if face:
+            asyncio.create_task(self._back_to_panda(hold))
+
+    async def _back_to_panda(self, after: float) -> None:
+        """待机（熊猫）模式下：卡片停 after 秒后回到熊猫脸。期间又有新卡片（hold 被延长）就不回。"""
+        await asyncio.sleep(after + 0.5)
+        if self.engine.profile.get("mode") == "idle" and not self.engine.holding() and not (self.sim_task and not self.sim_task.done()):
+            self.engine.last_face = {"t": "face", "state": "idle"}
+            await self.bc(self.engine.last_face)
 
     # ---------- 下行：说话 ----------
     async def speak(self, text: str) -> None:
@@ -217,3 +259,6 @@ class Assistant:
             await self.log("error", "SIM_FAIL", f"行情异动模拟出错：{type(e).__name__}: {e}"[:300])
         finally:
             self.engine.hold(0)
+            if self.engine.profile.get("mode") == "idle":   # 待机（熊猫）模式：演完回到熊猫脸
+                self.engine.last_face = {"t": "face", "state": "idle"}
+                await self.bc(self.engine.last_face)

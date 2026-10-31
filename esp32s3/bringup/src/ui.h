@@ -16,5 +16,6 @@ State current();                      // 现在是不是文字屏
 void setText();                     // 文字屏（screens.cpp）正在显示：待机动画停住，老板键退出后重画它
 void poke();                        // 有人动过它：待机计时重新开始
 void wake();                        // 摸一下：玩球 / 睡觉都醒过来（睡着的会被吓一跳）
+void setHeard(const char *text);    // "想一想"时在脸下方显示听到的那句话（中枢识别出来的）
 
 }  // namespace ui

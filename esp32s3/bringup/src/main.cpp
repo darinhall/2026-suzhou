@@ -65,6 +65,10 @@ static void onBinary(const uint8_t *data, size_t n);
 static void onMessage(JsonDocument &d) {
   const char *t = d["t"] | "";
   if (!strcmp(t, "face")) waitReplyUntil = 0;   // 中枢的回答（卡片）到了：不再等，别被超时改回去
+  if (!strcmp(t, "ask_state")) {   // 中枢识别出来了：在"想一想"的熊猫脸下面显示听到的话
+    if (!strcmp(d["stage"] | "", "thinking")) ui::setHeard(d["text"] | "");
+    return;
+  }
   if (!strcmp(t, "servo_rebase")) { servotest::rebaseYaw(d["deg"] | 10.0f); return; }   // 需要时再定一次基准
   if (!strcmp(t, "servo_test")) { servotest::run(); return; }
   if (!strcmp(t, "servo_pos")) { servotest::reportPos(); return; }          // 只读：现在的位置和基准
@@ -141,6 +145,7 @@ void setup() {
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, LOW);   // 背光低电平点亮
   ui::begin(&tft);
+  servotest::setFrameHook([]() { ui::tick(millis()); });   // 开机摆动时脸跟着头动
   screens::begin(&tft);
   if (audio::begin()) audio::chime(0.08f);
   delay(1500);
@@ -156,6 +161,7 @@ void setup() {
   }
   servotest::wiggle(1, 1);   // 开机：两个舵机轮流在原位附近来回摆一下（ID1 ±20°、ID2 ±10°，30% 扭矩，摆完放松）
   servotest::wiggle(2, 1);
+  ui::set(ui::State::Happy);   // 摆完笑一下
   delay(500);
   audio::calibrate(3000);   // 舵机和喇叭都停了以后，量 3 秒背景音量；之后超过它 4 倍才算有人说话
 
@@ -264,6 +270,7 @@ static void voiceTick(uint32_t now) {
   const int ev = audio::listenTick();
   if (ev == 1) {   // 确认是一句话：换"在听"，开始边说边传
     if (!waitReplyUntil) voiceBefore = ui::current();
+    ui::setHeard("");
     ui::set(ui::State::Listening);
     micStreaming = net::connected();
     if (micStreaming) {

@@ -16,6 +16,10 @@ void gesture(const char *name, int times = 1, float ampDeg = 0, float holdS = 0)
 void tick();
 bool busy();
 void nod();
+// 屏幕上的脸跟着头动：舵机现在大概偏离原位多少度（按最近一次指令插值）。ID1 = 点头，ID2 = 转头
+float offsetDeg(uint8_t id);
+// 阻塞的动作（开机摆动）等待时调这个，让脸继续动
+void setFrameHook(void (*hook)());
 // 基准位置（NVS home1 / home2；第一次开机记下当时的位置）
 void reportPos();     // 只读：两个舵机现在的位置和基准（SERVO_POS 日志），不动
 void setHomeHere();   // 把现在的位置记成新的基准
