@@ -18,6 +18,8 @@
 #define DB_LIGHT_LILAC 0x9b7ef0
 #define DB_LIGHT_UP 0xc8281e
 #define DB_LIGHT_DOWN 0x137044
+#define DB_LIGHT_UP_ON_CARD 0xff5a4e
+#define DB_LIGHT_DOWN_ON_CARD 0x3ec27a
 
 // ---- colors: dark
 #define DB_DARK_GROUND 0x0e0e0e
@@ -36,6 +38,8 @@
 #define DB_DARK_LILAC 0xb39cff
 #define DB_DARK_UP 0xff5a4e
 #define DB_DARK_DOWN 0x3ec27a
+#define DB_DARK_UP_ON_CARD 0xc8281e
+#define DB_DARK_DOWN_ON_CARD 0x137044
 
 // ---- spacing / radius (px)
 #define DB_SPACE_1 4

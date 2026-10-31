@@ -4,6 +4,7 @@ import { Link, defaultUrl, defaultToken } from './link.js';
 import { demos } from './demo.js';
 import { follow } from './design.js';
 import { USECASES } from './usecases.js';
+import { SCENES, createSceneRunner } from './scenes.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -20,6 +21,7 @@ const face = new Face(body.screen, (x, y) => {
   up({ t: 'touch', x, y });
 }, { idleAfter: idleParam === null ? 25 : Number(idleParam) });
 follow(body.screen);   // 设计实验室里调的主题 / 字体等，这里实时跟着变
+window.deskbot = { face };   // 调试用：控制台里 deskbot.face.set('mkt', {...})
 // ?face=decoy 之类：直接打开某个表情，方便看屏幕设计
 face.set(new URLSearchParams(location.search).get('face') || 'idle');
 
@@ -77,6 +79,7 @@ function onHub(m) {
     $('#peers').textContent = `真机：脸 ${m.face} · 身体 ${m.body}`;
     return;
   }
+  if (m.t === 'scene_state') return showScene(m);   // 中枢的场景引擎：现在在第几页
   if (m.t === 'notice') {
     if (m.level === 'error') link.report('error', 'REQ_FAILED', String(m.text).slice(0, 200));
     endPending();
@@ -143,6 +146,28 @@ setInterval(() => {
   if (link.connected) link.send(s);
 }, 1000);
 
+// ---------- 一天的场景 ----------
+// 连着中枢：场景由中枢调度（它联网拿真数据，也会推给真机）；没连：模拟器用 scenes.js 的示例数据自己播
+const sceneRunner = createSceneRunner({ handle: act, onState: (m) => showScene(m), caption: (t) => bot.caption(t) });
+function showScene(m) {
+  const on = m.name && m.name !== 'stop';
+  const label = SCENES.find((s) => s.id === m.name)?.label ?? m.name;
+  const box = $('#scene-state'), chip = $('#scene-chip');
+  box.hidden = chip.hidden = !on;
+  document.querySelectorAll('[data-scene]').forEach((b) => b.classList.toggle('running', on && b.dataset.scene === m.name));
+  if (!on) return;
+  box.querySelector('b').textContent = `${label} · ${m.page}/${m.of}`;
+  box.querySelector('.dots').innerHTML = Array.from({ length: m.of }, (_, i) => `<i class="${i + 1 === m.page ? 'on' : ''}"></i>`).join('');
+  chip.textContent = `${label} ${m.page}/${m.of}`;
+}
+document.querySelectorAll('[data-scene]').forEach((b) => (b.onclick = () => {
+  const name = b.dataset.scene;
+  $('#scene-src').textContent = link.connected ? '（中枢调度）' : '（离线示例数据）';
+  if (link.connected) { sceneRunner.stop(); up({ t: 'scene', name }); }
+  else if (name === 'stop') sceneRunner.stop();
+  else sceneRunner.start(name);
+}));
+
 // ---------- 连接 ----------
 function onStatus(kind, text) {
   $('#conn').className = `conn ${kind}`;
@@ -161,7 +186,7 @@ if (location.protocol !== 'https:' || new URLSearchParams(location.search).has('
 // 场景卡片：标题 + 谁在用，来自 usecases.js
 $('#scenes').innerHTML =
   USECASES.map((uc) => `<button class="scene" data-demo="${uc.id}"><b>${uc.name}</b><span>${uc.who}</span><i>▶</i></button>`).join('') +
-  '<button class="all" data-demo="all">▶ 三个连播</button>';
+  `<button class="all" data-demo="all">▶ ${USECASES.length} 个连播</button>`;
 let running = false;
 document.querySelectorAll('[data-demo]').forEach((b) => (b.onclick = async () => {
   if (running) return;

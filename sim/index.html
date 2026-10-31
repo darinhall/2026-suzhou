@@ -14,6 +14,7 @@
       <a href="lab.html" target="_blank">设计实验室 ↗</a>
       <a href="game.html" target="_blank">交易人格游戏 ↗</a>
       <a href="logs.html" target="_blank">日志 ↗</a>
+      <div class="scene-chip" id="scene-chip" hidden></div>
       <div class="conn" id="conn"><i></i><span>离线</span></div>
     </div>
   </header>
@@ -34,6 +35,17 @@
     </section>
 
     <aside class="panel">
+      <div class="group">
+        <h3>一天的场景 <small id="scene-src"></small></h3>
+        <div class="row" id="day-scenes">
+          <button data-scene="morning">起床后</button>
+          <button data-scene="watch">盯盘</button>
+          <button data-scene="close">收盘</button>
+          <button data-scene="booth">展台</button>
+          <button data-scene="stop">停止</button>
+        </div>
+        <div class="scene-state" id="scene-state" hidden><b></b><span class="dots"></span></div>
+      </div>
       <div class="group">
         <h3>场景演示</h3>
         <div class="scenes" id="scenes"></div>
@@ -74,6 +86,8 @@
           <button data-face="today">today</button>
           <button data-face="sky">sky</button>
           <button data-face="weather">weather</button>
+          <button data-face="watch">watch</button>
+          <button data-face="mkt">mkt</button>
         </div>
       </div>
       <div class="group tools-links">
