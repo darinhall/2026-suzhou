@@ -394,3 +394,21 @@ body.big3d .s-tabs #rp-3d .stage3d { display: none; }
   .pchip button { min-height: 28px; min-width: 28px; }
   .opt { min-height: 48px; }
 }
+
+/* 真机状态：横幅 / 设备盒子 / 仅预览 */
+.warn-bar { display: flex; align-items: center; gap: 8px; padding: 6px 16px; background: color-mix(in srgb, var(--up) 14%, var(--bg)); border-bottom: 1px solid color-mix(in srgb, var(--up) 45%, var(--line)); font-size: 13px; font-weight: 500; flex: none; }
+.warn-bar[hidden] { display: none; }
+.warn-bar i { width: 8px; height: 8px; border-radius: 50%; background: var(--up); flex: none; }
+.warn-bar a { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 400; text-decoration: underline; text-underline-offset: 3px; }
+.dev-shown { display: grid; gap: 2px; margin: 4px 0 6px; padding: 7px 9px; border-radius: 8px; background: var(--raise); border: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.dev-shown b { font: 500 12.5px var(--mono); color: var(--text); word-break: break-all; }
+.dev-shown.ok { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
+.dev-shown.warn { border-color: #d99a2b; background: color-mix(in srgb, #d99a2b 13%, var(--raise)); }
+.dev-shown.warn b { color: #f2b84b; }
+.dev-shown.off { border-color: color-mix(in srgb, var(--up) 55%, var(--line)); background: color-mix(in srgb, var(--up) 10%, var(--raise)); }
+.dev-shown.off b { color: var(--up); }
+.s-device .dev-row b.bad { color: var(--up); }
+.s-device .line button.warn { border-color: #d99a2b; color: #f2b84b; }
+.modes-root.preview .modes button { border-style: dashed; }
+.modes-root.preview .modes::after { content: "仅预览 · 真机不会跟着变"; grid-column: 1 / -1; font-size: 12px; color: #f2b84b; padding: 2px 2px 0; }
+.modes-root.preview .now-top b::after { content: " · 仅预览"; color: #f2b84b; font-weight: 400; }

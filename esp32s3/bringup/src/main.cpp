@@ -65,7 +65,17 @@ static void onMessage(JsonDocument &d) {
   }
   if (screens::handles(st)) {   // 文字屏
     const uint32_t t0 = millis();
-    if (screens::show(st, card)) { ui::setText(); Serial.printf("[face] %s 画好 %u ms（%s）\n", st, millis() - t0, screens::mode()); return; }
+    if (screens::show(st, card)) {
+      ui::setText();
+      Serial.printf("[face] %s 画好 %u ms（%s）\n", st, millis() - t0, screens::mode());
+      JsonDocument sd;   // 告诉中枢（和模拟器）：我现在画的是什么，对不上时好排查
+      sd["t"] = "shown";
+      sd["state"] = st;
+      sd["mode"] = screens::mode();
+      sd["item"] = card["name"] | card["city"] | card["title"] | "";
+      net::send(sd);
+      return;
+    }
   }
   Serial.printf("[face] %s\n", st);
 

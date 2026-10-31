@@ -207,7 +207,15 @@ static void joinBest(int n) {
       lastWarn = millis();
       log("warn", "WIFI_NOT_FOUND", "扫描不到 " DB_WIFI_SSID "（只支持 2.4 GHz，离路由近一点）");
     }
-    WiFi.begin(DB_WIFI_SSID, DB_WIFI_PASS);
+    // 扫描里哪个都没匹配上：热点可能是隐藏的 / 刚好没扫到。交替直接按名字连（定向探测，隐藏 SSID 也连得上）
+    static bool tryFallback = true;
+    if (fbSsid[0] && tryFallback) {
+      Serial.printf("[wifi] 扫描没看到，直接按名字连备用热点 %s\n", fbSsid[0]);
+      WiFi.begin(fbSsid[0], fbPass[0]);
+    } else {
+      WiFi.begin(DB_WIFI_SSID, DB_WIFI_PASS);
+    }
+    tryFallback = !tryFallback;
   }
   WiFi.scanDelete();
 }

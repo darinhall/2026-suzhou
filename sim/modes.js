@@ -26,25 +26,29 @@ export function skyOf(city) {
 
 function itemsOf(name, P) {
   const w = P.watch, wx = P.weather;
+  const listItems = () => {
+    const stocks = w.codes.map((c) => stockOf(c, P.watch.names?.[c]));
+    if (!stocks.length) return [{ label: '自选为空', state: 'watch', card: SAMPLES.watch, sec: w.interval }];
+    const pages = [];
+    for (let i = 0; i < stocks.length; i += 5) pages.push(stocks.slice(i, i + 5));
+    return pages.map((rows, i) => ({ label: pages.length > 1 ? `第 ${i + 1} 页` : '全部自选', state: 'watch', card: watchCard(rows, 'close', '示例数据'), sec: w.interval }));
+  };
   const watchItems = () => {
     const stocks = w.codes.map((c) => stockOf(c, P.watch.names?.[c]));
     if (!stocks.length) return [{ label: '自选为空', state: 'watch', card: SAMPLES.watch, sec: w.interval }];
-    if (w.view === 'list') {
-      const pages = [];
-      for (let i = 0; i < stocks.length; i += 5) pages.push(stocks.slice(i, i + 5));
-      return pages.map((rows, i) => ({ label: `自选 ${i + 1}/${pages.length}`, state: 'watch', card: watchCard(rows, 'close', '示例数据'), sec: w.interval }));
-    }
+    if (w.view === 'list') return listItems();   // 设置里选了「列表」：盯盘也按列表轮播
     return stocks.map((s) => ({ label: s.name, state: 'mkt', card: { ...mktCard(s), asof: '示例数据', mode: 'sample' }, sec: w.interval }));
   };
   const skyItems = () => (wx.cities.length ? wx.cities : [{ name: '苏州' }]).map((c) => ({ label: c.name, state: 'sky', card: skyOf(c), sec: wx.interval }));
   const todayItem = () => [{ label: P.today.city, state: 'today', card: { ...SAMPLES.today, city: P.today.city }, sec: 15 }];
   switch (name) {
     case 'watch': return watchItems();
+    case 'list': return listItems();
     case 'weather': return skyItems();
     case 'today': return todayItem();
     case 'clock': return [{ label: '时钟', state: 'decoy', card: undefined, sec: 0 }];
     case 'idle': return [{ label: '待机', state: 'idle', card: undefined, sec: 0 }];
-    case 'booth': return [...watchItems().slice(0, 3), ...skyItems(), ...todayItem()].map((it) => ({ ...it, sec: P.booth.dwell }));
+    case 'booth': return [...watchItems().slice(0, 3), ...listItems(), ...todayItem()].map((it) => ({ ...it, sec: P.booth.dwell }));
     default: return [];
   }
 }

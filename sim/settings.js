@@ -3,7 +3,7 @@ import { MODES, LIMITS } from './profile.js';
 
 const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const DENSITY = [['simple', '简洁', '大字，一屏一件事，自选 3 只'], ['compact', '紧凑', '多一行成交额 / 振幅，自选 4 只'], ['pro', '专业', '区间条 + 指数条，自选 5 只']];
-const TABS = [['display', '显示'], ['watch', '盯盘'], ['weather', '天气'], ['other', '其他']];
+const TABS = [['display', '显示'], ['watch', '盯盘'], ['other', '其他']];
 const STATE_TEXT = {
   offline: ['', '离线 · 设置存在本机，连上中枢后再同步'],
   pending: ['pend', '保存中…'],
@@ -25,6 +25,7 @@ export function mountModes({ root, sync, runnerState }) {
       </div>
     </div>
     <p class="note" id="mode-desc"></p>`;
+  root.classList.add('modes-root');
   const $ = (s) => root.querySelector(s);
   let timerStart = 0, timerSec = 0, raf = 0;
   const tick = () => {   // 进度条：这一项停留多久
@@ -33,6 +34,7 @@ export function mountModes({ root, sync, runnerState }) {
     raf = requestAnimationFrame(tick);
   };
   return {
+    setPreview(on) { root.classList.toggle('preview', on); },   // 真机没连中枢：按钮照常能点，但只在模拟器预览里生效
     paint(state) {   // state: {name,page,of,label,item,paused,sec}
       const m = MODES.find((x) => x.id === state?.name);
       root.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('on', b.dataset.mode === state?.name));
@@ -89,13 +91,16 @@ export function mountSettings({ root, sync, density, device, onResend }) {
       const chips = wx.cities.map((c, i) => `
         <span class="pchip" data-i="${i}" title="${c.lat != null ? `${c.lat}, ${c.lon}` : '中枢解析中…'}"><b>${esc(c.name)}</b><i>${c.lat != null ? `${(+c.lat).toFixed(2)}, ${(+c.lon).toFixed(2)}` : '解析中…'}</i>
           <button data-cdel="${i}" aria-label="移除 ${esc(c.name)}">×</button></span>`).join('');
-      return `<div class="st-group"><h4>城市 <small>${wx.cities.length}/${LIMITS.cityMax}</small></h4>
+      return `<div class="st-group"><h4>天气城市 <small>${wx.cities.length}/${LIMITS.cityMax} · 天气模式回来后在这些城市间轮播</small></h4>
         <div class="chips2">${chips || '<span class="note">还没有城市</span>'}</div>
         <div class="st-add inline"><input id="st-city" placeholder="输入城市名，如 上海" value="${esc(ui.cityQ)}" autocomplete="off" spellcheck="false"><button id="btn-city" class="primary">添加</button></div>
         ${fieldErr('weather')}</div>
         <div class="st-group"><h4>怎么轮播</h4>${slider('st-ci', '每城停留', wx.interval, LIMITS.weatherInterval, 1, ' 秒')}</div>`;
     },
     other() {
+      return panes.weather() + panes.other2();
+    },
+    other2() {
       const P = sync.profile, names = [...new Set([...P.weather.cities.map((c) => c.name), P.today.city])];
       return `<div class="st-group"><h4>今天</h4>
           <label class="st-row"><span>天气城市</span><select id="st-tc">${names.map((n) => `<option ${n === P.today.city ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label></div>
@@ -190,8 +195,9 @@ export function mountSettings({ root, sync, density, device, onResend }) {
 export function mountDevice({ root, getInfo, onResend }) {
   root.innerHTML = `
     <div class="dev-row"><span>真机</span><b id="dv-peers">—</b></div>
-    <div class="dev-row"><span>真机显示</span><b id="dv-disp">—</b></div>
-    <div class="dev-row"><span>当前屏幕</span><b id="dv-face">—</b></div>
+    <div class="dev-shown" id="dv-shown"><span>真机正在显示</span><b id="dv-shown-t">—</b></div>
+    <div class="dev-row"><span>控制台期望</span><b id="dv-expect">—</b></div>
+    <div class="dev-row"><span>真机显示模式</span><b id="dv-disp">—</b></div>
     <div class="line"><button id="btn-resend">重发当前到真机</button></div>
     <details class="cheat"><summary>真机手势</summary>
       <dl>
@@ -205,10 +211,18 @@ export function mountDevice({ root, getInfo, onResend }) {
   return {
     paint() {
       const i = getInfo();
-      root.querySelector('#dv-peers').textContent = i.connected ? `脸 ${i.peers.face} · 身体 ${i.peers.body}` : '未连接中枢';
+      const off = !i.connected || !i.peers.face;
+      root.querySelector('#dv-peers').textContent = !i.connected ? '未连接中枢' : off ? '真机离线' : `脸 ${i.peers.face} · 身体 ${i.peers.body}`;
+      root.querySelector('#dv-peers').className = off ? 'bad' : '';
       root.querySelector('#dv-disp').textContent = i.board ?? '—';
-      root.querySelector('#dv-face').textContent = i.face;
-      root.querySelector('#btn-resend').disabled = !i.connected || !i.peers.face;
+      root.querySelector('#dv-expect').textContent = i.expect;
+      const box = root.querySelector('#dv-shown');
+      box.className = `dev-shown ${off ? 'off' : i.mismatch ? 'warn' : i.shown ? 'ok' : ''}`;
+      root.querySelector('#dv-shown-t').textContent = off ? '真机离线' : i.shown ?? '还没收到（真机固件需带 shown）';
+      const btn = root.querySelector('#btn-resend');
+      btn.disabled = off;
+      btn.classList.toggle('warn', !!i.mismatch && !off);
+      btn.textContent = i.mismatch && !off ? '和预览不一致 · 重发当前到真机' : '重发当前到真机';
     },
   };
 }
