@@ -38,6 +38,17 @@ def chat(user: str, system: str = SYSTEM, max_tokens: int = 200, json_mode: bool
         return None
 
 
+def complete(messages: list, tools: list | None = None, max_tokens: int = 400):
+    """带工具调用的一轮（brain/agent.py 用）。失败返回 None。"""
+    try:
+        return _c().chat.completions.create(
+            model=MODEL, max_tokens=max_tokens, temperature=0.2, messages=messages,
+            extra_body={"thinking": {"type": "disabled"}}, **({"tools": tools} if tools else {}))
+    except Exception as e:
+        print(f"[llm] {type(e).__name__}: {str(e)[:160]}")
+        return None
+
+
 def triage(text: str) -> dict | None:
     """规则认不出的话：是不是在跟机器人说话？是的话给一句 ≤40 字的回答。现场很吵，背景里的闲聊要忽略。"""
     out = chat(
