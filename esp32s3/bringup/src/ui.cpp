@@ -34,6 +34,7 @@ static bool alertFlag = false;
 static char label[24] = "";
 static uint32_t lastActive = 0, stateSince = 0, lastFrame = 0;
 static TFT_eSprite *frm = nullptr;
+static char heard[64] = "";   // 想一想的时候显示：听到的那句话
 
 // 表情参数（每帧往目标值缓动）
 static float gx = 0, gy = 0, tgx = 0, tgy = 0;   // 眼睛看的方向（像素）
@@ -133,10 +134,14 @@ static void drawFrame(uint32_t now) {
       const float h = 6 + 22 * (0.5f + 0.5f * sinf(now / 150.0f + i * 0.9f));
       frm->fillRoundRect(184 + i * 20 + ox, 258 + oy - (int)h / 2, 9, (int)h, 4, C(LILAC));
     }
-  } else if (cur == State::Thinking) {   // 想一想：右上方冒三个思考泡泡
+  } else if (cur == State::Thinking) {   // 想一想：右上方冒三个思考泡泡；下面一条字幕 = 听到的话
     for (int i = 0; i < 3; i++) {
       const float a = 0.3f + 0.7f * (0.5f + 0.5f * sinf(now / 200.0f - i * 1.1f));
       frm->fillCircle(318 + i * 26 + ox, 96 - i * 22 + oy, 6 + i * 4, mix(GROUND, LILAC, a));
+    }
+    if (heard[0]) {
+      frm->fillRoundRect(30, 250, 420, 34, 17, C(PATCH));
+      screens::caption(frm, heard, 240, 258, EYEC, PATCH);
     }
   } else if (sleeping) {   // z z z
     for (int i = 0; i < 3; i++) {
@@ -244,6 +249,19 @@ void set(State s, int c, float p, float v, bool a, const char *l) {   // 外面�
 }
 
 void poke() { lastActive = millis(); }
+
+void setHeard(const char *text) {
+  char q[64];
+  snprintf(q, sizeof q, "“%s”", text ? text : "");
+  strlcpy(heard, text && *text ? q : "", sizeof heard);
+  // 截断可能切在中文字中间：去掉结尾不完整的 UTF-8
+  size_t n = strlen(heard), i = n;
+  while (i > 0 && (heard[i - 1] & 0xC0) == 0x80) i--;
+  if (i > 0 && (unsigned char)heard[i - 1] >= 0xC0) {
+    const unsigned char lead = heard[i - 1];
+    if (n - (i - 1) < (size_t)(lead >= 0xF0 ? 4 : lead >= 0xE0 ? 3 : 2)) heard[i - 1] = 0;
+  }
+}
 bool isText() { return cur == State::Text; }
 State current() { return cur; }
 
