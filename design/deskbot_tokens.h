@@ -2,21 +2,21 @@
 #pragma once
 
 // ---- colors: light
-#define DB_LIGHT_GROUND 0xe9e9e6
-#define DB_LIGHT_SURFACE 0xf5f5f3
-#define DB_LIGHT_SURFACE_SUNK 0xdededa
-#define DB_LIGHT_CARD 0x161616
-#define DB_LIGHT_ON_CARD 0xf2f2ef
-#define DB_LIGHT_ON_CARD_MUTED 0xa3a39e
-#define DB_LIGHT_INK 0x121212
-#define DB_LIGHT_ON_INK 0xf5f5f3
-#define DB_LIGHT_INK_MUTED 0x5f5f5c
-#define DB_LIGHT_INK_FAINT 0x9a9a96
-#define DB_LIGHT_RULE 0xc9c9c4
+#define DB_LIGHT_GROUND 0xf1e8d2
+#define DB_LIGHT_SURFACE 0xf8f2e1
+#define DB_LIGHT_SURFACE_SUNK 0xe6dcc0
+#define DB_LIGHT_CARD 0x1b1810
+#define DB_LIGHT_ON_CARD 0xf4ecd8
+#define DB_LIGHT_ON_CARD_MUTED 0xb3aa91
+#define DB_LIGHT_INK 0x1a1710
+#define DB_LIGHT_ON_INK 0xf8f2e1
+#define DB_LIGHT_INK_MUTED 0x625a47
+#define DB_LIGHT_INK_FAINT 0x8d846c
+#define DB_LIGHT_RULE 0xd3c8aa
 #define DB_LIGHT_ACCENT 0xff5b14
-#define DB_LIGHT_ON_ACCENT 0x121212
+#define DB_LIGHT_ON_ACCENT 0x1a1710
 #define DB_LIGHT_LILAC 0x9b7ef0
-#define DB_LIGHT_UP 0xc8281e
+#define DB_LIGHT_UP 0xbd241a
 #define DB_LIGHT_DOWN 0x137044
 #define DB_LIGHT_UP_ON_CARD 0xff5a4e
 #define DB_LIGHT_DOWN_ON_CARD 0x3ec27a
@@ -38,7 +38,7 @@
 #define DB_DARK_LILAC 0xb39cff
 #define DB_DARK_UP 0xff5a4e
 #define DB_DARK_DOWN 0x3ec27a
-#define DB_DARK_UP_ON_CARD 0xc8281e
+#define DB_DARK_UP_ON_CARD 0xbd241a
 #define DB_DARK_DOWN_ON_CARD 0x137044
 
 // ---- spacing / radius (px)

@@ -1,6 +1,6 @@
 # DeskBot 设计系统 `design/`
 
-屏幕（3.5″，480×320）的视觉规范：暖灰底、黑色胶囊/圆形按钮、点阵大数字、刻度尺、只有一个橙色强调色。完整规则见 [`BRAND.md`](BRAND.md)，参考图在 `references/`。
+屏幕（3.5″，480×320）的视觉规范：米黄底、黑色胶囊/圆形按钮、点阵大数字、刻度尺、只有一个橙色强调色。完整规则见 [`BRAND.md`](BRAND.md)，参考图在 `references/`。
 
 ```bash
 python3 -m http.server 8091 -d design   # 打开 http://localhost:8091 看全部组件（右上角切换深色）
