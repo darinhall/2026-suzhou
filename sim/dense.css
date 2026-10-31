@@ -41,6 +41,11 @@ main { padding: 16px; }
   --ink: #efefec; --mute: #a6a6a1; --faint: #6e6e6a; --rule: #333331; --accent: #ff6a26;
   --up: #ff5a4e; --down: #3ec27a; --up-c: #c8281e; --down-c: #137044;
 }
+.ds[data-theme="cream"] {   /* 米黄：没有白色，卡片也是暖黑 */
+  --ground: #f1e8d2; --surface: #f8f2e1; --sunk: #e6dcc0; --card: #1b1810; --on-card: #f4ecd8; --on-card-mute: #b3aa91;
+  --ink: #1a1710; --mute: #625a47; --faint: #8d846c; --rule: #d3c8aa; --accent: #ff5b14;
+  --up: #bd241a; --down: #137044; --up-c: #ff5a4e; --down-c: #3ec27a;
+}
 .ds[data-size="l"] { width: 480px; height: 320px; border-radius: 16px; }
 .ds[data-size="s"] { width: 320px; height: 240px; border-radius: 12px; }
 

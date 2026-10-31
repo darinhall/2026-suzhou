@@ -181,7 +181,7 @@ const SCREENS = { watch: ['盯盘', watch], mkt: ['单股', mkt], today: ['起�
 const DENS = { A: '标准', B: '紧凑', C: '专业' };
 const PHYS = { l: 480 / 165 * 96 / 480, s: 320 / 143 * 96 / 320 };   // 3.5″ 165 ppi / 2.8″ 143 ppi → 1 屏幕像素 = ? CSS 像素
 
-const st = Object.assign({ screen: 'watch', d: 'C', size: 'l', mode: 'compare', theme: 'light', pg: 'auto' }, Object.fromEntries(new URLSearchParams(location.search)));
+const st = Object.assign({ screen: 'watch', d: 'C', size: 'l', mode: 'compare', theme: 'cream', pg: 'auto' }, Object.fromEntries(new URLSearchParams(location.search)));
 
 function frame(screen, d, size, scale, label) {
   const [W, H] = size === 'l' ? [480, 320] : [320, 240];
@@ -230,6 +230,6 @@ function seg(id, key, items) {
 seg('#seg-screen', 'screen', Object.entries(SCREENS).map(([k, v]) => [k, v[0]]));
 seg('#seg-mode', 'mode', [['compare', '三档对比'], ['sizes', '两种尺寸'], ['real', '真实大小'], ['far', '远看 0.5×']]);
 seg('#seg-d', 'd', Object.entries(DENS).map(([k, v]) => [k, `${k} ${v}`]));
-seg('#seg-theme', 'theme', [['light', '浅色'], ['dark', '深色']]);
+seg('#seg-theme', 'theme', [['cream', '米黄'], ['light', '浅灰'], ['dark', '深色']]);
 document.fonts?.ready.then(render);
 render();
