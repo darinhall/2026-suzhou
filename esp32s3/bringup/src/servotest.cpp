@@ -78,7 +78,7 @@ static bool setCenterHere(uint8_t id) {
   return ok;
 }
 
-void rebasePitch() {
+void rebasePitch(float deg) {
   servo::begin(RX, TX, -1);
   delay(50);
   const uint8_t id = 2;
@@ -88,13 +88,14 @@ void rebasePitch() {
   readPosRetry(id, p1);
   servo::setTorqueLimit(id, 300);
   servo::setTorqueEnable(id, true);
-  servo::move(id, p1 + STEPS_10DEG, 300, 20);   // 开机摆动第一下是往位置减小的方向，这里反过来：+10°
+  const int steps = (int)lroundf(deg * 4096.0f / 360.0f);
+  servo::move(id, p1 + steps, 300, 20);   // 开机摆动第一下是往位置减小的方向，这里反过来：位置增大
   delay(900);
   readPosRetry(id, p2);
   setCenterHere(id);                 // 新位置定为基准（2048）
   readPosRetry(id, p3);
   servo::setTorqueEnable(id, false);
-  report("info", "SERVO_REBASE", "ID2 定基准：原来 %d → 校正后 %d → 转 +10° 到 %d → 新基准 %d（应接近 2048）", p0, p1, p2, p3);
+  report("info", "SERVO_REBASE", "ID2 定基准：原来 %d → 校正后 %d → 转 +%d 步（约 %d°）到 %d → 新基准 %d（应接近 2048）", p0, p1, steps, (int)lroundf(deg), p2, p3);
 }
 
 void run() {

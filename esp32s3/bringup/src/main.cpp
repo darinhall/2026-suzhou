@@ -44,7 +44,7 @@ static void mapTouch(int rx, int ry, int &x, int &y) {
 // 中枢发来的消息：这块板只管脸，pose / gesture / torque 之类给身体的直接忽略
 static void onMessage(JsonDocument &d) {
   const char *t = d["t"] | "";
-  if (!strcmp(t, "servo_rebase")) { servotest::rebasePitch(); return; }   // 需要时再定一次基准
+  if (!strcmp(t, "servo_rebase")) { servotest::rebasePitch(d["deg"] | 10.0f); return; }   // 需要时再定一次基准
   if (!strcmp(t, "servo_test")) { servotest::run(); return; }
   if (!strcmp(t, "servo_wiggle")) { servotest::wiggle(d["id"] | 1, d["times"] | 3); return; }
   if (!strcmp(t, "voice_calibrate")) { audio::calibrate(d["ms"] | 3000); return; }   // 换了环境：重新量背景音量
@@ -108,7 +108,8 @@ void setup() {
   {   // 一次性：ID2（俯仰）重新定基准，做过就记在 NVS 里，以后开机不再做
     Preferences pr;
     pr.begin("deskbot", false);
-    if (!pr.getBool("pitchBase", false)) { servotest::rebasePitch(); pr.putBool("pitchBase", true); }
+    if (!pr.getBool("pitchBase", false)) { servotest::rebasePitch(10); pr.putBool("pitchBase", true); }
+    if (!pr.getBool("pitchBase3", false)) { servotest::rebasePitch(3); pr.putBool("pitchBase3", true); }   // 10-31 再微调 +3°（同方向）
     pr.end();
   }
   servotest::wiggle(1, 1);   // 开机：两个舵机轮流在原位附近来回摆一下（±10°，30% 扭矩，摆完放松）
