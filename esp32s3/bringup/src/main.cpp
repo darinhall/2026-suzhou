@@ -41,7 +41,25 @@ static void mapTouch(int rx, int ry, int &x, int &y) {
 #endif
 }
 
+// 语音状态（voiceTick / onMessage 都要用）
+static ui::State voiceBefore = ui::State::Idle;
+static uint32_t waitReplyUntil = 0;   // 等中枢回话：超时就自己回到原来的屏
+
+static void restoreFace() {
+  waitReplyUntil = 0;
+  if (voiceBefore == ui::State::Text) { screens::redraw(); ui::setText(); }
+  else ui::set(voiceBefore == ui::State::Listening || voiceBefore == ui::State::Thinking ? ui::State::Idle : voiceBefore);
+}
+
+// 喇叭：中枢发 spk_start → 若干二进制帧 → spk_end，收齐了再放（一句话几秒，PSRAM 放得下）
+static int16_t *spkBuf = nullptr;
+static size_t spkN = 0, spkCap = 0;
+static bool spkOn = false;
+static float spkVol = 0.2f;
+
 // 中枢发来的消息：gesture 由这块板的两个舵机做；pose / torque 是旧的双板协议，忽略
+static void onBinary(const uint8_t *data, size_t n);
+
 static void onMessage(JsonDocument &d) {
   const char *t = d["t"] | "";
   if (!strcmp(t, "servo_rebase")) { servotest::rebaseYaw(d["deg"] | 10.0f); return; }   // 需要时再定一次基准
@@ -57,6 +75,19 @@ static void onMessage(JsonDocument &d) {
   if (!strcmp(t, "voice_calibrate")) { audio::calibrate(d["ms"] | 3000); return; }   // 换了环境：重新量背景音量
   if (!strcmp(t, "audio_test")) { audio::selfTest(); return; }   // 中枢 / 网页可以再跑一次音频自检
   if (!strcmp(t, "hello")) { audio::hello(d["vol"] | 0.15f); return; }
+  if (!strcmp(t, "spk_start")) {   // 中枢要说话：准备收音频
+    if (!spkBuf) { spkCap = 16000 * 15; spkBuf = (int16_t *)ps_malloc(spkCap * 2); }   // 最长 15 秒
+    spkN = 0; spkOn = spkBuf != nullptr; spkVol = d["vol"] | 0.2f;
+    return;
+  }
+  if (!strcmp(t, "spk_end")) {     // 收齐了：放（放的时候不录音）
+    spkOn = false;
+    Serial.printf("[spk] 收到 %u ms 语音，播放\n", (unsigned)(spkN / 16));
+    if (spkN) { waitReplyUntil = 0; audio::playPcm(spkBuf, spkN, spkVol); }
+    return;
+  }
+  if (!strcmp(t, "spk_stop")) { spkOn = false; spkN = 0; return; }
+  if (!strcmp(t, "listen_done")) { restoreFace(); return; }   // 没听清 / 不是对我说的：回到原来的屏，不动
   if (!strcmp(t, "chime")) { audio::chime(d["vol"] | 0.08f); return; }
   if (!strcmp(t, "beep")) { audio::tone(d["freq"] | 880.0f, d["ms"] | 200, d["vol"] | 0.08f); return; }
   if (!strcmp(t, "display")) {   // 显示模式：简洁 / 紧凑 / 专业（中枢存着，新连上也会收到一条）
@@ -131,6 +162,7 @@ void setup() {
   tp.setRotation(ROTATION_NORMAL);
 
   net::begin(onMessage);
+  net::onBinary(onBinary);   // 中枢下发的语音
   const esp_reset_reason_t rr = esp_reset_reason();
   char bm[64];
   snprintf(bm, sizeof bm, "开机 fw 0.2.0 · PSRAM %u KB · 复位原因 %d", ESP.getPsramSize() / 1024, (int)rr);
@@ -183,17 +215,41 @@ static void offlineDemo(uint32_t now) {
   if (!deserializeJson(d, DEMO_CARDS[idx++ % DEMO_COUNT])) onMessage(d);
 }
 
-// 说话检测的反应：开始说话 → 点一下头 + 屏幕换成"在听"（紫色眼睛 + 声波）；说完 → 回到原来的屏
+// ---------- 语音 ----------
+// 说话：确认是一句话（有声 ≥ 0.6 秒）→ 屏幕换"在听"（不动）；说完 → 整句传给中枢（mic_start + 二进制 + mic_end）→ "想一想"。
+// 中枢识别出一句完整的命令才会回卡片、动作、语音；没听清 / 不是对我说的 → listen_done，回到原来的屏。噪音不会让它动。
+static void uploadUtterance() {
+  int n = 0;
+  const int16_t *pcm = audio::utterance(n);
+  if (!net::connected() || n <= 0) { restoreFace(); return; }
+  JsonDocument d;
+  d["t"] = "mic_start"; d["sr"] = 16000; d["fmt"] = "s16le"; d["trigger"] = "vad";
+  net::send(d);
+  const uint8_t *p = (const uint8_t *)pcm;
+  const size_t bytes = (size_t)n * 2;
+  for (size_t off = 0; off < bytes; off += 4000) net::sendBin(p + off, min((size_t)4000, bytes - off));
+  JsonDocument e;
+  e["t"] = "mic_end"; e["ms"] = n / 16;
+  net::send(e);
+  ui::set(ui::State::Thinking);
+  waitReplyUntil = millis() + 12000;
+}
+
+static void onBinary(const uint8_t *data, size_t n) {
+  if (!spkOn || !spkBuf) return;
+  const size_t k = min(n / 2, spkCap - spkN);
+  memcpy(spkBuf + spkN, data, k * 2);
+  spkN += k;
+}
+
 static void voiceTick(uint32_t now) {
-  static ui::State before = ui::State::Idle;
+  if (waitReplyUntil && (int32_t)(now - waitReplyUntil) > 0) restoreFace();
   const int ev = audio::listenTick();
-  if (ev == 1) {
-    before = ui::current();
+  if (ev == 1 && !waitReplyUntil) {
+    voiceBefore = ui::current();
     ui::set(ui::State::Listening);
-    servotest::nod();
   } else if (ev == 2) {
-    if (before == ui::State::Text) { screens::redraw(); ui::setText(); }
-    else ui::set(before == ui::State::Listening ? ui::State::Idle : before);
+    uploadUtterance();
   }
   // 调试：右下角小条显示 背景 / 现在 / 倍数，每 200 ms 刷新（直接画在屏上，被整屏重画盖掉后下次再画）
   static uint32_t last = 0;
