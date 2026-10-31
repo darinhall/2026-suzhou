@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DeskBot 信息密度</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Doto:wght@600;800&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="dense.css">
+</head>
+<body>
+  <header class="top">
+    <h1>DeskBot 信息密度</h1>
+    <div class="seg" id="seg-screen" aria-label="屏幕"></div>
+    <div class="seg" id="seg-mode" aria-label="视图"></div>
+    <div class="grp" id="grp-d">密度 <div class="seg" id="seg-d"></div></div>
+    <div class="seg" id="seg-theme" aria-label="主题"></div>
+    <span class="banner">原型 · 合成走势；带「示例」角标的字段现在没有数据源</span>
+  </header>
+  <main>
+    <p class="cap" id="cap"></p>
+    <div class="wall" id="wall"></div>
+  </main>
+  <script type="module" src="dense.js"></script>
+</body>
+</html>
