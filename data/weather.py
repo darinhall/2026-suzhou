@@ -41,6 +41,13 @@ def wind_level(kmh: float) -> int:
     return 12
 
 
+def wind_dir_text(deg: float | None) -> str:
+    """风向角（风从哪来，气象口径，和天气预报说的"东北风"一致）→ 八个方位。"""
+    if deg is None:
+        return ""
+    return ["北", "东北", "东", "东南", "南", "西南", "西", "西北"][int(((deg % 360) + 22.5) // 45) % 8]
+
+
 def pm25_text(ug: float | None) -> str:
     """PM2.5 浓度 → 国标分段的中文词。"""
     if ug is None:
@@ -86,8 +93,9 @@ def get_weather(place: dict = SUZHOU) -> dict:
     """现在 + 今天 + 明天 + 空气。网络失败会抛 URLError / TimeoutError，调用方决定怎么降级。"""
     w = _get("https://api.open-meteo.com/v1/forecast", {
         "latitude": place["lat"], "longitude": place["lon"], "timezone": "Asia/Shanghai", "forecast_days": 3,
-        "current": "temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,precipitation",
-        "daily": "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code",
+        "current": "temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,precipitation",
+        "daily": "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code,uv_index_max,sunrise,sunset",
+        "hourly": "temperature_2m,precipitation_probability",
     })
     try:   # 空气质量单独一个接口，挂了不影响天气
         a = _get("https://air-quality-api.open-meteo.com/v1/air-quality", {
@@ -108,13 +116,22 @@ def get_weather(place: dict = SUZHOU) -> dict:
     now = {
         "city": place["city"], "time": cur["time"], "temp": cur["temperature_2m"], "feels": cur["apparent_temperature"],
         "humidity": cur["relative_humidity_2m"], "code": cur["weather_code"], "text": WMO.get(cur["weather_code"], "—"),
-        "wind_level": wind_level(cur["wind_speed_10m"]), "raining": cur["precipitation"] > 0,
+        "wind_level": wind_level(cur["wind_speed_10m"]), "wind_dir": wind_dir_text(cur.get("wind_direction_10m")),
+        "raining": cur["precipitation"] > 0,
         "pm25": a.get("pm2_5"), "pm25_24h": round(a["pm25_24h"], 1) if a.get("pm25_24h") is not None else None,
         "us_aqi": a.get("us_aqi"),   # 24 小时均值换算的美标指数，仅供参考
     }
     now["air_text"] = pm25_text(now["pm25_24h"])          # 标题：24 小时均值的级别
     now["air_now_text"] = pm25_text(now["pm25"])          # 此刻的级别
     now["air_trend"] = air_trend(now["pm25"], now["pm25_24h"])
+    hh = w.get("hourly", {})
+    hourly = [None if v is None else round(v) for v in hh.get("temperature_2m", [])[:24]]      # 今天 0–23 点
+    rain_hourly = [None if v is None else round(v) for v in hh.get("precipitation_probability", [])[:24]]
+    now["hourly"] = hourly if len(hourly) == 24 and None not in hourly else None
+    now["rain_hourly"] = rain_hourly if len(rain_hourly) == 24 and None not in rain_hourly else None
+    now["uv"] = None if d.get("uv_index_max") is None else round(d["uv_index_max"][0])
+    now["sunrise"] = d["sunrise"][0][-5:] if d.get("sunrise") else None   # "2026-10-31T06:21" → "06:21"
+    now["sunset"] = d["sunset"][0][-5:] if d.get("sunset") else None
     today, tomorrow = day(0), day(1)
     now["advice"] = advice(now, today, tomorrow)
     return {"now": now, "today": today, "tomorrow": tomorrow, "source": "Open-Meteo"}
@@ -130,7 +147,25 @@ def to_card(w: dict) -> dict:
         "hi": r(t["high"]), "lo": r(t["low"]),
         "tmr_text": m["text"], "tmr_hi": r(m["high"]), "tmr_lo": r(m["low"]), "tmr_rain": m["rain_pct"],
         "advice": n["advice"],
+        # 密度 C 新增：没有的字段不出现
+        **{k: v for k, v in {
+            "wind_dir": n.get("wind_dir") or None, "uv": n.get("uv"), "sunrise": n.get("sunrise"), "sunset": n.get("sunset"),
+            "hourly": n.get("hourly"), "rain_hourly": n.get("rain_hourly"),
+            "aqi": n.get("us_aqi"), "aqi_text": n.get("air_text") if n.get("pm25_24h") is not None else None, "pm25": r(n.get("pm25")),
+        }.items() if v is not None},
     }
+
+
+def to_wx(w: dict) -> dict:
+    """today 卡里的 wx 块：{temp,text,feels,humidity,hi,lo,wind:"东北 3 级",aqi,aqi_text,uv,sunrise,sunset,tmr_text,tmr_lo,tmr_hi,hourly[24]}（没有的字段不出现）。"""
+    n, t, m = w["now"], w["today"], w["tomorrow"]
+    r = lambda v: None if v is None else round(v)   # noqa: E731
+    wind = f"{n['wind_dir']} {n['wind_level']} 级" if n.get("wind_dir") else f"{n['wind_level']} 级"
+    wx = {"temp": r(n["temp"]), "text": n["text"], "feels": r(n["feels"]), "humidity": n["humidity"], "hi": r(t["high"]), "lo": r(t["low"]),
+          "wind": wind, "aqi": n.get("us_aqi"), "aqi_text": n.get("air_text") if n.get("pm25_24h") is not None else None,
+          "uv": n.get("uv"), "sunrise": n.get("sunrise"), "sunset": n.get("sunset"),
+          "tmr_text": m["text"], "tmr_lo": r(m["low"]), "tmr_hi": r(m["high"]), "hourly": n.get("hourly"), "rain_hourly": n.get("rain_hourly")}
+    return {k: v for k, v in wx.items() if v is not None}
 
 
 if __name__ == "__main__":

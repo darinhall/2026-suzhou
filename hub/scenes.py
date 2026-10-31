@@ -176,7 +176,12 @@ class SceneEngine:
         """返回 (state, card)。"""
         if key == "today":
             from today import get_today
-            return "today", (await self._cached("today", get_today, 120))["card"]
+            out = await self._cached("today", get_today, 120)
+            if id(out) not in self._warned:   # 子项（汇率 / 隔夜 / 行情）取不到：这一页照出，缺的那块不显示，只记日志
+                self._warned.add(id(out))
+                for code, msg in out.get("warnings", []):
+                    await self.log("warn", code, msg)
+            return "today", out["card"]
         if key == "sky":
             from weather import get_weather, to_card
             return "sky", to_card(await self._cached("weather", get_weather, 900))

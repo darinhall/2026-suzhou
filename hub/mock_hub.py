@@ -233,10 +233,59 @@ async def handler(ws):
                 await broadcast({"t": "face", "state": "happy"})
     finally:
         robots.pop(ws, None)
+        sink = sinks.pop(ws, None)
+        if sink:
+            sink.close()
         print(f"[-] robot disconnected {ip}")
         await announce_peers()
         if robots_role in ("face", "body") or ip not in LOCAL:
             await hub_log("info", "CLIENT_DOWN", f"{ip} 已断开（{robots_role or 'view'}）")
+
+
+FACE_GAP = 1.0   # 同一块真机上，两张 face 卡片之间至少隔这么久（秒）：板子渲染一张卡要时间，发太快会拖死它的网络循环
+
+
+class FaceSink:
+    """真机的发送队列：face 卡片最快每 FACE_GAP 秒发一张；队列里连续的 watch 刷新只留最新一张（板子落后时丢掉中间帧），
+    其他状态（mkt / today / idle …）一张不丢、顺序不变。"""
+
+    def __init__(self, ws):
+        self.ws, self.q, self.last, self.task, self.dropped, self.warned = ws, deque(), 0.0, None, 0, 0.0
+
+    def push(self, msg: dict, raw: str):
+        if msg.get("state") == "watch" and self.q and self.q[-1][0].get("state") == "watch":
+            self.q[-1] = (msg, raw)
+            self.dropped += 1
+        else:
+            self.q.append((msg, raw))
+        if self.task is None or self.task.done():
+            self.task = asyncio.create_task(self._run())
+
+    async def _run(self):
+        while self.q:
+            wait = self.last + FACE_GAP - time.monotonic()
+            if wait > 0:
+                await asyncio.sleep(wait)
+            if not self.q:
+                return
+            _, raw = self.q.popleft()
+            try:
+                await self.ws.send(raw)
+            except Exception:   # 连接断了：队列没用了
+                self.q.clear()
+                return
+            self.last = time.monotonic()
+            if self.dropped and time.monotonic() - self.warned > 60:   # 同一块板子一分钟最多记一条
+                self.warned, n, self.dropped = time.monotonic(), self.dropped, 0
+                await hub_log("info", "FACE_COALESCE", f"真机收卡片比发送慢（每 {FACE_GAP:g} 秒 1 张），合并掉 {n} 张中间的 watch 刷新")
+
+    def close(self):
+        self.q.clear()
+        if self.task and not self.task.done():
+            self.task.cancel()
+
+
+sinks = {}   # ws -> FaceSink（只有 role=face 的真机）
 
 
 async def broadcast(msg, exclude=None):
@@ -245,6 +294,9 @@ async def broadcast(msg, exclude=None):
     print(f"↓ {raw[:160]}" + (f"  → {target}" if target else ""))
     for ws, role in list(robots.items()):
         if ws is exclude or not (target is None or role is None or role == target):
+            continue
+        if role == "face" and msg.get("t") == "face":   # 真机：限速 + 合并
+            sinks.setdefault(ws, FaceSink(ws)).push(msg, raw)
             continue
         try:
             await ws.send(raw)

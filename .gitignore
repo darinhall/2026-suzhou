@@ -1,3 +1,4 @@
 esp32s3/bringup/data/*.vlw
 data/cache/
 esp32s3/bringup/fonts.bin
+config/network_local.json
