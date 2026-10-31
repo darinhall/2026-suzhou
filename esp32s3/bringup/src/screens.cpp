@@ -6,6 +6,7 @@
 #include <Preferences.h>
 
 #include "deskbot_tokens.h"
+#include "palette.h"
 
 namespace screens {
 
@@ -36,8 +37,9 @@ static void mapFonts() {
 }
 
 // ---------- 颜色 ----------
-static uint16_t C(uint32_t h) { return T->color565((h >> 16) & 255, (h >> 8) & 255, h & 255); }
+static uint16_t C(uint32_t h) { h = devColor(h); return T->color565((h >> 16) & 255, (h >> 8) & 255, h & 255); }
 static uint16_t mix(uint32_t a, uint32_t b, float t) {
+  a = devColor(a); b = devColor(b);
   auto ch = [&](int sh) { return (int)(((a >> sh) & 255) * (1 - t) + ((b >> sh) & 255) * t); };
   return T->color565(ch(16), ch(8), ch(0));
 }
@@ -685,6 +687,19 @@ static void drawSky(JsonVariantConst c, bool pro) {
   txt(CJK12, 10, 296, TL_DATUM, INK, GROUND, advice);
 }
 
+// 色板测试：这块屏的白点偏冷，设计系统的米黄在上面会发蓝。画一组更暖的候选色，拍照对比着挑
+static void drawColorTest() {
+  static const uint32_t SW[8] = {0xF1E8D2, 0xF6E6B8, 0xF7E2A8, 0xF3E4C0, 0xF8ECC8, 0xFBEFD0, 0xF5E9CF, 0xFFFFFF};
+  for (int i = 0; i < 8; i++) {
+    const int x = 10 + (i % 4) * 116, y = 14 + (i / 4) * 150;
+    fb->fillRect(x, y, 108, 140, C(SW[i]));
+    fb->drawRect(x, y, 108, 140, C(INK));
+    char b[12];
+    snprintf(b, sizeof b, "%d  %06X", i + 1, (unsigned)SW[i]);
+    txt(M12, x + 54, y + 60, TC_DATUM, INK, SW[i], b);
+  }
+}
+
 // ---------- 入口 ----------
 static JsonDocument lastCard;
 static uint8_t dispMode = 2;   // 0 简洁 · 1 紧凑（真机暂时按专业画）· 2 专业
@@ -705,7 +720,7 @@ bool begin(TFT_eSPI *tft) {
 }
 
 bool handles(const char *state) {
-  static const char *const S[] = {"watch", "mkt", "today", "sky", "weather", "brief", "msg", "ask", "agent"};
+  static const char *const S[] = {"watch", "mkt", "today", "sky", "weather", "brief", "msg", "ask", "agent", "colortest"};
   for (const char *x : S) if (!strcmp(state, x)) return true;
   return false;
 }
@@ -725,6 +740,7 @@ static void paint() {
   else if (!strcmp(lastState, "msg")) drawMsg(c);
   else if (!strcmp(lastState, "ask")) drawAsk(c);
   else if (!strcmp(lastState, "agent")) drawAgent(c);
+  else if (!strcmp(lastState, "colortest")) drawColorTest();
   flush();
   fb->pushSprite(0, 0);
 }

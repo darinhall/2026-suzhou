@@ -1,4 +1,5 @@
 #include "ui.h"
+#include "palette.h"
 #include "screens.h"
 #include <time.h>
 
@@ -12,8 +13,9 @@ static const uint32_t SURFACE = 0xF8F2E1, RULE = 0xD3C8AA;
 static const int EYE_W = 64, EYE_H = 112, EYE_GAP = 104, MOUTH_W = 28, MOUTH_H = 7;
 static const uint32_t IDLE_AFTER = 25000, PLAY_FOR = 12000;   // 安静 25 秒玩球，玩 12 秒去睡（和 sim 一样）
 
-static uint16_t C(uint32_t h) { return T->color565((h >> 16) & 255, (h >> 8) & 255, h & 255); }
-static uint16_t mix(uint32_t a, uint32_t b, float t) {   // a → b，t 0..1（TFT 读不了像素，没法做半透明，所以预先混好）
+static uint16_t C(uint32_t h) { h = devColor(h); return T->color565((h >> 16) & 255, (h >> 8) & 255, h & 255); }
+static uint16_t mix(uint32_t a, uint32_t b, float t) {
+  a = devColor(a); b = devColor(b);   // a → b，t 0..1（TFT 读不了像素，没法做半透明，所以预先混好）
   auto ch = [&](int sh) { return (int)(((a >> sh) & 255) * (1 - t) + ((b >> sh) & 255) * t); };
   return T->color565(ch(16), ch(8), ch(0));
 }
