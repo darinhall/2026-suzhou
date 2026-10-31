@@ -151,6 +151,54 @@ DISPLAY_MODES = ("simple", "compact", "pro")
 DISPLAY = {"mode": "pro"}   # 当前显示模式：简洁 / 紧凑 / 专业；真机和网页共用
 
 
+def note_sent(ws, msg: dict) -> None:
+    """记下发给这块板子的最后一张 face 卡（和板子上行的 shown 对账用）。"""
+    if msg.get("t") == "face":
+        card = msg.get("card") or {}
+        sent_face[ws] = {"state": msg.get("state"), "item": card.get("name") or card.get("city") or "", "at": time.monotonic()}
+
+
+def norm_display(mode) -> str:
+    return "pro" if mode == "compact" else str(mode)   # 板子只有简洁 / 专业两档，紧凑按专业画
+
+
+async def warn_once(ws, code: str, text: str):
+    if time.monotonic() - warned_at.get((ws, code), -1e9) >= 30:
+        warned_at[(ws, code)] = time.monotonic()
+        await hub_log("warn", code, text)
+
+
+async def on_shown(ws, msg: dict):
+    """板子每画完一张卡上行 {"t":"shown","state","mode","item"}：记下来，对一下显示模式。"""
+    last_shown[ws] = {"state": msg.get("state"), "mode": msg.get("mode"), "item": msg.get("item", ""), "at": time.monotonic()}
+    if msg.get("mode") and msg.get("state") in ("watch", "mkt", "today", "sky", "weather", "brief", "msg", "ask", "agent") \
+            and norm_display(msg["mode"]) != norm_display(DISPLAY["mode"]):
+        await warn_once(ws, "DISPLAY_MISMATCH", f"真机画的是 {msg.get('mode')} 模式，设置里是 {DISPLAY['mode']}（板子没收到 display，或者本地长按切换了）")
+
+
+mismatch_since = {}   # ws -> 板子画的和中枢发的对不上，从什么时候开始
+
+
+async def desync_watch():
+    """每 2 秒对一次账：板子上行的最后一条 shown 的状态，和中枢发给它的最后一张 face 卡的状态对不上，连续超过 5 秒，
+    记 DESYNC（warn，每块板子 30 秒最多一条）。时钟 / 待机模式中枢不推卡，不查。老固件不发 shown，也不查。"""
+    while True:
+        await asyncio.sleep(2)
+        if engine and engine.name in ("clock", "idle"):
+            mismatch_since.clear()
+            continue
+        for ws, role in list(robots.items()):
+            sent, shown = sent_face.get(ws), last_shown.get(ws)
+            if role != "face" or not sent or not shown or sent["state"] in ("idle", "decoy"):
+                continue
+            if shown["state"] == sent["state"]:
+                mismatch_since.pop(ws, None)
+                continue
+            since = mismatch_since.setdefault(ws, time.monotonic())
+            if time.monotonic() - since > 5:
+                await warn_once(ws, "DESYNC", f"真机上画的是 {shown['state']}，中枢发的是 {sent['state']}（{sent['item']}），已经对不上 {int(time.monotonic() - since)} 秒：板子没画出来？老板键开着？")
+
+
 async def broadcast_raw(msg: dict, exclude=None):
     """不打印、不按 role 过滤，发给所有人（日志用）。"""
     raw = json.dumps(msg, ensure_ascii=False)
@@ -193,6 +241,11 @@ async def handler(ws):
     fails.pop(ip, None)
 
     robots[ws] = robots_role = hello.get("role")
+    ips[ws] = ip
+    if robots_role in ("face", "body") and ip not in LOCAL:   # 同一块板子重启 / 重新烧录后重连：旧连接还没被 ping 超时清掉，直接换掉它
+        for old, role in list(robots.items()):
+            if old is not ws and role == robots_role and ips.get(old) == ip:
+                asyncio.create_task(old.close(1000, "replaced by a newer connection"))
     print(f"[+] robot connected {ip}  role = {robots[ws] or '全部'}  fw = {hello.get('fw', '?')}")
     await announce_peers()
     try:
@@ -204,6 +257,7 @@ async def handler(ws):
         await ws.send(json.dumps({"t": "profile", "profile": engine.public_profile()}, ensure_ascii=False))   # 和当前设置
         if engine.last_face and robots[ws] != "body":   # 以及现在屏幕上的那张卡（不用等下一次刷新）
             await ws.send(json.dumps(engine.last_face, ensure_ascii=False))
+            note_sent(ws, engine.last_face)
     except Exception:
         pass
     if robots[ws] not in ("face", "body"):   # 网页：补发历史日志
@@ -231,6 +285,10 @@ async def handler(ws):
             if t == "mode":                                             # 切模式：watch / weather / today / clock / idle / booth
                 if not await engine.set_mode(str(msg.get("name", ""))):
                     await ws.send(json.dumps({"t": "notice", "level": "error", "text": "不认识的模式：" + str(msg.get("name", ""))[:20]}, ensure_ascii=False))
+                continue
+            if t == "shown":                                            # 板子画完一张卡：记下来、转给网页，不打印
+                await on_shown(ws, msg)
+                await broadcast(msg, exclude=ws)
                 continue
             if t == "mode_ctl":                                         # 上一个 / 下一个 / 暂停 / 继续
                 await engine.ctl(str(msg.get("op", "")))
@@ -274,6 +332,10 @@ async def handler(ws):
         if sink:
             sink.close()
         print(f"[-] robot disconnected {ip}")
+        sent_face.pop(ws, None)
+        last_shown.pop(ws, None)
+        mismatch_since.pop(ws, None)
+        ips.pop(ws, None)
         await announce_peers()
         if robots_role in ("face", "body") or ip not in LOCAL:
             await hub_log("info", "CLIENT_DOWN", f"{ip} 已断开（{robots_role or 'view'}）")
@@ -307,9 +369,10 @@ class FaceSink:
                 await asyncio.sleep(wait)
             if not self.q:
                 return
-            _, raw = self.q.popleft()
+            msg, raw = self.q.popleft()
             try:
                 await self.ws.send(raw)
+                note_sent(self.ws, msg)
             except Exception:   # 连接断了：队列没用了
                 self.q.clear()
                 return
@@ -325,12 +388,17 @@ class FaceSink:
 
 
 sinks = {}   # ws -> FaceSink（只有 role=face 的真机）
+ips = {}          # ws -> ip
+sent_face = {}    # ws -> {"state","item","at"}：中枢最后一张真正发给这块板子的 face 卡
+last_shown = {}   # ws -> 板子上行的最后一条 shown：{"state","mode","item","at"}
+warned_at = {}    # (ws, 代码) -> 上次记这条 warn 的时间（每 30 秒最多一条）
 
 
 async def broadcast(msg, exclude=None):
     raw = json.dumps(msg, ensure_ascii=False)
     target = ROUTE.get(msg.get("t"))
-    print(f"↓ {raw[:160]}" + (f"  → {target}" if target else ""))
+    if msg.get("t") != "shown":
+        print(f"↓ {raw[:160]}" + (f"  → {target}" if target else ""))
     for ws, role in list(robots.items()):
         if ws is exclude or not (target is None or role is None or role == target):
             continue
@@ -354,7 +422,7 @@ async def announce_peers():
     await broadcast({"t": "peers", **peer_counts()})
 
 
-UPSTREAM = ("head_press", "touch", "boss")   # 真机 / 网页上行的事件，转给其他客户端（让网页上的脚本能等到真机的按头）
+UPSTREAM = ("head_press", "touch", "boss", "shown")   # 真机 / 网页上行的事件，转给其他客户端（让网页上的脚本能等到真机的按头）
 
 
 async def live_message(what: str, req: dict | None = None) -> dict:
@@ -535,7 +603,10 @@ async def main(port: int):
         await broadcast({"t": "display", "mode": mode})
     engine.display_hook = on_display
     asyncio.create_task(engine.boot())
-    async with serve(handler, "0.0.0.0", port, max_size=64 * 1024):
+    asyncio.create_task(desync_watch())
+    # 保活：每 20 秒 ping 一次，60 秒没回才断（默认是 20 秒）。真机的 WebSocketsClient 只在 ws.loop() 里回 pong，
+    # 板子画一张卡 / 扫 WiFi 的几百毫秒到几秒里不会回；网页标签页在后台时浏览器也会推迟回 pong。
+    async with serve(handler, "0.0.0.0", port, max_size=64 * 1024, ping_interval=20, ping_timeout=60):
         await start_discovery(port)
         print(f"mock hub  ws://{lan_ip()}:{port}/robot   （本机 ws://localhost:{port}/robot）")
         print(f"令牌：{TOKEN}（也在 hub/.token；本机连接不用）" if AUTH
