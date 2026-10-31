@@ -58,6 +58,7 @@ from pathlib import Path
 from websockets.asyncio.server import serve
 
 import netutil
+import modes
 import scenes
 
 HERE = Path(__file__).resolve().parent
@@ -200,6 +201,9 @@ async def handler(ws):
         pass
     try:
         await ws.send(json.dumps({"t": "display", "mode": DISPLAY["mode"]}))   # 新连上的人马上知道现在是哪种显示模式
+        await ws.send(json.dumps({"t": "profile", "profile": engine.public_profile()}, ensure_ascii=False))   # 和当前设置
+        if engine.last_face and robots[ws] != "body":   # 以及现在屏幕上的那张卡（不用等下一次刷新）
+            await ws.send(json.dumps(engine.last_face, ensure_ascii=False))
     except Exception:
         pass
     if robots[ws] not in ("face", "body"):   # 网页：补发历史日志
@@ -221,10 +225,28 @@ async def handler(ws):
             if t == "log":
                 await client_log(ws, ip, msg)
                 continue
+            if t == "profile":                                          # 设置：深度合并 → 保存 → 广播完整设置
+                asyncio.create_task(handle_profile(ws, msg))   # 查城市要联网（几秒），别堵住这个连接的其他消息
+                continue
+            if t == "mode":                                             # 切模式：watch / weather / today / clock / idle / booth
+                if not await engine.set_mode(str(msg.get("name", ""))):
+                    await ws.send(json.dumps({"t": "notice", "level": "error", "text": "不认识的模式：" + str(msg.get("name", ""))[:20]}, ensure_ascii=False))
+                continue
+            if t == "mode_ctl":                                         # 上一个 / 下一个 / 暂停 / 继续
+                await engine.ctl(str(msg.get("op", "")))
+                continue
+            if t == "open":                                             # 点了某只股票：整屏行情停 12 秒
+                await engine.open(str(msg.get("code", "")))
+                continue
+            if t == "symbols":                                          # 搜股票：按名称或代码
+                items = await engine.symbols(str(msg.get("q", "")))
+                await ws.send(json.dumps({"t": "symbols_result", "q": str(msg.get("q", ""))[:20], "items": items}, ensure_ascii=False))
+                continue
             if t == "display":                                          # 显示模式：simple / compact / pro，存下来并广播给其他人
                 mode = msg.get("mode")
                 if mode in DISPLAY_MODES:
                     DISPLAY["mode"] = mode
+                    await engine.set_display(mode)   # 也记进设置里，重启后还在
                     await broadcast({"t": "display", "mode": mode}, exclude=ws)
                     await hub_log("info", "DISPLAY_MODE", f"显示模式 → {mode}")
                 continue
@@ -268,7 +290,9 @@ class FaceSink:
         self.ws, self.q, self.last, self.task, self.dropped, self.warned = ws, deque(), 0.0, None, 0, 0.0
 
     def push(self, msg: dict, raw: str):
-        if msg.get("state") == "watch" and self.q and self.q[-1][0].get("state") == "watch":
+        last = self.q[-1][0] if self.q else None
+        if last and msg.get("state") in ("watch", "mkt") and last.get("state") == msg.get("state") and \
+                (msg["state"] == "watch" or (last.get("card") or {}).get("code") == (msg.get("card") or {}).get("code")):
             self.q[-1] = (msg, raw)
             self.dropped += 1
         else:
@@ -361,6 +385,14 @@ FAIL_INFO = {   # what -> (日志代码, 给人看的中文)
     "sky": ("API_WEATHER_FAIL", "天气获取失败（Open-Meteo 连不上）"),
     "market": ("API_MARKET_FAIL", "行情获取失败（PandaAI 连不上或没有数据，休市时看上一个交易日）"),
 }
+
+
+async def handle_profile(ws, msg: dict):
+    ok, err, field = await engine.profile_set(msg.get("set"))
+    try:
+        await ws.send(json.dumps({"t": "profile_result", "ok": ok, **({} if ok else {"error": err, **({"field": field} if field else {})})}, ensure_ascii=False))
+    except Exception:
+        pass
 
 
 async def serve_request(ws, req: dict):
@@ -466,6 +498,12 @@ async def stdin_loop():
         if line in ("weather", "today", "market"):
             await push_live("sky" if line == "weather" else line)
             continue
+        if line.startswith("mode "):   # mode watch | weather | today | clock | idle | booth
+            await engine.set_mode(line.split()[1])
+            continue
+        if line == "profile":
+            print(json.dumps(engine.public_profile(), ensure_ascii=False, indent=1))
+            continue
         if line.startswith("scene"):   # scene booth | scene watch speed=0.5 refresh=1 | scene stop
             parts = line.split()
             msg = {"t": "scene", "name": parts[1] if len(parts) > 1 else "stop"}
@@ -489,14 +527,20 @@ async def stdin_loop():
 
 async def main(port: int):
     global engine
-    engine = scenes.SceneEngine(broadcast, hub_log)
-    asyncio.create_task(engine.warm())
+    engine = modes.ModeEngine(broadcast, hub_log, Path(os.environ.get("DESKBOT_PROFILE") or HERE / "profile.json"))
+    DISPLAY["mode"] = engine.profile["display"]
+
+    async def on_display(mode):   # profile.set 里改了 display：和 {"t":"display"} 一样同步给所有人
+        DISPLAY["mode"] = mode
+        await broadcast({"t": "display", "mode": mode})
+    engine.display_hook = on_display
+    asyncio.create_task(engine.boot())
     async with serve(handler, "0.0.0.0", port, max_size=64 * 1024):
         await start_discovery(port)
         print(f"mock hub  ws://{lan_ip()}:{port}/robot   （本机 ws://localhost:{port}/robot）")
         print(f"令牌：{TOKEN}（也在 hub/.token；本机连接不用）" if AUTH
               else "⚠️ 令牌检查已关闭（--no-auth）：同一个 WiFi 里的任何人都能连上来控制机器人")
-        print("输入 JSON、demo、weather、today、market、scene <morning|watch|close|booth|stop>、logs 或 token")
+        print("输入 JSON、demo、weather、today、market、mode <watch|weather|today|clock|idle|booth>、profile、scene <…>、logs 或 token")
         await hub_log("info", "HUB_START", f"中枢启动 ws://{lan_ip()}:{port}/robot" + ("" if AUTH else "（无令牌）"))
         await stdin_loop()
 

@@ -27,7 +27,8 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 CACHE = HERE / "cache"
-WATCHLIST = [("300750", "宁德时代"), ("600519", "贵州茅台"), ("002594", "比亚迪"), ("600036", "招商银行"), ("688981", "中芯国际")]
+WATCHLIST = [("300750", "宁德时代"), ("688981", "中芯国际"), ("600519", "贵州茅台"), ("002594", "比亚迪"), ("600036", "招商银行")]   # 默认自选；profile.watch.codes 可以换
+MAX_STOCKS = 8   # 一个自选最多 8 只（watch 列表一页 MAX_ROWS = 5 行，多的翻页）
 INDICES = [("000001", "上证指数"), ("399001", "深证成指"), ("399006", "创业板指"), ("000300", "沪深300")]
 MAX_ROWS = 5
 CACHE_VERSION = 2   # 数据结构变了就加一，旧缓存自动作废
@@ -47,6 +48,23 @@ def _make_times() -> list[str]:
 
 TIMES = _make_times()   # 5 分钟线的 48 个时刻：09:35…11:30、13:05…15:00
 N = len(TIMES)
+
+
+def resolve(codes) -> list[tuple[str, str]]:
+    """代码列表 → [(代码, 名称)]：名称先查 data/names.py，查不到就用代码当名字（取到行情后会换成行情里的名字）。None = 默认自选。"""
+    if not codes:
+        return list(WATCHLIST)
+    import names
+    default = dict(WATCHLIST)
+    out = []
+    for c in list(codes)[:MAX_STOCKS]:
+        c = str(c)
+        out.append((c, default.get(c) or names.lookup(c) or c))
+    return out
+
+
+def _key(wl: list[tuple[str, str]]) -> str:
+    return "-".join(c for c, _ in wl)
 
 
 # ---------- 缓存 ----------
@@ -77,7 +95,7 @@ def interpolate_day(o: float, h: float, lo: float, c: float, n: int = N) -> list
     return out
 
 
-def sample_day() -> dict:
+def sample_day(wl: list[tuple[str, str]] | None = None) -> dict:
     """完全没有数据时的示例：固定种子的随机游走。屏幕上标"示例数据"。"""
     rnd = random.Random(1031)
     d = datetime.date.today()
@@ -91,8 +109,11 @@ def sample_day() -> dict:
             out.append(round(v, 2))
         return out
 
+    wl = wl or list(WATCHLIST)
+    base = {"300750": (210.0, 0.035), "688981": (100.1, 0.045), "600519": (1450.0, -0.012), "002594": (255.0, -0.03), "600036": (43.3, 0.01)}
     stocks = []
-    for (c, n), p, dr in zip(WATCHLIST, (210.0, 1450.0, 255.0, 43.3, 100.1), (0.035, -0.012, -0.03, 0.01, 0.045)):
+    for j, (c, n) in enumerate(wl):
+        p, dr = base.get(c) or (round(20 + rnd.random() * 80, 2), round(rnd.uniform(-0.04, 0.04), 3))
         closes = walk(p, dr, 0.0018)
         hi, lo = max(closes + [p]), min(closes + [p])
         stocks.append({"code": c, "name": n, "prev_close": p, "open": round(p * 1.002, 2), "closes": closes,
@@ -121,7 +142,7 @@ def _hhmm(minute) -> str:
     return f"{s[:2]}:{s[2:4]}"
 
 
-def _fetch_day() -> dict:
+def _fetch_day(wl: list[tuple[str, str]]) -> dict:
     from export_game import adjusted
     from panda_client import PandaClient, login
 
@@ -129,7 +150,7 @@ def _fetch_day() -> dict:
     c = PandaClient()
     last = c.last_trade_date()
     start = (datetime.datetime.strptime(last, "%Y%m%d") - datetime.timedelta(days=60)).strftime("%Y%m%d")
-    codes = [c_ for c_, _ in WATCHLIST]
+    codes = [c_ for c_, _ in wl]
     daily = c.get_bars("a", codes, start, last)
     if "trade_status" in daily.columns:
         daily = daily[daily["trade_status"] == 0]
@@ -139,7 +160,7 @@ def _fetch_day() -> dict:
         mins = None
 
     stocks, interp = [], []
-    for code, name in WATCHLIST:
+    for code, name in wl:
         df = daily[daily["symbol"].str.startswith(code)]
         if not len(df):
             raise ValueError(f"{code} 没有日线")
@@ -205,24 +226,28 @@ def _fetch_day() -> dict:
 _mem: dict = {}
 
 
-def load_day(max_age: float = 600) -> dict:
-    """最近一个交易日的数据。内存缓存 10 分钟；PandaAI 失败用磁盘缓存；再不行用示例。
+def load_day(max_age: float = 600, codes=None) -> dict:
+    """最近一个交易日的数据（codes = 自选代码列表，None = 默认自选）。内存缓存 10 分钟；PandaAI 失败用磁盘缓存；再不行用示例。
     返回的 dict 里 "source" 是 panda / cache / sample，"warn" 是要记日志的原因（没有就是 None）。"""
-    if _mem.get("day") and time.time() - _mem["at"] < max_age:
-        return _mem["day"]
+    wl = resolve(codes)
+    key = _key(wl)
+    hit = _mem.get(key)
+    if hit and time.time() - hit["at"] < max_age:
+        return hit["day"]
+    cname = "day" if key == _key(WATCHLIST) else "day_" + key
     warn = None
     try:
-        day = _fetch_day()
-        cache_put("day", day)
+        day = _fetch_day(wl)
+        cache_put(cname, day)
     except BaseException as e:   # login() 缺账号会 SystemExit，也要兜住
         warn = f"{type(e).__name__}: {e}"[:200]
-        day = cache_get("day")
-        if day and day.get("v") == CACHE_VERSION:
+        day = cache_get(cname)
+        if day and day.get("v") == CACHE_VERSION and [x["code"] for x in day["stocks"]] == [c for c, _ in wl]:   # 缓存的自选要和现在的一致
             day["source"] = "cache"
         else:
-            day = sample_day()
+            day = sample_day(wl)
     day["warn"] = warn or ("分钟线缺失，用日线插值：" + ",".join(day["interp"]) if day.get("interp") else None)
-    _mem.update(day=day, at=time.time())
+    _mem[key] = {"day": day, "at": time.time()}
     return day
 
 
@@ -303,14 +328,14 @@ def index_state(day: dict, i: int | None = None) -> dict:
     return {"name": ix["name"], "pct": ix["pct"]}
 
 
-def watch_card(day: dict, mode: str = "close", i: int | None = None, alert_codes: tuple = ()) -> dict:
+def watch_card(day: dict, mode: str = "close", i: int | None = None, alert_codes: tuple = (), start: int = 0) -> dict:
     """watch 卡（v2）：
     {title, asof, mode:close|replay|live|sample, index:{name,pct}（旧字段）,
      indices:[{name,value,pct[,amount(亿，仅收盘)]}]≤4, avg_pct,
-     rows:[{name,code,pct,price,open,high,low,prev_close,amount,amp,vol_ratio,spark≤24[,alert]}]≤5, alert?}"""
+     rows:[{name,code,pct,price,open,high,low,prev_close,amount,amp,vol_ratio,spark≤24[,alert]}]≤5（start = 从第几只开始，翻页用）, alert?}"""
     at = None if mode == "close" else i
     rows = []
-    for k in range(min(MAX_ROWS, len(day["stocks"]))):
+    for k in range(start, min(start + MAX_ROWS, len(day["stocks"]))):
         r = stock_state(day, k, at)
         series = r.pop("_series")
         for key in ("volume", "limit_up", "limit_down", "range20"):   # 这些只给单股 mkt 卡
