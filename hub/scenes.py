@@ -24,11 +24,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "data"))
 
-SCENES = {
-    "morning": ["today", "sky", "brief", "watch_close"],
+SCENES = {   # 旧的播放列表式场景；天气（sky）和市场天气（weather）页已移除
+    "morning": ["today", "brief", "watch_close"],
     "watch": ["replay", "watch_close"],
-    "close": ["weather", "watch_close", "summary"],
-    "booth": ["today", "sky", "brief", "watch_close", "replay", "weather", "watch_close", "summary"],
+    "close": ["watch_close", "summary"],
+    "booth": ["today", "brief", "watch_close", "replay", "summary"],
 }
 LOOPING = {"booth"}
 LABEL = {"today": "今天", "sky": "天气", "brief": "盘前简报", "watch_close": "自选（收盘）", "replay": "自选回放",
@@ -111,8 +111,7 @@ class SceneEngine:
         """中枢启动时先把天气和行情拉一遍放进缓存，第一次开场景就不用等 4–5 秒。失败不要紧，开场景时会再试。"""
         try:
             from today import get_today
-            from weather import get_weather
-            await asyncio.gather(self._cached("weather", get_weather, 900), self._cached("today", get_today, 120), self._day(), return_exceptions=True)
+            await asyncio.gather(self._cached("today", get_today, 120), self._day(), return_exceptions=True)
         except BaseException:
             pass
 

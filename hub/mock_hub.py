@@ -184,7 +184,7 @@ async def desync_watch():
     记 DESYNC（warn，每块板子 30 秒最多一条）。时钟 / 待机模式中枢不推卡，不查。老固件不发 shown，也不查。"""
     while True:
         await asyncio.sleep(2)
-        if engine and engine.name in ("clock", "idle"):
+        if engine and engine.name == "idle":
             mismatch_since.clear()
             continue
         for ws, role in list(robots.items()):
@@ -283,8 +283,10 @@ async def handler(ws):
                 asyncio.create_task(handle_profile(ws, msg))   # 查城市要联网（几秒），别堵住这个连接的其他消息
                 continue
             if t == "mode":                                             # 切模式：watch / weather / today / clock / idle / booth
-                if not await engine.set_mode(str(msg.get("name", ""))):
-                    await ws.send(json.dumps({"t": "notice", "level": "error", "text": "不认识的模式：" + str(msg.get("name", ""))[:20]}, ensure_ascii=False))
+                name = str(msg.get("name", ""))
+                if not await engine.set_mode(name):
+                    text = "天气 / 时钟功能已移除，可用：" + " / ".join(modes.MODES) if name in modes.REMOVED else "不认识的模式：" + name[:20]
+                    await ws.send(json.dumps({"t": "notice", "level": "error", "text": text}, ensure_ascii=False))
                 continue
             if t == "shown":                                            # 板子画完一张卡：记下来、转给网页，不打印
                 await on_shown(ws, msg)
@@ -611,7 +613,7 @@ async def main(port: int):
         print(f"mock hub  ws://{lan_ip()}:{port}/robot   （本机 ws://localhost:{port}/robot）")
         print(f"令牌：{TOKEN}（也在 hub/.token；本机连接不用）" if AUTH
               else "⚠️ 令牌检查已关闭（--no-auth）：同一个 WiFi 里的任何人都能连上来控制机器人")
-        print("输入 JSON、demo、weather、today、market、mode <watch|weather|today|clock|idle|booth>、profile、scene <…>、logs 或 token")
+        print("输入 JSON、demo、weather、today、market、mode <watch|list|today|idle|booth>、profile、scene <…>、logs 或 token")
         await hub_log("info", "HUB_START", f"中枢启动 ws://{lan_ip()}:{port}/robot" + ("" if AUTH else "（无令牌）"))
         await stdin_loop()
 
