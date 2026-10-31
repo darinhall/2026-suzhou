@@ -23,9 +23,9 @@ static uint16_t mix(uint32_t a, uint32_t b, float t) {
 static State cur = State::Idle;
 static int cnt = 0;
 static float pct = 0, vol = 0.3f;
-static bool alertFlag = false, bossOn = false;
+static bool alertFlag = false;
 static char label[24] = "";
-static uint32_t nextBlink = 3000, lastAnim = 0, winkUntil = 0, lastClock = 0, lastActive = 0, stateSince = 0;
+static uint32_t nextBlink = 3000, lastAnim = 0, winkUntil = 0, lastActive = 0, stateSince = 0;
 
 static int W() { return T->width(); }
 static int H() { return T->height(); }
@@ -107,33 +107,6 @@ static void stealth() {
     T->fillEllipse(144, 223, 32, 9, b);
     T->fillEllipse(W() - 144, 223, 32, 9, b);
   }
-}
-
-// ---------- 老板键：办公助手时钟 ----------
-static int clockMin = -1;   // 屏幕上现在显示的分钟；-1 = 还没画
-
-// 只有分钟变了才重画，而且只重画数字那一块；以前每秒整屏清一次，所以每秒闪一下
-static void clockFace(bool full) {
-  struct tm tm;
-  char hh[3] = "--", mm[4] = ":--";
-  int minute = -2;
-  if (getLocalTime(&tm, 0) && tm.tm_year > 120) { snprintf(hh, sizeof hh, "%02d", tm.tm_hour); snprintf(mm, sizeof mm, ":%02d", tm.tm_min); minute = tm.tm_hour * 60 + tm.tm_min; }
-  else {   // 没联网校时：用"编译时间 + 开机后经过的时间"凑一个大致的时间，总比一直显示 --:-- 强
-    int bh = 0, bm = 0;
-    sscanf(__TIME__, "%d:%d", &bh, &bm);
-    const int t = (bh * 60 + bm + (int)(millis() / 60000)) % 1440;
-    snprintf(hh, sizeof hh, "%02d", t / 60); snprintf(mm, sizeof mm, ":%02d", t % 60); minute = t;
-  }
-  if (!full && minute == clockMin) return;
-  clockMin = minute;
-  if (full) T->fillScreen(C(GROUND));
-  T->setTextDatum(TL_DATUM);
-  const int wh = T->textWidth("00", 8), wm = T->textWidth(":00", 8), x0 = (W() - wh - wm) / 2, y0 = H() / 2 - 38;   // 用固定宽度排版，数字变了位置也不动
-  if (!full) T->fillRect(x0 - 4, y0 - 4, wh + wm + 8, 8 * 8 + 24, C(GROUND));
-  T->setTextColor(C(INK), C(GROUND));
-  T->drawString(hh, x0, y0, 8);
-  T->setTextColor(C(MUTED), C(GROUND));
-  T->drawString(mm, x0 + wh, y0, 8);
 }
 
 // ---------- 待机小动画 ----------
@@ -318,7 +291,6 @@ static void wakeUp(bool fromSleep) {
 
 // ---------- 整屏重画 ----------
 static void render() {
-  if (bossOn) return clockFace(true);
   T->fillScreen(C(GROUND));
   switch (cur) {
     case State::Idle: eyesPill(INK, EYE_H); mouth(); break;
@@ -348,7 +320,7 @@ static void apply(State s, int c, float p, float v, bool a, const char *l) {
   strlcpy(label, l ? l : "", sizeof label);
   stateSince = millis();
   if (alertFlag && s == State::Stealth) winkUntil = millis() + 450;   // 异动：眨一下右眼
-  if (!bossOn) render();
+  render();
 }
 
 void set(State s, int c, float p, float v, bool a, const char *l) {   // 外面（中枢）来的指令：算"有人动过它"
@@ -368,7 +340,7 @@ void setText() {
 
 void wake() {
   lastActive = millis();
-  if (bossOn || (cur != State::Play && cur != State::Sleep)) return;
+  if (cur != State::Play && cur != State::Sleep) return;
   const bool wasSleep = cur == State::Sleep;
   cur = State::Idle;
   cnt = 0; alertFlag = false;
@@ -376,20 +348,7 @@ void wake() {
   wakeUp(wasSleep);
 }
 
-void setBoss(bool on) {
-  bossOn = on;
-  lastClock = 0;
-  clockMin = -1;
-  render();
-}
-
-bool boss() { return bossOn; }
-
 void tick(uint32_t now) {
-  if (bossOn) {   // 每秒刷新一次时钟
-    if (now - lastClock > 1000) { lastClock = now; clockFace(false); }
-    return;
-  }
   // 待机导演：idle 安静一阵 → 玩球 → 睡觉，直到有人动它
   if (cur == State::Idle && now - lastActive > IDLE_AFTER) { idleToPlay(); return; }
   if (cur == State::Play && now - stateSince > PLAY_FOR) { playToSleep(); return; }
