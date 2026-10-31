@@ -45,6 +45,7 @@ static void onMessage(JsonDocument &d) {
   const char *t = d["t"] | "";
   if (!strcmp(t, "servo_test")) { servotest::run(); return; }
   if (!strcmp(t, "servo_wiggle")) { servotest::wiggle(d["id"] | 1, d["times"] | 3); return; }
+  if (!strcmp(t, "voice_calibrate")) { audio::calibrate(d["ms"] | 3000); return; }   // 换了环境：重新量背景音量
   if (!strcmp(t, "audio_test")) { audio::selfTest(); return; }   // 中枢 / 网页可以再跑一次音频自检
   if (!strcmp(t, "hello")) { audio::hello(d["vol"] | 0.15f); return; }
   if (!strcmp(t, "chime")) { audio::chime(d["vol"] | 0.08f); return; }
@@ -103,7 +104,9 @@ void setup() {
   if (audio::begin()) audio::chime(0.08f);
   delay(1500);
   servotest::wiggle(1, 1);   // 开机：两个舵机轮流在原位附近来回摆一下（±10°，30% 扭矩，摆完放松）
-  servotest::wiggle(2, 1);   // 开机低音量弹一小段旋律（语音 + 麦克风自检：长按左上角）
+  servotest::wiggle(2, 1);
+  delay(500);
+  audio::calibrate(3000);   // 舵机和喇叭都停了以后，量 3 秒背景音量；之后超过它 4 倍才算有人说话
 
   tp.begin();
   tp.setRotation(ROTATION_NORMAL);
@@ -165,6 +168,7 @@ void loop() {
   const uint32_t now = millis();
   offlineDemo(now);
   serialInject();
+  audio::listenTick();   // 按音量检测有没有人说话
   net::loop();
 
   static bool wasTouched = false;
