@@ -94,6 +94,12 @@ function renderBoard() {
   });
 }
 
+// 手机上旋钮默认折起来（它们占掉大半屏），摘要里显示当前设置
+if (matchMedia('(max-width: 560px)').matches) $('#knobs-wrap').open = false;
+const sizeName = { l: '3.5″', s: '2.8″' };
+const nowText = () => `${sizeName[design.size]} · ${design.theme === 'dark' ? '深色' : '浅色'}`;
 renderKnobs();
 renderTabs();
 renderBoard();
+$('#knobs-now').textContent = nowText();
+$('#knobs').addEventListener('change', () => ($('#knobs-now').textContent = nowText()));

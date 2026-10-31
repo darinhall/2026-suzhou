@@ -43,3 +43,26 @@ body.lab { display: block; height: auto; min-height: 100%; }
   .frame, .frame:has(.screen[data-size="s"]) { --z: 0.68; }
   .frames.compare .frame, .frames.compare .frame:has(.screen[data-size="s"]) { --z: 0.68; }
 }
+
+/* 折叠的旋钮面板 */
+.knobs-wrap { border-bottom: 1px solid var(--line); }
+.knobs-wrap > summary { padding: 12px 16px; cursor: pointer; list-style: none; font: 500 11px/1 var(--mono); letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }
+.knobs-wrap > summary::after { content: " −"; }
+.knobs-wrap:not([open]) > summary::after { content: " +"; }
+.knobs-wrap > summary small { text-transform: none; letter-spacing: 0; color: var(--faint); margin-left: 6px; }
+.knobs-wrap .knobs { border-bottom: 0; padding-top: 4px; }
+
+@media (max-width: 560px) {
+  .bar { padding: 10px 16px; }
+  .bar .brand span { display: none; }
+  .bar-link { white-space: nowrap; }
+  .knobs { gap: 12px; }
+  .knobs fieldset { flex-direction: column; align-items: flex-start; gap: 6px; width: 100%; min-width: 0; }   /* fieldset 默认不肯比内容窄，会把页面撑宽 */
+  .knobs legend { float: none; margin: 0; }
+  .seg { max-width: 100%; overflow-x: auto; }   /* 并排对比有 8 个选项，一排放不下就横向滑动 */
+  .seg label { white-space: nowrap; padding: 9px 12px; }
+  .knobs .reset { margin-left: 0; }
+  .tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }   /* 三个场景一行排开，放不下就横向滑 */
+  .tabs button { flex: none; white-space: nowrap; min-height: 44px; }
+  .uc-head { grid-template-columns: 1fr; }
+}
