@@ -59,7 +59,11 @@ export const USECASES = [
     pain: '早上没时间看新闻和盘面；信息很多，不知道哪些和自己的持仓有关。',
     panda: 'A2A 办公室（投研主持人 + 3 个 Agent）· Panda Data · 定时任务',
     steps: [
-      { time: '09:10', say: '开机第一屏：天气。明天有雨，出门前就知道了', body: '抬头看你',
+      { time: '09:08', say: '开机第一屏：今天。几号、周几、开不开市、天气、下一个会', body: '抬头看你',
+        msgs: [{ t: 'pose', yaw: 0, pitch: 4, ms: 700 },
+          { t: 'face', state: 'today', card: { month: 10, day: 30, weekday: '周五', market: '盘前', city: '苏州', temp: 16, text: '雾',
+            tmr_text: '小阵雨', tmr_lo: 16, tmr_hi: 26, next_time: '09:30', next_in: '22 分钟后', next_title: '晨会', next_where: '3 号会议室' } }] },
+      { time: '09:10', say: '轻点屏幕看天气详情：明天有雨，出门前就知道了', body: '保持朝向你',
         msgs: [{ t: 'pose', yaw: 0, pitch: 4, ms: 700 },
           { t: 'face', state: 'sky', card: { city: '苏州', time: '09:10', temp: 16, text: '雾', feels: 15, humidity: 88, wind: 1, hi: 23, lo: 14,
             tmr_text: '小阵雨', tmr_hi: 26, tmr_lo: 16, tmr_rain: 100, advice: '明天有雨，记得带伞' } }] },
