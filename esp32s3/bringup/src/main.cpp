@@ -116,6 +116,7 @@ void setup() {
     if (!pr.getBool("pitchBase3", false)) { servotest::rebaseYaw(3); pr.putBool("pitchBase3", true); }   // 10-31 再微调 +3°（同方向）
     if (!pr.getBool("pitchBaseM10", false)) { servotest::rebaseYaw(-10); pr.putBool("pitchBaseM10", true); }   // 11-01 往开机第一下的方向（位置减小）转 10°
     if (!pr.getBool("pitchBaseP20", false)) { servotest::rebaseYaw(20); pr.putBool("pitchBaseP20", true); }    // 11-01 方向反了：改往位置增大转 20°（相对 M10 之前净 +10°）
+    if (!pr.getBool("yawBaseM20", false)) { servotest::rebaseYaw(-20); pr.putBool("yawBaseM20", true); }        // 11-01 ID2 是横向转头：归位 −20°（相对今天早上净 −10°）
     pr.end();
   }
   servotest::wiggle(1, 1);   // 开机：两个舵机轮流在原位附近来回摆一下（ID1 ±20°、ID2 ±10°，30% 扭矩，摆完放松）

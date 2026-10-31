@@ -108,8 +108,9 @@ void gesture(const char *name, int times, float ampDeg, float holdS) {
 }
 
 void tick() {
-  if (!busy() || (int32_t)(millis() - nextAt) < 0) {
-    if (!busy() && qn) {   // 做完了：放松扭矩（手还能拧动，也不发热）
+  if ((int32_t)(millis() - nextAt) < 0) return;   // 上一步还在走：最后一步（回原位）也要等走完，不然一放松扭矩就停在半路
+  if (!busy()) {
+    if (qn) {   // 做完了：放松扭矩（手还能拧动，也不发热）
       for (uint8_t id = 1; id <= 2; id++) if (torqueOn[id]) { servo::setTorqueEnable(id, false); torqueOn[id] = false; }
       qn = qi = 0;
     }
