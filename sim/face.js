@@ -58,6 +58,14 @@ const VIEWS = {
     </div>`;
   },
 
+  // 待机小动画：idle 安静一阵子之后会自己过渡过来（见 Face 的导演），也可以由中枢直接指定。
+  // 玩球：橙色小球在屏幕里弹来弹去，眼睛跟着它。小球是这一屏唯一的 accent，所以不画嘴。
+  play: () => '<div class="eyes"><i class="eye"></i><i class="eye"></i></div><i class="ball"></i>',
+  // 睡觉做梦：闭眼、慢慢呼吸、飘出 z，头上一个梦泡泡轮流梦到涨停、一条往上的线、一枚橙色金币。
+  sleep: () => `<div class="sleep"><div class="eyes sleepy"><i class="eye"></i><i class="eye"></i></div>
+      <i class="z z1">z</i><i class="z z2">Z</i><i class="z z3">Z</i>
+      <div class="dream"><i class="d2"></i><i class="d1"></i><div class="bubble"></div></div></div>`,
+
   // 摸鱼模式：只有眼睛，参数由 updateStealth 写进 CSS 变量
   stealth: () => `<div class="stealth"><div class="eyes"><i class="eye"></i><i class="eye"></i></div><i class="blush"></i><i class="blush"></i></div>`,
 
@@ -178,6 +186,13 @@ const VIEWS = {
 
 export const STATES = Object.keys(VIEWS);
 
+// 机器人梦见的东西：涨停、K 线一路向上、一枚金币
+const DREAMS = [
+  '<b class="dream-big up">▲ +10%</b><span class="dream-sub">涨停</span>',
+  '<svg viewBox="0 0 100 52" aria-hidden="true"><polyline points="2,46 16,40 28,43 42,28 56,32 72,13 86,17 98,3" fill="none" stroke="var(--up)" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></svg>',
+  '<i class="dream-coin"></i>',
+];
+
 // 行情 → 表情：pct 是自选股平均涨跌幅（%），vol 是波动程度 0–1
 function updateStealth(root, { pct = 0, vol = 0.3, alert = false } = {}) {
   const s = root.querySelector('.stealth');
@@ -196,10 +211,15 @@ function updateStealth(root, { pct = 0, vol = 0.3, alert = false } = {}) {
 }
 
 export class Face {
-  constructor(el, onTouch = () => {}) {
+  // opts.idleAfter：idle 安静多少秒之后开始玩球（0 / 不传 = 不自动；只有模拟器这块屏开）；opts.playFor：玩多少秒再去睡
+  constructor(el, onTouch = () => {}, opts = {}) {
     this.el = el;
+    this.opts = opts;
     this.state = 'idle';
+    this.stateSince = this.lastActive = performance.now();
     el.addEventListener('pointerdown', (e) => {
+      this.poke();
+      if (this.state === 'play' || this.state === 'sleep') this._show('idle');   // 摸一下就醒
       const r = el.getBoundingClientRect();
       // 3D 变换后 rect 是投影后的包围盒，正对时足够准确；换算成屏幕自己的像素（320×240 或 480×320）
       onTouch(Math.round(((e.clientX - r.left) / r.width) * el.offsetWidth), Math.round(((e.clientY - r.top) / r.height) * el.offsetHeight));
@@ -207,6 +227,18 @@ export class Face {
     });
     this.blinkLoop();
     this.lookLoop();
+    if (opts.idleAfter > 0) this.directorTimer = setInterval(() => this.direct(), 500);
+  }
+
+  // 有人动过它（消息、触摸、按头）：重新计时
+  poke() { this.lastActive = performance.now(); }
+
+  // 待机导演：idle 安静 idleAfter 秒 → 玩球 playFor 秒 → 睡觉，直到有人动它
+  direct() {
+    if (!this.el.isConnected) return clearInterval(this.directorTimer);
+    const now = performance.now();
+    if (this.state === 'idle' && now - this.lastActive > this.opts.idleAfter * 1000) this._show('play');
+    else if (this.state === 'play' && now - this.stateSince > (this.opts.playFor ?? 12) * 1000) this._show('sleep');
   }
 
   // 眼睛看向 (dx, dy) 像素，ms 后回中。身体转动前调用，眼睛先到、头后到
@@ -237,9 +269,16 @@ export class Face {
     }, 2200 + Math.random() * 3500);
   }
 
-  set(state, card) {
+  set(state, card) {   // 外面（中枢、演示脚本、按钮）来的指令：算"有人动过它"
+    this.poke();
+    this._show(state, card);
+  }
+
+  _show(state, card) {
     const view = VIEWS[state];
     if (!view) return console.warn('unknown face state', state);
+    const prev = this.state;
+    this.stopAnim();
     // 摸鱼模式连续更新时不重画，只改变量，呼吸动画才不会一跳一跳
     if (!(state === 'stealth' && this.state === 'stealth')) this.el.innerHTML = view(card);
     if (state === 'stealth') updateStealth(this.el, card);
@@ -247,13 +286,58 @@ export class Face {
     if (state === 'decoy' && !card?.time) this.clock = setInterval(() => (this.el.innerHTML = view(card)), 15000);
     this.state = state;
     this.card = card;
+    this.stateSince = performance.now();
+    if (state === 'play') this.startPlay();
+    if (state === 'sleep') this.startDream();
+    if (prev === 'sleep' && state !== 'sleep') {   // 被吵醒：眼睛一下子睁大
+      this.el.classList.add('waking');
+      setTimeout(() => this.el.classList.remove('waking'), 400);
+    }
+  }
+
+  stopAnim() {
+    cancelAnimationFrame(this.raf);
+    clearInterval(this.dreamTimer);
+    if (this.state === 'play') this.glance0();
+  }
+
+  // 小球：重力 + 墙壁反弹，落地压扁一下；眼睛跟着球走
+  startPlay() {
+    const el = this.el, ball = el.querySelector('.ball');
+    const W = el.offsetWidth, H = el.offsetHeight, r = ball.offsetWidth / 2, G = H * 2.6;
+    let x = W * (0.15 + Math.random() * 0.2), y = H * 0.3, vx = (Math.random() < 0.5 ? -1 : 1) * W * 0.3, vy = 0, squash = 0, last = performance.now();
+    const step = (now) => {
+      if (!el.isConnected || this.state !== 'play') return;
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      vy += G * dt; x += vx * dt; y += vy * dt;
+      if (x < r) { x = r; vx = Math.abs(vx); }
+      if (x > W - r) { x = W - r; vx = -Math.abs(vx); }
+      if (y > H - r) { y = H - r; vy = -Math.max(Math.abs(vy) * 0.9, H * 1.25); squash = 1; }   // 永远弹得起来
+      if (y < r) { y = r; vy = Math.abs(vy) * 0.5; }
+      squash = Math.max(0, squash - dt * 6);
+      const sy = 1 - 0.35 * squash, sx = 1 + 0.35 * squash;
+      ball.style.transform = `translate(${x - r}px, ${y - r + r * (1 - sy)}px) scale(${sx}, ${sy})`;
+      el.style.setProperty('--gx', `${Math.max(-34, Math.min(34, (x - W / 2) * 0.14))}px`);
+      el.style.setProperty('--gy', `${Math.max(-18, Math.min(18, (y - H / 2) * 0.12))}px`);
+      this.raf = requestAnimationFrame(step);
+    };
+    this.raf = requestAnimationFrame(step);
+  }
+
+  startDream() {
+    const bubble = this.el.querySelector('.bubble');
+    let i = Math.floor(Math.random() * DREAMS.length);
+    const next = () => { if (bubble.isConnected) bubble.innerHTML = `<div class="dream-item">${DREAMS[i++ % DREAMS.length]}</div>`; };
+    next();
+    this.dreamTimer = setInterval(next, 3600);
   }
 
   // 空闲时自己眨眼，让它看起来是活的
   blinkLoop() {
     setTimeout(() => {
       if (!this.el.isConnected) return;   // 实验室重画后旧的屏幕会被移除，停掉它的计时器
-      const e = this.el.querySelector('.eyes:not(.happy)');
+      const e = this.el.querySelector('.eyes:not(.happy):not(.sleepy)');
       if (e && !this.el.querySelector('.joy')) { e.classList.add('shut'); setTimeout(() => e.classList.remove('shut'), 120); }
       this.blinkLoop();
     }, 2500 + Math.random() * 3000);

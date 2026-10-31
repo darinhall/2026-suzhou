@@ -11,12 +11,14 @@ const body = new Body($('#robot'));
 const link = new Link({ onMessage: (m) => onHub(m), onStatus });
 // 双击屏幕 = 老板键。在机器人本地处理，不等笔记本，保证瞬间切换
 let lastTap = 0;
+// ?idle=秒数：安静多久开始玩球（默认 25，之后再玩 12 秒就睡）；?idle=0 关掉
+const idleParam = new URLSearchParams(location.search).get('idle');
 const face = new Face(body.screen, (x, y) => {
   const now = performance.now();
   if (now - lastTap < 350) toggleBoss();
   lastTap = now;
   up({ t: 'touch', x, y });
-});
+}, { idleAfter: idleParam === null ? 25 : Number(idleParam) });
 follow(body.screen);   // 设计实验室里调的主题 / 字体等，这里实时跟着变
 // ?face=decoy 之类：直接打开某个表情，方便看屏幕设计
 face.set(new URLSearchParams(location.search).get('face') || 'idle');
@@ -98,6 +100,7 @@ let control = false;
 const act = (msg) => { if (control) up({ t: 'relay', msg }); return handle(msg); };
 
 async function pressHead() {
+  face.poke();
   if (!(await body.press())) return log('sys', `扭矩 ${body.torque}% 太大，按不动（需 ≤ 60%）`);
   if (flatOn) { flatEl.classList.add('pressed'); setTimeout(() => flatEl.classList.remove('pressed'), 260); }   // 屏幕视图里没有头，让整块屏幕往下压一下
   up({ t: 'head_press' });
