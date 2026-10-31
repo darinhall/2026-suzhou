@@ -2,6 +2,8 @@
 
 #include <driver/i2s.h>
 
+#include <algorithm>
+
 #include "net.h"
 #include "voice_hello.h"
 
@@ -11,6 +13,7 @@ static const i2s_port_t PORT = I2S_NUM_0;
 static const int RATE = 16000;
 static const int PIN_BCLK = 12, PIN_WS = 13, PIN_DOUT = 11, PIN_DIN = 38;
 static bool ok = false;
+static volatile bool playing = false;   // 自己在放音时不听（喇叭会把自己"吵醒"）
 
 bool begin() {
   i2s_config_t c = {};
@@ -87,6 +90,7 @@ float micRms(int ms, float *peak) {
 
 // 一边放音一边收音：返回放音期间的麦克风统计
 static Stat playAndListen(float freq, int ms, float vol) {
+  playing = true;
   Stat s;
   static int32_t out[256 * 2];
   const int total = RATE * ms / 1000;
@@ -108,6 +112,7 @@ static Stat playAndListen(float freq, int ms, float vol) {
     i2s_write(PORT, out, n * 8, &w, pdMS_TO_TICKS(200));
     readInto(s, n);
   }
+  playing = false;
   return s;
 }
 
@@ -122,6 +127,7 @@ static void writeFrames(const int32_t *frames, int n) {
 
 void playPcm(const int16_t *pcm, int n, float vol) {
   if (!ok) return;
+  playing = true;
   static int32_t out[256 * 2];
   const float g = constrain(vol, 0.0f, 0.3f);
   for (int done = 0; done < n; done += 256) {
@@ -129,6 +135,7 @@ void playPcm(const int16_t *pcm, int n, float vol) {
     for (int i = 0; i < k; i++) out[i * 2] = out[i * 2 + 1] = (int32_t)(pcm[done + i] * g * 65536.0f);
     writeFrames(out, k);
   }
+  playing = false;
 }
 
 // 一个"拨弦"音：基频 + 一点二次谐波，快起慢落，比纯正弦好听
@@ -150,9 +157,11 @@ static void pluck(float freq, int ms, float vol) {
 
 void chime(float vol) {   // 开机小旋律：C5 E5 G5 C6，G5 C6（自己编的，不是任何现成曲子）
   if (!ok) return;
+  playing = true;
   const float notes[] = {523.25f, 659.25f, 783.99f, 1046.5f, 783.99f, 1046.5f};
   const int lens[] = {120, 120, 120, 220, 110, 380};
   for (int i = 0; i < 6; i++) pluck(notes[i], lens[i], vol);
+  playing = false;
 }
 
 void hello(float vol) { playPcm(VOICE_HELLO, VOICE_HELLO_LEN, vol); }
@@ -196,6 +205,76 @@ void selfTest() {
   }
   playAndListen(880, 300, 0.08f);   // 自检结束再响一声
   net::log(micAlive && heard ? "info" : "warn", "AUDIO_SELFTEST", m);
+}
+
+// ================= 语音检测 =================
+static const float VOICE_RATIO = 4.0f;          // 超过背景 4 倍才算说话
+static const int WIN = RATE / 20;               // 50 ms 一个窗口
+static const int START_WINS = 3, END_WINS = 12; // 连续 150 ms 超过 = 开始；连续 600 ms 低于 = 结束
+static float bg = 0;
+static bool talking = false;
+static int above = 0, below = 0;
+static uint32_t talkStart = 0;
+static float talkPeak = 0;
+
+static float windowRms(const int32_t *buf, int frames) {   // 只算左声道（INMP441 的 L/R 接地）
+  double sum = 0, sq = 0;
+  for (int i = 0; i < frames; i++) { const double v = buf[i * 2] >> 8; sum += v; sq += v * v; }
+  const double m = sum / frames;
+  return sqrt(max(0.0, sq / frames - m * m));
+}
+
+float calibrate(int ms) {
+  if (!ok) return 0;
+  static int32_t buf[WIN * 2];
+  size_t got = 0;
+  for (int i = 0; i < 4; i++) i2s_read(PORT, buf, sizeof buf, &got, pdMS_TO_TICKS(100));   // 先丢掉 200 ms
+  const int n = max(5, ms / 50);
+  float *v = (float *)malloc(n * sizeof(float));
+  for (int i = 0; i < n; i++) { i2s_read(PORT, buf, sizeof buf, &got, pdMS_TO_TICKS(100)); v[i] = windowRms(buf, got / 8); }
+  std::sort(v, v + n);
+  bg = max(1.0f, v[n / 2]);   // 中位数
+  char m[120];
+  snprintf(m, sizeof m, "背景音量 RMS %.0f（%d 个 50 ms 窗口的中位数，最小 %.0f / 最大 %.0f）· 说话阈值 = %.0f（%.0f 倍）",
+           bg, n, v[0], v[n - 1], bg * VOICE_RATIO, VOICE_RATIO);
+  free(v);
+  Serial.printf("[voice] %s\n", m);
+  net::log("info", "VOICE_BG", m);
+  talking = false; above = below = 0;
+  return bg;
+}
+
+float background() { return bg; }
+bool speaking() { return talking; }
+
+void listenTick() {
+  if (!ok || bg <= 0 || playing) return;
+  static int32_t buf[WIN * 2];
+  static int filled = 0;
+  size_t got = 0;
+  i2s_read(PORT, (uint8_t *)buf + filled * 8, (WIN - filled) * 8, &got, 0);   // 不等：有多少读多少
+  filled += got / 8;
+  if (filled < WIN) return;
+  filled = 0;
+  const float ratio = windowRms(buf, WIN) / bg;
+  if (!talking) {
+    above = ratio >= VOICE_RATIO ? above + 1 : 0;
+    if (above >= START_WINS) {
+      talking = true; below = 0; talkStart = millis() - START_WINS * 50; talkPeak = ratio;
+      Serial.printf("[voice] 有人说话（音量 %.1f 倍背景）\n", ratio);
+    }
+  } else {
+    talkPeak = max(talkPeak, ratio);
+    below = ratio < VOICE_RATIO ? below + 1 : 0;
+    if (below >= END_WINS) {
+      talking = false; above = 0;
+      const uint32_t dur = millis() - talkStart - END_WINS * 50;
+      char m[96];
+      snprintf(m, sizeof m, "说完了：时长 %.1f 秒，最大音量 %.1f 倍背景", dur / 1000.0f, talkPeak);
+      Serial.printf("[voice] %s\n", m);
+      net::log("info", "VOICE_SEGMENT", m);
+    }
+  }
 }
 
 }  // namespace audio

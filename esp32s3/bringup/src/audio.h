@@ -19,4 +19,12 @@ float micRms(int ms, float *peak = nullptr);
 // 开机自检：静音时的底噪 → 播一声 → 播放时麦克风有没有"听到"；结果写串口和日志
 void selfTest();
 
+// ---- 语音检测（按音量）：开机先量背景音量，之后音量超过背景的 VOICE_RATIO 倍才算有人说话 ----
+// 量背景音量 ms 毫秒（每 50 ms 算一次 RMS，取中位数，现场人声起伏不会把它抬太高）；返回背景 RMS
+float calibrate(int ms = 3000);
+float background();
+// 在 loop() 里一直调：不阻塞，读麦克风里已经有的数据；说话开始 / 结束时打日志（以后接语音识别 / 动作）
+void listenTick();
+bool speaking();
+
 }  // namespace audio
