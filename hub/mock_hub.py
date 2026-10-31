@@ -65,7 +65,10 @@ async def broadcast(msg):
 async def stdin_loop():
     loop = asyncio.get_running_loop()
     while True:
-        line = (await loop.run_in_executor(None, sys.stdin.readline)).strip()
+        raw = await loop.run_in_executor(None, sys.stdin.readline)
+        if raw == "":   # EOF：没有键盘（后台运行 / 重定向），别空转，中枢继续服务就行
+            await asyncio.Event().wait()
+        line = raw.strip()
         if not line:
             continue
         if line == "demo":
