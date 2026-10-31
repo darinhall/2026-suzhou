@@ -58,12 +58,14 @@ def air_trend(now_ug: float | None, avg_ug: float | None) -> str:
     return "好转中" if now_ug < avg_ug * 0.6 else "加重中" if now_ug > avg_ug * 1.4 else "持平"
 
 
-def advice(now: dict, today: dict) -> str:
-    """一句话建议：最要紧的一条。机器人早上能直接说。"""
-    if today["rain_pct"] is not None and today["rain_pct"] >= 50 or now["code"] in RAINY:
+def advice(now: dict, today: dict, tomorrow: dict | None = None) -> str:
+    """一句话建议：最要紧的一条，≤ 9 个字（小屏上一行放得下）。"""
+    if (today["rain_pct"] or 0) >= 50 or now["code"] in RAINY:
         return "今天有雨，记得带伞"
+    if tomorrow and (tomorrow["rain_pct"] or 0) >= 60:
+        return "明天有雨，记得带伞"
     if today["high"] is not None and today["low"] is not None and today["high"] - today["low"] >= 10:
-        return "早晚温差大，带件外套"
+        return "温差大，带件外套"
     if today["low"] is not None and today["low"] <= 8:
         return "天冷，多穿点"
     if today["high"] is not None and today["high"] >= 32:
@@ -71,7 +73,7 @@ def advice(now: dict, today: dict) -> str:
     if now["pm25"] is not None and now["pm25"] > 115:
         return "空气不好，少开窗"
     if now["pm25_24h"] is not None and now["pm25_24h"] > 115 and now["air_trend"] == "好转中":
-        return "夜里有霾，现在在好转"
+        return "夜里有霾，现已好转"
     return "天气不错"
 
 
@@ -114,8 +116,21 @@ def get_weather(place: dict = SUZHOU) -> dict:
     now["air_now_text"] = pm25_text(now["pm25"])          # 此刻的级别
     now["air_trend"] = air_trend(now["pm25"], now["pm25_24h"])
     today, tomorrow = day(0), day(1)
-    now["advice"] = advice(now, today)
+    now["advice"] = advice(now, today, tomorrow)
     return {"now": now, "today": today, "tomorrow": tomorrow, "source": "Open-Meteo"}
+
+
+def to_card(w: dict) -> dict:
+    """get_weather() 的结果 → 屏幕 face 消息里的 card（字段名见 sim/usecases.js 的 sky 示例）。"""
+    n, t, m = w["now"], w["today"], w["tomorrow"]
+    r = lambda v: None if v is None else round(v)   # noqa: E731
+    return {
+        "city": n["city"], "time": n["time"][-5:], "temp": r(n["temp"]), "text": n["text"],
+        "feels": r(n["feels"]), "humidity": n["humidity"], "wind": n["wind_level"],
+        "hi": r(t["high"]), "lo": r(t["low"]),
+        "tmr_text": m["text"], "tmr_hi": r(m["high"]), "tmr_lo": r(m["low"]), "tmr_rain": m["rain_pct"],
+        "advice": n["advice"],
+    }
 
 
 if __name__ == "__main__":
@@ -125,3 +140,4 @@ if __name__ == "__main__":
     print(f"空气：{n['air_text']}（24 小时均值 PM2.5 {n['pm25_24h']}），此刻 {n['air_now_text']}（{n['pm25']} µg/m³）· {n['air_trend']}")
     print(f"今天 {t['text']} {t['low']}~{t['high']}°C 降水概率 {t['rain_pct']}%   明天 {m['text']} {m['low']}~{m['high']}°C 降水概率 {m['rain_pct']}%")
     print(f"建议：{n['advice']}")
+    print("屏幕 card：", json.dumps(to_card(r), ensure_ascii=False))

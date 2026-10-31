@@ -59,6 +59,10 @@ export const USECASES = [
     pain: '早上没时间看新闻和盘面；信息很多，不知道哪些和自己的持仓有关。',
     panda: 'A2A 办公室（投研主持人 + 3 个 Agent）· Panda Data · 定时任务',
     steps: [
+      { time: '09:10', say: '开机第一屏：天气。明天有雨，出门前就知道了', body: '抬头看你',
+        msgs: [{ t: 'pose', yaw: 0, pitch: 4, ms: 700 },
+          { t: 'face', state: 'sky', card: { city: '苏州', time: '09:10', temp: 16, text: '雾', feels: 15, humidity: 88, wind: 1, hi: 23, lo: 14,
+            tmr_text: '小阵雨', tmr_hi: 26, tmr_lo: 16, tmr_rain: 100, advice: '明天有雨，记得带伞' } }] },
       { time: '09:15', say: '市场天气：偏冷', body: '低头 −6°',
         msgs: [{ t: 'pose', yaw: 0, pitch: -6, ms: 800 }, { t: 'face', state: 'weather', card: { time: '09:15', word: '偏冷', up: 1284, down: 3702 } }] },
       { time: '09:16', say: '研究员发言：转向左边', body: '转身 −50°',

@@ -109,6 +109,27 @@ const VIEWS = {
     </div>`;
   },
 
+  // 天气（不是 weather：weather 是"市场天气"）。当前温度 = 点阵大数字；一句建议 = 唯一的 loud 卡片。
+  // 温度不是涨跌，所以不用红绿（红绿只给价格）。卡片缺字段 / 为 null 时用示例值，点 chip 也能看到完整的一屏。
+  sky: (c = {}) => {
+    const sample = { city: '苏州', time: '09:10', temp: 16, text: '雾', feels: 15, humidity: 88, hi: 23, lo: 14,
+      tmr_text: '小阵雨', tmr_hi: 26, tmr_lo: 16, advice: '明天有雨，记得带伞' };
+    const d = { ...sample, ...Object.fromEntries(Object.entries(c).filter(([, v]) => v != null)) };
+    const word = String(d.text).length <= 3 ? 'display' : 'title';   // 4 个字以上（"小毛毛雨"）降一档，免得挤掉温度
+    return `
+    <div class="pane sky">
+      <div class="row label">${esc(d.city)} · ${esc(d.time)}<span class="live" style="margin-left:auto"></span></div>
+      <div class="row sky-hero grow">
+        <span class="numeral-xl">${esc(d.temp)}</span><span class="headline deg">°C</span>
+        <div class="sky-word"><div class="${word}">${esc(d.text)}</div><div class="label">体感 ${esc(d.feels)}° · 湿度 ${esc(d.humidity)}%</div></div>
+      </div>
+      <div class="loud">
+        <div class="label meta">今天 ${esc(d.lo)}–${esc(d.hi)}° · 明天 ${esc(d.tmr_text)} ${esc(d.tmr_lo)}–${esc(d.tmr_hi)}°</div>
+        <div class="title">${esc(d.advice)}</div>
+      </div>
+    </div>`;
+  },
+
   // 简报：三条要点
   brief: (c = {}) => `
     <div class="pane brief">
