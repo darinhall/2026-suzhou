@@ -65,6 +65,10 @@ static void onBinary(const uint8_t *data, size_t n);
 static void onMessage(JsonDocument &d) {
   const char *t = d["t"] | "";
   if (!strcmp(t, "face")) waitReplyUntil = 0;   // 中枢的回答（卡片）到了：不再等，别被超时改回去
+  if (!strcmp(t, "ask_state")) {   // 中枢识别出来了：在"想一想"的熊猫脸下面显示听到的话
+    if (!strcmp(d["stage"] | "", "thinking")) ui::setHeard(d["text"] | "");
+    return;
+  }
   if (!strcmp(t, "servo_rebase")) { servotest::rebaseYaw(d["deg"] | 10.0f); return; }   // 需要时再定一次基准
   if (!strcmp(t, "servo_test")) { servotest::run(); return; }
   if (!strcmp(t, "servo_pos")) { servotest::reportPos(); return; }          // 只读：现在的位置和基准
@@ -266,6 +270,7 @@ static void voiceTick(uint32_t now) {
   const int ev = audio::listenTick();
   if (ev == 1) {   // 确认是一句话：换"在听"，开始边说边传
     if (!waitReplyUntil) voiceBefore = ui::current();
+    ui::setHeard("");
     ui::set(ui::State::Listening);
     micStreaming = net::connected();
     if (micStreaming) {

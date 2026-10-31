@@ -17,5 +17,7 @@ bool openRowAt(int x, int y, JsonDocument &outCard, char *code, size_t codeLen);
 void store(const char *state, JsonVariantConst card);   // 只记下，不画（老板键开着时）
 void redraw();                                          // 上一张卡片重画（老板键退出后用）
 void setScene(const char *name, int page, int of, const char *clock);   // 状态条右边的页码点、回放时钟
+// 在别的 sprite 上用中文字体写一行（熊猫脸"想一想"时显示听到的话）。居中在 cx，顶在 y
+void caption(TFT_eSprite *spr, const char *text, int cx, int y, uint32_t fg, uint32_t bg);
 
 }  // namespace screens

@@ -682,6 +682,15 @@ void store(const char *state, JsonVariantConst card) { lastCard.set(card); strlc
 
 void redraw() { if (lastState[0]) paint(); }
 
+void caption(TFT_eSprite *spr, const char *text, int cx, int y, uint32_t fg, uint32_t bg) {
+  if (!spr || !text || !*text) return;
+  if (fontPtr[CJK17]) spr->loadFont(fontPtr[CJK17]);
+  spr->setTextDatum(TC_DATUM);
+  spr->setTextColor(C(fg), C(bg));
+  spr->drawString(text, cx, y);
+  if (fontPtr[CJK17]) spr->unloadFont();
+}
+
 void setScene(const char *name, int page, int of, const char *clock) {
   strlcpy(sceneName, name ? name : "", sizeof sceneName);
   scenePage = page;
