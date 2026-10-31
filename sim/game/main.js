@@ -39,9 +39,27 @@ function show(id) {
 }
 
 // ---------- 行情来源 ----------
-// TODO：数据开放后换成笔记本端用 panda_data.get_stock_daily 导出的 JSON（同样的 {name, code, period, bars}）
+// 真实行情：data/export_game.py 用 PandaAI 导出的 game/data/scenarios.json（复权日线，每只票最有戏剧性的 40 天）。
+// 读不到（比如离线打开）就退回示例数据，H5 照样能玩。
+let real = null;
+const offset = Math.floor(Math.random() * 100);   // 每次打开从不同的票开始
+
+async function loadReal() {
+  if (real) return real;
+  try {
+    const res = await fetch('game/data/scenarios.json');
+    real = res.ok ? (await res.json()).scenarios : [];
+  } catch {
+    real = [];
+  }
+  const note = real.length ? '历史真实行情 · 数据来自 PandaAI · 不构成投资建议' : '示例数据 · 不构成投资建议';
+  document.querySelectorAll('.legal').forEach((el) => (el.textContent = note));
+  return real;
+}
+
 async function loadScenario(round) {
-  return fromBars(fakeBars(7 + round));
+  const list = await loadReal();
+  return fromBars(list.length ? list[(offset + round) % list.length] : fakeBars(7 + round));
 }
 
 // ---------- 游戏状态 ----------
@@ -233,6 +251,7 @@ if (new URLSearchParams(location.search).has('auto')) {
 }
 
 $('#btn-start').onclick = start;
+loadReal();
 $('#r-again').onclick = start;
 host.send({ t: 'face', state: 'idle' });
 say('嗨，我是 DeskBot。想知道你是哪种交易人格吗？');
