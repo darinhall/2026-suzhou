@@ -25,4 +25,6 @@ extract(text) -> Intent | None                           # 路由兜底：抽意
 
 ## 验收
 - [ ] `tests/test_reply.py` 全绿。
-- [ ] 三档各手动跑一次剧本 1 的问题，记下延迟写在这里：ark ___ ms / ollama ___ ms / template ___ ms。
+- [ ] 三档各手动跑一次剧本 1 的问题，记下延迟写在这里：ark ___ ms（**搁置**：模型要实名开通，队友在弄）/ **ollama 冷启动 14 s，之后 ~1.3 s**（qwen2.5:7b-instruct，JSON 模式正常，11-01 实测）/ template ___ ms。
+- [ ] 中枢启动时预热 Ollama（发一条空请求）+ `keep_alive: "2h"`，否则第一个评委要等 14 秒。
+- 方舟：`ARK_BASE_URL=https://ark.cn-beijing.volces.com/api/v3`，`ARK_MODEL=doubao-seed-2-0-mini-260428`（带版本号的完整 id；短名 404）。密钥已能鉴权，只差在控制台「开通管理」开通模型。
