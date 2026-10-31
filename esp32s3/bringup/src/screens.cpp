@@ -65,7 +65,7 @@ static uint32_t dirColor(float pct, bool onCard = false) {
 }
 
 // ---------- 文字操作队列：按字体分组画，每个字体只加载一次 ----------
-struct Op { uint8_t f, datum; int16_t x, y; uint32_t fg, bg; char s[56]; };
+struct Op { uint8_t f, datum; int16_t x, y; uint32_t fg, bg; char s[80]; };
 static Op ops[200];
 static int nops = 0;
 
@@ -76,7 +76,7 @@ static void txt(Fnt f, int x, int y, uint8_t datum, uint32_t fg, uint32_t bg, co
   strlcpy(o.s, s, sizeof o.s);
 }
 static void txtf(Fnt f, int x, int y, uint8_t datum, uint32_t fg, uint32_t bg, const char *fmt, ...) {
-  char b[56];
+  char b[80];
   va_list ap; va_start(ap, fmt); vsnprintf(b, sizeof b, fmt, ap); va_end(ap);
   txt(f, x, y, datum, fg, bg, b);
 }
@@ -409,7 +409,7 @@ static void drawMktSimple(JsonVariantConst c) {
 
 // ================= 文字卡片：消息、护栏、角色、简报、市场天气、天气 =================
 // 按像素宽度折行（CJK 占 px，ASCII 约 0.55 px），最多 maxLines 行；超出的丢掉
-static int wrapPx(const char *text, int px, int maxw, char lines[][60], int maxLines) {
+static int wrapPx(const char *text, int px, int maxw, char lines[][80], int maxLines) {
   int n = 0, w = 0;
   size_t len = 0;
   lines[0][0] = 0;
@@ -417,7 +417,7 @@ static int wrapPx(const char *text, int px, int maxw, char lines[][60], int maxL
     const int clen = (*p & 0x80) ? ((*p & 0xE0) == 0xC0 ? 2 : (*p & 0xF0) == 0xE0 ? 3 : 4) : 1;
     const int cw = (unsigned char)*p > 127 ? px : (int)(px * 0.55f);
     if (w + cw > maxw && len) { if (++n >= maxLines) break; lines[n][0] = 0; w = 0; len = 0; }
-    if (len + clen < 59) { memcpy(lines[n] + len, p, clen); len += clen; lines[n][len] = 0; }
+    if (len + clen < 79) { memcpy(lines[n] + len, p, clen); len += clen; lines[n][len] = 0; }
     w += cw; p += clen;
   }
   return min(n + 1, maxLines);
@@ -429,7 +429,7 @@ static void drawMsg(JsonVariantConst c) {
   fb->fillRoundRect(14, 14, 452, 236, 18, C(CARD));
   txt(CJK14, 34, 32, TL_DATUM, ON_CARD_MUTED, CARD, c["title"] | "");
   if (!strcmp(c["level"] | "", "urgent")) chip(466 - 20 - 56, 28, "紧急", 56, true, CJK14, 24);
-  char L[4][60];
+  char L[4][80];
   const int n = wrapPx(c["body"] | "", 26, 410, L, 3);
   for (int i = 0; i < n; i++) txt(CJK26, 34, 72 + i * 36, TL_DATUM, ON_CARD, CARD, L[i]);
   if (!c["meta"].isNull()) txt(CJK14, 34, 222, TL_DATUM, ON_CARD_MUTED, CARD, c["meta"]);
@@ -439,7 +439,7 @@ static void drawMsg(JsonVariantConst c) {
 static void drawAsk(JsonVariantConst c) {
   fb->fillRoundRect(14, 14, 452, 236, 18, C(CARD));
   txt(CJK14, 34, 32, TL_DATUM, ON_CARD_MUTED, CARD, c["why"] | "");
-  char L[3][60];
+  char L[3][80];
   const int n = wrapPx(c["title"] | "确定吗？", 26, 410, L, 2);
   for (int i = 0; i < n; i++) txt(CJK26, 34, 84 + i * 40, TL_DATUM, ON_CARD, CARD, L[i]);
   if (!c["meta"].isNull()) txt(CJK14, 34, 222, TL_DATUM, ON_CARD_MUTED, CARD, c["meta"]);
@@ -451,7 +451,7 @@ static void drawAgent(JsonVariantConst c) {
   fb->fillRoundRect(14, 14, 18 + (int)strlen(name) / 3 * 15 + 14, 26, 13, C(DB_LIGHT_LILAC));
   txt(CJK14, 14 + 12, 19, TL_DATUM, DB_LIGHT_ON_ACCENT, DB_LIGHT_LILAC, name);
   txt(CJK14, 466, 19, TR_DATUM, MUTED, GROUND, c["source"] | "A2A 办公室 · 盘前简报");
-  char L[5][60];
+  char L[5][80];
   const int n = wrapPx(c["say"] | "", 26, 440, L, 4);
   for (int i = 0; i < n; i++) txt(CJK26, 14, 66 + i * 38, TL_DATUM, INK, GROUND, L[i]);
   const int of = c["of"] | 3, at = c["n"] | 1;
@@ -464,7 +464,7 @@ static void drawBrief(JsonVariantConst c) {
   JsonArrayConst it = c["items"];
   int y = 44;
   for (int i = 0; i < (int)min(it.size(), (size_t)3); i++) {
-    char L[3][60];
+    char L[3][80];
     const int n = wrapPx(it[i] | "", 18, 420, L, 2);
     txtf(M14, 14, y + 3, TL_DATUM, MUTED, GROUND, "%d", i + 1);
     for (int k = 0; k < n; k++) txt(CJK18, 40, y + k * 26, TL_DATUM, INK, GROUND, L[k]);
@@ -495,6 +495,87 @@ static void drawColorTest() {
 }
 
 // ---------- 入口 ----------
+// ---------- 答案卡（protocol.md「答案卡片」）：问题 + 动作标签 · 结论 + 大数字 · 走势（0–2 条线）· 指标 · 字幕 · 来源 ----------
+// 数字都由中枢格式化好（字符串），板子只负责画。tone：up 红 / down 绿 / flat 墨色 / warn 橙框（不做买卖建议）
+static bool hasCjk(const char *s) { for (; *s; s++) if ((unsigned char)*s > 127) return true; return false; }
+
+static void drawAnswer(JsonVariantConst c) {
+  const char *tone = c["tone"] | "flat";
+  const bool warn = !strcmp(tone, "warn");
+  const uint32_t tc = !strcmp(tone, "up") ? UPC : !strcmp(tone, "down") ? DOWNC : warn ? ACCENT : INK;
+  if (warn) { fb->drawRoundRect(1, 1, 478, 318, 14, C(ACCENT)); fb->drawRoundRect(2, 2, 476, 316, 13, C(ACCENT)); fb->drawRoundRect(3, 3, 474, 314, 12, C(ACCENT)); }
+
+  // 第一行：问题 + 动作标签（和舵机同时）
+  char q[80];
+  snprintf(q, sizeof q, "“%s”", c["q"] | "");
+  txt(CJK14, 14, 12, TL_DATUM, MUTED, GROUND, q);
+  const char *act = c["act"] | "";
+  if (*act) chip(466 - 64, 8, act, 64, true, CJK14, 24);
+
+  // 左：结论 + 大数字 + 代码名称
+  const char *head = c["head"] | "";
+  const char *big = c["big"] | "";
+  txt(CJK26, 14, 44, TL_DATUM, warn ? ACCENT : INK, GROUND, head);
+  if (*big) {
+    if (!strcmp(tone, "up") || !strcmp(tone, "down")) { bigTri(14, 96, !strcmp(tone, "up"), tc, 18, 15); txt(M44, 38, 84, TL_DATUM, tc, GROUND, big); }
+    else txt(hasCjk(big) ? CJK26 : M44, 14, 84, TL_DATUM, tc, GROUND, big);
+  }
+  txt(CJK14, 14, 138, TL_DATUM, MUTED, GROUND, c["sub"] | "");
+
+  // 右：走势（每条线是相对起点的涨跌幅 %，共用一个纵轴；0 线虚线）
+  JsonArrayConst series = c["series"];
+  const int gx = 222, gy = 44, gw = 244, gh = 104;
+  if (series.size()) {
+    float lo = 0, hi = 0;
+    for (JsonVariantConst s : series) for (JsonVariantConst v : s["pts"].as<JsonArrayConst>()) { lo = min(lo, v.as<float>()); hi = max(hi, v.as<float>()); }
+    const float span = hi - lo > 1e-6f ? hi - lo : 1;
+    auto py = [&](float v) { return gy + gh - 1 - (int)((v - lo) / span * (gh - 2)); };
+    for (int xx = gx; xx < gx + gw; xx += 5) fb->drawFastHLine(xx, py(0), 2, C(FAINT));
+    for (int k = (int)series.size() - 1; k >= 0; k--) {   // 第二条（对比指数）先画、灰色；第一条后画、颜色加粗
+      JsonArrayConst a = series[k]["pts"];
+      const int n = a.size();
+      if (n < 2) continue;
+      const uint32_t col = k == 0 ? tc : FAINT;
+      int px = gx, pv = py(a[0].as<float>());
+      for (int i = 1; i < n; i++) {
+        const int cx = gx + (int)((long)i * (gw - 1) / (n - 1)), cv = py(a[i].as<float>());
+        fb->drawLine(px, pv, cx, cv, C(col));
+        if (k == 0) fb->drawLine(px, pv + 1, cx, cv + 1, C(col));
+        px = cx; pv = cv;
+      }
+    }
+    txt(CJK12, gx, gy + gh + 6, TL_DATUM, tc, GROUND, series[0]["name"] | "");
+    if (series.size() > 1) txt(CJK12, gx + 122, gy + gh + 6, TL_DATUM, MUTED, GROUND, series[1]["name"] | "");
+  } else {   // 没有走势：要点
+    int y = gy + 4;
+    for (JsonVariantConst p : c["pts"].as<JsonArrayConst>()) {
+      if (y > gy + gh) break;
+      fb->fillCircle(gx + 4, y + 9, 3, C(tc));
+      txt(CJK15, gx + 14, y, TL_DATUM, INK, GROUND, p.as<const char *>());
+      y += 30;
+    }
+  }
+
+  // 指标：最多 4 格
+  JsonArrayConst stats = c["stats"];
+  const int ns = min(4, (int)stats.size());
+  for (int i = 0; i < ns; i++) {
+    const int x = 14 + i * 113;
+    const char *v = stats[i][1] | "";
+    txt(CJK12, x, 170, TL_DATUM, MUTED, GROUND, stats[i][0] | "");
+    txt(hasCjk(v) ? CJK15 : M17, x, 186, TL_DATUM, INK, GROUND, v);
+  }
+
+  // 字幕条：喇叭念的那句话（听不清也看得懂）
+  fb->fillRoundRect(10, 214, 460, 78, 14, C(CARD));
+  char L[3][80];
+  const int nl = wrapPx(c["say"] | "", 17, 428, L, 3);
+  for (int i = 0; i < nl; i++) txt(CJK17, 26, 222 + i * 23, TL_DATUM, ON_CARD, CARD, L[i]);
+
+  txt(CJK12, 14, 300, TL_DATUM, MUTED, GROUND, c["src"] | "PandaAI");
+  txt(CJK12, 466, 300, TR_DATUM, MUTED, GROUND, "不构成投资建议");
+}
+
 static JsonDocument lastCard;
 static uint8_t dispMode = 2;   // 0 简洁 · 1 紧凑（真机暂时按专业画）· 2 专业
 static char lastState[12] = "";
@@ -514,7 +595,7 @@ bool begin(TFT_eSPI *tft) {
 }
 
 bool handles(const char *state) {
-  static const char *const S[] = {"watch", "mkt", "brief", "msg", "ask", "agent", "colortest"};
+  static const char *const S[] = {"watch", "mkt", "brief", "msg", "ask", "agent", "answer", "colortest"};
   for (const char *x : S) if (!strcmp(state, x)) return true;
   return false;
 }
@@ -531,6 +612,7 @@ static void paint() {
   else if (!strcmp(lastState, "msg")) drawMsg(c);
   else if (!strcmp(lastState, "ask")) drawAsk(c);
   else if (!strcmp(lastState, "agent")) drawAgent(c);
+  else if (!strcmp(lastState, "answer")) drawAnswer(c);
   else if (!strcmp(lastState, "colortest")) drawColorTest();
   flush();
   fb->pushSprite(0, 0);

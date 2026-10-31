@@ -78,7 +78,7 @@ def _system(last: str) -> str:
             "1. 麦克风会听到旁边人的闲聊。不是对你说的话（不是问题、和你无关、听不清的半句）→ 直接输出 {\"for_me\": false}，不要调工具。\n"
             "2. 数字只能来自工具结果；涨跌幅、区间变化、换算一律用 period_return / calc 算，不要心算。\n"
             "3. 不给买卖建议、不预测、不推荐股票；被问到就说你不做建议，只讲数据。\n"
-            "4. 最后只输出一个 JSON：{\"for_me\": true, \"title\": \"不超过 10 个字的卡片标题\", \"say\": \"口语回答，不超过 60 个字\"}。"
+            "4. 最后只输出一个 JSON：{\"for_me\": true, \"title\": \"不超过 8 个字的结论\", \"say\": \"口语回答，不超过 60 个字\", \"pts\": [\"屏幕要点，2–3 条，每条不超过 12 个字\"]}。"
             "say 里数字保留 1–2 位小数，金额用 亿 / 万，日期说成 10月30日；股票说名字不说代码（名字不知道就用 get_stock_daily 查 name）。"
             "「最近」默认看 5 个交易日。查不到就如实说查不到。")
 
@@ -215,7 +215,8 @@ def answer(text: str, last_trade_date: str, log=print) -> dict | None:
         if not d.get("for_me"):
             return {"for_me": False}
         say = str(d.get("say", "")).strip()
-        bad = unverified(say, "\n".join(evidence)) if evidence or re.search(r"\d", say) else []
+        pts = [str(x)[:14] for x in (d.get("pts") or []) if x][:3]
+        bad = unverified(say + " " + " ".join(pts), "\n".join(evidence)) if evidence or re.search(r"\d", say) else []
         if bad and not fixed:   # 有数字对不上：让它用工具结果改一次
             fixed = True
             msgs += [{"role": "assistant", "content": raw},
@@ -225,5 +226,5 @@ def answer(text: str, last_trade_date: str, log=print) -> dict | None:
             log(f"[agent] 数字还是对不上 {bad}，不说数字")
             say = "这个我查到了，但数字没核对上，先不乱说。你可以换个问法再问我。"
         log(f"[agent] 用时 {time.monotonic() - t0:.1f}s")
-        return {"for_me": True, "title": str(d.get("title", "PandaAI 数据"))[:12], "say": say[:90]}
+        return {"for_me": True, "title": str(d.get("title", "PandaAI 数据"))[:10], "say": say[:90], "pts": [] if bad else pts}
     return {"for_me": True, "title": "没查到", "say": "这个问题我查了几次没查到合适的数据，换个问法试试？"}

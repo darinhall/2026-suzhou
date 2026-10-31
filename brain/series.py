@@ -92,4 +92,5 @@ def period_return(symbol: str, days: int) -> dict:
             "to_date": str(end["date"]), "to_close": round(float(end["close"]), 2),
             "change_pct": round((float(end["close"]) / float(first["close"]) - 1) * 100, 2),
             "last_day_pct": round((float(end["close"]) / float(prev["close"]) - 1) * 100, 2),
-            "high": round(float(df["high"].max()), 2), "low": round(float(df["low"].min()), 2)}
+            "high": round(float(df["high"].max()), 2), "low": round(float(df["low"].min()), 2),
+            "closes": [round(float(x), 2) for x in df["close"]]}
