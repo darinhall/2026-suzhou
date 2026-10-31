@@ -24,6 +24,11 @@ face/audio 只发给 face，pose/gesture/torque 只发给 body；没报 role 的
 - 真机 / 网页上行的 head_press、touch、boss 会转给其他客户端，所以网页上的演示脚本能等到真机的"按头"。
 - 每次有人连上 / 断开，中枢给所有人发 {"t":"peers","face":n,"body":n,"view":n}。
 
+日志（sim/logs.html 看）：
+- 任何已通过认证的客户端发 {"t":"log","lvl":"info|warn|error","src":"face|body|sim","code":"WIFI_LOST","msg":"…"}，
+  中枢补上 ts（毫秒时间戳）和 from（来源地址），存进最近 300 条的环形缓冲，广播给所有人。
+  新连上的网页（没报 role 或 role=view）在 hello 之后收到一条 {"t":"logs","items":[…]} 历史。中枢自己的事件（src=hub）也记在里面。终端输入 logs 打印缓冲。令牌永远不进日志。
+
 令牌：
 - 现场 WiFi 里有几百人，中枢没有密码的话谁都能连上来让机器人乱动，所以第一条消息必须是 hello，并带上令牌：
   {"t": "hello", "role": "face", "fw": "0.1.0", "token": "<令牌>"}
@@ -42,6 +47,7 @@ import re
 import secrets
 import socket
 import sys
+from collections import deque
 import time
 from pathlib import Path
 
@@ -56,6 +62,9 @@ NET = json.loads((HERE.parent / "config" / "network.json").read_text())["hub"]
 LOCAL = {"127.0.0.1", "::1"}
 MAX_FAILS, LOCK_SECONDS = 5, 30
 
+LOG_MAX = 300
+LOG_LEVELS = ("info", "warn", "error")
+log_buf = deque(maxlen=LOG_MAX)   # 日志环形缓冲
 robots = {}   # ws -> role ("face" / "body" / None = 全部)
 fails = {}    # ip -> (失败次数, 解锁时间)
 TOKEN = ""
@@ -108,6 +117,40 @@ def note_fail(ip: str) -> int:
     return n + 1
 
 
+def _log_entry(lvl, src, code, msg, frm="") -> dict:
+    return {"t": "log", "ts": int(time.time() * 1000), "lvl": lvl, "src": src,
+            "code": str(code)[:40], "msg": str(msg)[:300], "from": frm}
+
+
+async def hub_log(lvl: str, code: str, msg: str):
+    """中枢自己的事件：打印、入缓冲、广播给所有人。"""
+    entry = _log_entry(lvl, "hub", code, msg)
+    log_buf.append(entry)
+    print(f"[{lvl}] {code} {msg}")
+    await broadcast_raw(entry)
+
+
+async def client_log(ws, ip: str, msg: dict):
+    lvl = msg.get("lvl") if msg.get("lvl") in LOG_LEVELS else "info"
+    src = msg.get("src") if msg.get("src") in ("face", "body", "sim", "hub") else (robots.get(ws) or "sim")
+    entry = _log_entry(lvl, src, msg.get("code", "LOG"), msg.get("msg", ""), ip)
+    log_buf.append(entry)
+    print(f"[{lvl}] {src} {entry['code']} {entry['msg']}")
+    await broadcast_raw(entry)
+
+
+async def broadcast_raw(msg: dict, exclude=None):
+    """不打印、不按 role 过滤，发给所有人（日志用）。"""
+    raw = json.dumps(msg, ensure_ascii=False)
+    for w in list(robots):
+        if w is exclude:
+            continue
+        try:
+            await w.send(raw)
+        except Exception:
+            pass
+
+
 async def handler(ws):
     ip = ws.remote_address[0]
     trusted = (not AUTH) or ip in LOCAL
@@ -125,17 +168,28 @@ async def handler(ws):
     except Exception:
         await ws.close(code=1008, reason="first message must be hello")
         print(f"[x] {ip} 第一条不是 hello，已断开")
+        if ip not in LOCAL:
+            await hub_log("warn", "HELLO_MISSING", f"{ip} 第一条消息不是 hello，已断开")
         return
     if not trusted and not hmac.compare_digest(str(hello.get("token", "")).encode(), TOKEN.encode()):
         n = note_fail(ip)
         await ws.close(code=1008, reason="bad token")
         print(f"[x] {ip} 令牌错误（第 {n} 次）" + ("，锁 30 秒" if n >= MAX_FAILS else ""))
+        await hub_log("warn", "AUTH_LOCKED" if n >= MAX_FAILS else "AUTH_BAD_TOKEN",
+                      f"{ip} 令牌错误（第 {n} 次）" + ("，锁 30 秒" if n >= MAX_FAILS else ""))
         return
     fails.pop(ip, None)
 
-    robots[ws] = hello.get("role")
+    robots[ws] = robots_role = hello.get("role")
     print(f"[+] robot connected {ip}  role = {robots[ws] or '全部'}  fw = {hello.get('fw', '?')}")
     await announce_peers()
+    if robots[ws] not in ("face", "body"):   # 网页：补发历史日志
+        try:
+            await ws.send(json.dumps({"t": "logs", "items": list(log_buf)}, ensure_ascii=False))
+        except Exception:
+            pass
+    if robots[ws] in ("face", "body") or ip not in LOCAL:   # 本机开网页调试的连上断开不记，免得日志全是这个
+        await hub_log("info", "CLIENT_UP", f"{ip} 已连上（{robots[ws] or 'view'}，固件 {str(hello.get('fw', '?'))[:20]}）")
     try:
         async for raw in ws:
             try:
@@ -145,6 +199,9 @@ async def handler(ws):
             if not isinstance(msg, dict) or msg.get("t") in ("state", "hello"):
                 continue
             t = msg.get("t")
+            if t == "log":
+                await client_log(ws, ip, msg)
+                continue
             if t == "relay" and isinstance(msg.get("msg"), dict):      # 控制台 → 其他所有人（真机 + 镜像）
                 await broadcast(msg["msg"], exclude=ws)
                 continue
@@ -160,6 +217,8 @@ async def handler(ws):
         robots.pop(ws, None)
         print(f"[-] robot disconnected {ip}")
         await announce_peers()
+        if robots_role in ("face", "body") or ip not in LOCAL:
+            await hub_log("info", "CLIENT_DOWN", f"{ip} 已断开（{robots_role or 'view'}）")
 
 
 async def broadcast(msg, exclude=None):
@@ -212,14 +271,27 @@ async def live_message(what: str, req: dict | None = None) -> dict:
     raise ValueError(f"不认识的 req：{what!r}")
 
 
+FAIL_INFO = {   # what -> (日志代码, 给人看的中文)
+    "today": ("API_TODAY_FAIL", "今天的日期 / 交易日获取失败，先显示本地日期"),
+    "sky": ("API_WEATHER_FAIL", "天气获取失败（Open-Meteo 连不上）"),
+    "market": ("API_MARKET_FAIL", "行情获取失败（PandaAI 连不上或没有数据，休市时看上一个交易日）"),
+}
+
+
 async def serve_request(ws, req: dict):
-    """处理 req：成功就推给所有人，失败只告诉发请求的那一个。"""
+    """处理 req：成功就推给所有人；失败记日志，并告诉发请求的那一个（notice），屏幕不会没反应。"""
     what = str(req.get("what"))
     try:
         await broadcast(await live_message(what, req))
     except Exception as e:
-        text = f"{what} 获取失败：{e}" if isinstance(e, (ValueError, RuntimeError)) else f"{what} 获取失败：{type(e).__name__}: {e}"
-        print(text)
+        code, friendly = FAIL_INFO.get(what, ("REQ_BAD", f"不认识的请求：{what[:20]}"))
+        if isinstance(e, (ValueError, RuntimeError)):
+            code = "REQ_BAD" if isinstance(e, ValueError) else code
+            detail = str(e)
+        else:
+            detail = f"{type(e).__name__}: {e}"
+        text = (detail if code == "REQ_BAD" else f"{friendly}：{detail}")[:300]
+        await hub_log("error", code, text)
         try:
             await ws.send(json.dumps({"t": "notice", "level": "error", "text": text}, ensure_ascii=False))
         except Exception:
@@ -230,7 +302,7 @@ class Discovery(asyncio.DatagramProtocol):
     """UDP 发现：回应 {"t":"deskbot?"}，忽略其他一切（过大、不是 JSON、别的类型），每个地址最多每 0.2 秒回一次。"""
 
     def __init__(self, reply: bytes):
-        self.reply, self.transport, self.last = reply, None, {}
+        self.reply, self.transport, self.last, self.logged = reply, None, {}, {}
 
     def connection_made(self, transport):
         self.transport = transport
@@ -250,6 +322,9 @@ class Discovery(asyncio.DatagramProtocol):
         self.last[addr[0]] = now
         self.transport.sendto(self.reply, addr)
         print(f"[?] 发现询问来自 {addr[0]}，已回复")
+        if now - self.logged.get(addr[0], 0) > 30:   # 机器人每秒问一次，日志里 30 秒记一条就够
+            self.logged[addr[0]] = now
+            asyncio.get_running_loop().create_task(hub_log("info", "DISCOVERY", f"{addr[0]} 在找中枢，已回复"))
 
 
 async def start_discovery(port: int):
@@ -282,7 +357,8 @@ async def push_live(what: str):
     try:
         await broadcast(await live_message(what))
     except Exception as e:
-        print(f"{what} 获取失败：{type(e).__name__}: {e}")
+        code, friendly = FAIL_INFO.get(what, ("REQ_BAD", what))
+        await hub_log("error", code, f"{friendly}：{type(e).__name__}: {e}"[:300])
 
 
 async def stdin_loop():
@@ -305,6 +381,10 @@ async def stdin_loop():
         if line in ("weather", "today", "market"):
             await push_live("sky" if line == "weather" else line)
             continue
+        if line == "logs":
+            for e in log_buf:
+                print(f"{time.strftime('%H:%M:%S', time.localtime(e['ts'] / 1000))} [{e['lvl']}] {e['src']} {e['code']} {e['msg']}")
+            continue
         if line == "token":
             print(f"令牌：{TOKEN}" if AUTH else "（令牌检查已关闭）")
             continue
@@ -320,7 +400,8 @@ async def main(port: int):
         print(f"mock hub  ws://{lan_ip()}:{port}/robot   （本机 ws://localhost:{port}/robot）")
         print(f"令牌：{TOKEN}（也在 hub/.token；本机连接不用）" if AUTH
               else "⚠️ 令牌检查已关闭（--no-auth）：同一个 WiFi 里的任何人都能连上来控制机器人")
-        print("输入 JSON、demo、weather、today、market 或 token")
+        print("输入 JSON、demo、weather、today、market、logs 或 token")
+        await hub_log("info", "HUB_START", f"中枢启动 ws://{lan_ip()}:{port}/robot" + ("" if AUTH else "（无令牌）"))
         await stdin_loop()
 
 

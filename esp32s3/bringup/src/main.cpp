@@ -72,6 +72,25 @@ void setup() {
   tp.setRotation(ROTATION_NORMAL);
 
   net::begin(onMessage);
+  const esp_reset_reason_t rr = esp_reset_reason();
+  char bm[64];
+  snprintf(bm, sizeof bm, "开机 fw 0.2.0 · PSRAM %u KB · 复位原因 %d", ESP.getPsramSize() / 1024, (int)rr);
+  net::log("info", "BOOT", bm);
+}
+
+// 触摸屏每 10 秒探一次 I2C：没应答 = 排线松了 / 屏坏了
+static void probeTouch(uint32_t now) {
+  static uint32_t last = 0;
+  static bool ok = true;
+  if (now - last < 10000) return;
+  last = now;
+  Wire.beginTransmission(0x5D);
+  const bool alive = Wire.endTransmission() == 0;
+  if (alive != ok) {
+    ok = alive;
+    if (!alive) net::log("error", "TOUCH_I2C_ERR", "触摸芯片 GT911 没有应答：检查屏幕排线");
+    else net::log("info", "TOUCH_OK", "触摸芯片恢复应答");
+  }
 }
 
 void loop() {
@@ -80,8 +99,10 @@ void loop() {
 
   static bool wasTouched = false;
   static uint32_t lastTap = 0;
-  tp.read();
-  const bool touched = tp.isTouched && tp.touches > 0;
+  static uint32_t lastRead = 0;
+  static bool touchedNow = false;
+  if (now - lastRead >= 20) { lastRead = now; tp.read(); touchedNow = tp.isTouched && tp.touches > 0; }   // 每 20 ms 读一次，不要空转刷 I2C
+  const bool touched = touchedNow;
   if (touched && !wasTouched) {   // 刚按下
     ui::wake();                   // 玩球 / 睡觉时摸一下就醒
     int x, y;
@@ -97,5 +118,7 @@ void loop() {
   }
   wasTouched = touched;
 
+  probeTouch(now);
+  ui::setLink(net::connected());
   ui::tick(now);
 }

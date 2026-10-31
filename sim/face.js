@@ -61,10 +61,9 @@ const VIEWS = {
   // 待机小动画：idle 安静一阵子之后会自己过渡过来（见 Face 的导演），也可以由中枢直接指定。
   // 玩球：橙色小球在屏幕里弹来弹去，眼睛跟着它。小球是这一屏唯一的 accent，所以不画嘴。
   play: () => '<div class="eyes"><i class="eye"></i><i class="eye"></i></div><i class="ball"></i>',
-  // 睡觉做梦：闭眼、慢慢呼吸、飘出 z，头上一个梦泡泡轮流梦到涨停、一条往上的线、一枚橙色金币。
+  // 睡觉：闭眼、慢慢呼吸、飘出 z。
   sleep: () => `<div class="sleep"><div class="eyes sleepy"><i class="eye"></i><i class="eye"></i></div>
-      <i class="z z1">z</i><i class="z z2">Z</i><i class="z z3">Z</i>
-      <div class="dream"><i class="d2"></i><i class="d1"></i><div class="bubble"></div></div></div>`,
+      <i class="z z1">z</i><i class="z z2">Z</i><i class="z z3">Z</i></div>`,
 
   // 摸鱼模式：只有眼睛，参数由 updateStealth 写进 CSS 变量
   stealth: () => `<div class="stealth"><div class="eyes"><i class="eye"></i><i class="eye"></i></div><i class="blush"></i><i class="blush"></i></div>`,
@@ -186,13 +185,6 @@ const VIEWS = {
 
 export const STATES = Object.keys(VIEWS);
 
-// 机器人梦见的东西：涨停、K 线一路向上、一枚金币
-const DREAMS = [
-  '<b class="dream-big up">▲ +10%</b><span class="dream-sub">涨停</span>',
-  '<svg viewBox="0 0 100 52" aria-hidden="true"><polyline points="2,46 16,40 28,43 42,28 56,32 72,13 86,17 98,3" fill="none" stroke="var(--up)" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></svg>',
-  '<i class="dream-coin"></i>',
-];
-
 // 行情 → 表情：pct 是自选股平均涨跌幅（%），vol 是波动程度 0–1
 function updateStealth(root, { pct = 0, vol = 0.3, alert = false } = {}) {
   const s = root.querySelector('.stealth');
@@ -288,7 +280,6 @@ export class Face {
     this.card = card;
     this.stateSince = performance.now();
     if (state === 'play') this.startPlay();
-    if (state === 'sleep') this.startDream();
     if (prev === 'sleep' && state !== 'sleep') {   // 被吵醒：眼睛一下子睁大
       this.el.classList.add('waking');
       setTimeout(() => this.el.classList.remove('waking'), 400);
@@ -297,7 +288,6 @@ export class Face {
 
   stopAnim() {
     cancelAnimationFrame(this.raf);
-    clearInterval(this.dreamTimer);
     if (this.state === 'play') this.glance0();
   }
 
@@ -323,14 +313,6 @@ export class Face {
       this.raf = requestAnimationFrame(step);
     };
     this.raf = requestAnimationFrame(step);
-  }
-
-  startDream() {
-    const bubble = this.el.querySelector('.bubble');
-    let i = Math.floor(Math.random() * DREAMS.length);
-    const next = () => { if (bubble.isConnected) bubble.innerHTML = `<div class="dream-item">${DREAMS[i++ % DREAMS.length]}</div>`; };
-    next();
-    this.dreamTimer = setInterval(next, 3600);
   }
 
   // 空闲时自己眨眼，让它看起来是活的
