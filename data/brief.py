@@ -33,7 +33,7 @@ def _fit(text: str, em: int = 24) -> str:
 
 
 def indices_line(day: dict, only: str = "沪深创") -> str:
-    short = {"上证指数": "沪", "深证成指": "深", "创业板指": "创"}
+    short = {"上证指数": "沪", "深证成指": "深", "创业板指": "创", "沪深300": "300"}
     parts = []
     for k, ix in enumerate(day["indices"]):
         pct = round((ix["closes"][-1] / ix["prev_close"] - 1) * 100, 1)
@@ -60,6 +60,19 @@ def morning_brief(weather: dict | None = None, event: dict | None = None, day: d
         best, _ = top_movers(day)
         items.append(_fit(f"自选最强：{best['name']} {_sgn(best['pct'])}"))
     return {"title": "盘前简报", "items": items, "hint": "按头 = 发到飞书"}
+
+
+def one_line(weather: dict, day: dict, now: datetime.datetime | None = None) -> str:
+    """"今天"那一屏的盘前简报一行（两行屏幕放得下，约 40 个汉字）：自选整体强弱 + 最强的一只 + 天气建议。"""
+    from watch import MAX_ROWS
+    from weather import advice
+    sts = [stock_state(day, k, None) for k in range(min(MAX_ROWS, len(day["stocks"])))]
+    avg = sum(s["pct"] for s in sts) / len(sts)
+    tone = "整体偏强" if avg >= 0.5 else "整体偏弱" if avg <= -0.5 else "涨跌互现"
+    best = max(sts, key=lambda s: s["pct"])
+    nw = weather["now"]
+    d = day["date"]
+    return _fit(f"盘前：{d[4:6]}-{d[6:]} 自选{tone}，{best['name']} {_sgn(best['pct'])}；{advice(nw, weather['today'], weather.get('tomorrow'))}", 40)
 
 
 def close_summary(day: dict | None = None, breadth: dict | None = None) -> dict:
