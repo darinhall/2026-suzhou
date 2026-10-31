@@ -113,10 +113,11 @@ class Router:
         ctl = {"下一只": "next", "下一个": "next", "上一只": "prev", "上一个": "prev", "暂停": "pause", "继续": "resume"}
         if t in ctl:
             return it("control", [], op=ctl[t])
-        if re.search(r"加到自选|加入自选|加自选|关注", t) and codes:
-            return it("watch_add")
-        if re.search(r"删掉|删除|移除|去掉|取消关注|不看.*了|不关注", t) and codes:
-            return it("watch_remove")
+        this = codes or (self.prev_codes[:1] if re.search(r"它|这只|这个", t) else [])   # 「把它加到自选」= 上一次说的那只
+        if re.search(r"加到自选|加入自选|加自选|关注", t) and this:
+            return it("watch_add", this)
+        if re.search(r"删掉|删除|移除|移出|去掉|取消关注|不看.*了|不关注", t) and this:
+            return it("watch_remove", this)
         if re.search(r"自选.*(有哪些|有什么|是什么|列表)", t):
             return it("watch_list", [])
         if re.search(r"推荐|该不该|应不应该|应该.*[买卖]|能不能买|可以买|值得买|全仓|满仓|抄底|买什么|买哪|卖不卖|要不要[买卖]", t):

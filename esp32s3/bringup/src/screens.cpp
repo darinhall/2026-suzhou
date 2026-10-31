@@ -536,7 +536,8 @@ static void drawAnswer(JsonVariantConst c) {
   const char *big = c["big"] | "";
   txt(CJK26, 14, 44, TL_DATUM, warn ? ACCENT : INK, GROUND, head);
   if (*big) {
-    if (!strcmp(tone, "up") || !strcmp(tone, "down")) { bigTri(14, 96, !strcmp(tone, "up"), tc, 18, 15); txt(M44, 38, 84, TL_DATUM, tc, GROUND, big); }
+    if (hasCjk(big)) txt(CJK26, 14, 90, TL_DATUM, tc, GROUND, big);   // 大字里有中文（股票名）：数字字体没有中文字形，用中文字体、不画三角
+    else if (!strcmp(tone, "up") || !strcmp(tone, "down")) { bigTri(14, 96, !strcmp(tone, "up"), tc, 18, 15); txt(M44, 38, 84, TL_DATUM, tc, GROUND, big); }
     else txt(hasCjk(big) ? CJK26 : M44, 14, 84, TL_DATUM, tc, GROUND, big);
   }
   txt(CJK14, 14, 138, TL_DATUM, MUTED, GROUND, c["sub"] | "");
