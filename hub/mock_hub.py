@@ -24,6 +24,10 @@ face/audio 只发给 face，pose/gesture/torque 只发给 body；没报 role 的
 - 真机 / 网页上行的 head_press、touch、boss 会转给其他客户端，所以网页上的演示脚本能等到真机的"按头"。
 - 每次有人连上 / 断开，中枢给所有人发 {"t":"peers","face":n,"body":n,"view":n}。
 
+场景（hub/scenes.py，详见 场景.md）：
+- {"t":"scene","name":"morning|watch|close|booth|stop"}（也可以 relay 过来，或终端输入 scene booth）：中枢按"起床后 / 盯盘 / 收盘 / 展台"的顺序把卡片推给机器人，
+  并广播 {"t":"scene_state","name":…,"page":n,"of":m}。机器人上行的 touch = 跳到下一页，boss = 暂停。
+
 日志（sim/logs.html 看）：
 - 任何已通过认证的客户端发 {"t":"log","lvl":"info|warn|error","src":"face|body|sim","code":"WIFI_LOST","msg":"…"}，
   中枢补上 ts（毫秒时间戳）和 from（来源地址），存进最近 300 条的环形缓冲，广播给所有人。
@@ -54,6 +58,7 @@ from pathlib import Path
 from websockets.asyncio.server import serve
 
 import netutil
+import scenes
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "data"))   # data/weather.py
@@ -69,6 +74,8 @@ robots = {}   # ws -> role ("face" / "body" / None = 全部)
 fails = {}    # ip -> (失败次数, 解锁时间)
 TOKEN = ""
 AUTH = True
+
+engine = None   # 场景引擎（main() 里创建）
 
 ROUTE = {"face": "face", "audio": "face", "pose": "body", "gesture": "body", "torque": "body"}
 
@@ -183,6 +190,10 @@ async def handler(ws):
     robots[ws] = robots_role = hello.get("role")
     print(f"[+] robot connected {ip}  role = {robots[ws] or '全部'}  fw = {hello.get('fw', '?')}")
     await announce_peers()
+    try:
+        await ws.send(json.dumps(engine.last_state, ensure_ascii=False))   # 新连上的人马上知道现在是哪个场景、第几页
+    except Exception:
+        pass
     if robots[ws] not in ("face", "body"):   # 网页：补发历史日志
         try:
             await ws.send(json.dumps({"t": "logs", "items": list(log_buf)}, ensure_ascii=False))
@@ -202,14 +213,21 @@ async def handler(ws):
             if t == "log":
                 await client_log(ws, ip, msg)
                 continue
+            if t == "scene":                                            # 场景：morning / watch / close / booth / stop
+                await engine.handle(msg)
+                continue
             if t == "relay" and isinstance(msg.get("msg"), dict):      # 控制台 → 其他所有人（真机 + 镜像）
-                await broadcast(msg["msg"], exclude=ws)
+                if msg["msg"].get("t") == "scene":
+                    await engine.handle(msg["msg"])
+                else:
+                    await broadcast(msg["msg"], exclude=ws)
                 continue
             if t == "req":                                              # 联网抓数据很慢，不要堵住这个连接的消息循环
                 asyncio.create_task(serve_request(ws, msg))
                 continue
             print(f"↑ {raw[:160]}")
             if t in UPSTREAM:
+                engine.event(msg)   # touch = 场景跳页，boss = 场景暂停
                 await broadcast(msg, exclude=ws)
             if t == "head_press":
                 await broadcast({"t": "face", "state": "happy"})
@@ -381,6 +399,14 @@ async def stdin_loop():
         if line in ("weather", "today", "market"):
             await push_live("sky" if line == "weather" else line)
             continue
+        if line.startswith("scene"):   # scene booth | scene watch speed=0.5 refresh=1 | scene stop
+            parts = line.split()
+            msg = {"t": "scene", "name": parts[1] if len(parts) > 1 else "stop"}
+            for kv in parts[2:]:
+                k, _, v = kv.partition("=")
+                msg[k] = (v.lower() in ("1", "true", "yes")) if k == "live" else v
+            await engine.handle(msg)
+            continue
         if line == "logs":
             for e in log_buf:
                 print(f"{time.strftime('%H:%M:%S', time.localtime(e['ts'] / 1000))} [{e['lvl']}] {e['src']} {e['code']} {e['msg']}")
@@ -395,12 +421,15 @@ async def stdin_loop():
 
 
 async def main(port: int):
+    global engine
+    engine = scenes.SceneEngine(broadcast, hub_log)
+    asyncio.create_task(engine.warm())
     async with serve(handler, "0.0.0.0", port, max_size=64 * 1024):
         await start_discovery(port)
         print(f"mock hub  ws://{lan_ip()}:{port}/robot   （本机 ws://localhost:{port}/robot）")
         print(f"令牌：{TOKEN}（也在 hub/.token；本机连接不用）" if AUTH
               else "⚠️ 令牌检查已关闭（--no-auth）：同一个 WiFi 里的任何人都能连上来控制机器人")
-        print("输入 JSON、demo、weather、today、market、logs 或 token")
+        print("输入 JSON、demo、weather、today、market、scene <morning|watch|close|booth|stop>、logs 或 token")
         await hub_log("info", "HUB_START", f"中枢启动 ws://{lan_ip()}:{port}/robot" + ("" if AUTH else "（无令牌）"))
         await stdin_loop()
 
