@@ -12,6 +12,11 @@
 双板（见 双板方案.md）：hello 里带 role=face（T5）或 role=body（ESP32），
 face/audio 只发给 face，pose/gesture/torque 只发给 body；没报 role 的（如 sim/）收全部。
 
+自动发现（UDP 8766，来自 config/network.json）：
+- 机器人广播 {"t":"deskbot?","v":1}，中枢单播回复 {"t":"hub","v":1,"name":…,"ws_port":8765,"path":"/robot","auth":true}，
+  机器人用**回复包的源 IP** 拼出 ws://<IP>:8765/robot。中枢还每 2 秒广播一次同样的消息（beacon），机器人也可以只听不问。
+- 用 python3 hub/discover.py 在另一台电脑上测试（广播能不能穿过 WiFi）。discover.py --to <IP> 是单播，排查广播被拦时用。
+
 令牌：
 - 现场 WiFi 里有几百人，中枢没有密码的话谁都能连上来让机器人乱动，所以第一条消息必须是 hello，并带上令牌：
   {"t": "hello", "role": "face", "fw": "0.1.0", "token": "<令牌>"}
@@ -34,9 +39,12 @@ from pathlib import Path
 
 from websockets.asyncio.server import serve
 
+import netutil
+
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "data"))   # data/weather.py
 
+NET = json.loads((HERE.parent / "config" / "network.json").read_text())["hub"]
 LOCAL = {"127.0.0.1", "::1"}
 MAX_FAILS, LOCK_SECONDS = 5, 30
 
@@ -144,6 +152,58 @@ async def broadcast(msg):
             await ws.send(raw)
 
 
+class Discovery(asyncio.DatagramProtocol):
+    """UDP 发现：回应 {"t":"deskbot?"}，忽略其他一切（过大、不是 JSON、别的类型），每个地址最多每 0.2 秒回一次。"""
+
+    def __init__(self, reply: bytes):
+        self.reply, self.transport, self.last = reply, None, {}
+
+    def connection_made(self, transport):
+        self.transport = transport
+
+    def datagram_received(self, data, addr):
+        if len(data) > 256:
+            return
+        try:
+            msg = json.loads(data)
+        except ValueError:
+            return
+        if not isinstance(msg, dict) or msg.get("t") != "deskbot?":
+            return
+        now = time.time()
+        if now - self.last.get(addr[0], 0) < 0.2:
+            return
+        self.last[addr[0]] = now
+        self.transport.sendto(self.reply, addr)
+        print(f"[?] 发现询问来自 {addr[0]}，已回复")
+
+
+async def start_discovery(port: int):
+    """起 UDP 发现服务 + 定时 beacon。端口被占用也不影响中枢本身（只是机器人得手动填 IP）。"""
+    reply = json.dumps({"t": "hub", "v": 1, "name": socket.gethostname(), "ws_port": port,
+                        "path": NET["ws_path"], "auth": AUTH}, ensure_ascii=False).encode()
+    loop = asyncio.get_running_loop()
+    kw = {"reuse_port": True} if hasattr(socket, "SO_REUSEPORT") else {}   # 同一台电脑上也能再开一个 discover.py --listen
+    try:
+        transport, _ = await loop.create_datagram_endpoint(
+            lambda: Discovery(reply), local_addr=("0.0.0.0", NET["discovery_port"]), allow_broadcast=True, **kw)
+    except OSError as e:
+        print(f"⚠️ 自动发现没启动（UDP {NET['discovery_port']}：{e}）；机器人要手动填中枢地址")
+        return
+
+    async def beacon():
+        while True:
+            for target in netutil.broadcast_addrs():
+                try:
+                    transport.sendto(reply, (target, NET["discovery_port"]))
+                except OSError:
+                    pass   # 某个网卡刚断开，下一轮再试
+            await asyncio.sleep(NET["beacon_seconds"])
+
+    asyncio.create_task(beacon())
+    print(f"自动发现：UDP {NET['discovery_port']}，每 {NET['beacon_seconds']} 秒广播到 {', '.join(netutil.broadcast_addrs())}")
+
+
 async def send_weather(loop):
     from weather import get_weather, to_card   # 懒加载：没联网时中枢照样能启动
     try:
@@ -185,6 +245,7 @@ async def stdin_loop():
 
 async def main(port: int):
     async with serve(handler, "0.0.0.0", port, max_size=64 * 1024):
+        await start_discovery(port)
         print(f"mock hub  ws://{lan_ip()}:{port}/robot   （本机 ws://localhost:{port}/robot）")
         print(f"令牌：{TOKEN}（也在 hub/.token；本机连接不用）" if AUTH
               else "⚠️ 令牌检查已关闭（--no-auth）：同一个 WiFi 里的任何人都能连上来控制机器人")
@@ -195,7 +256,7 @@ async def main(port: int):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-auth", action="store_true", help="不检查令牌（只在自己电脑上调试时用）")
-    ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--port", type=int, default=NET["ws_port"])
     a = ap.parse_args()
     sys.stdout.reconfigure(line_buffering=True)   # 重定向到文件 / nohup 时日志也要立刻写出来
     AUTH = not a.no_auth
