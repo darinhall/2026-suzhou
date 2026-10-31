@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>招财机器人 路演（提交版 10.25×2.87）</title>
+<!--
+  比赛提交版：PDF，页面 10.25 × 2.87 英寸（超宽屏），5 页。
+  画布 1968×551 px（= 10.25 × 2.87 英寸 × 192 px/英寸），打印时缩放 0.5 → 每页正好 10.25in × 2.87in。
+  导出 PDF：msedge --headless --print-to-pdf=pitch/招财机器人-路演.pdf --no-pdf-header-footer pitch/wide.html
+  浏览器里直接打开也能看：← → 翻页。16:9 的演示版在 index.html，内容一致。
+-->
+<style>
+  :root {
+    --ink: #161616; --ink-2: #24221F; --paper: #F4F1EA; --card: #FBF9F4; --rule: #E2DCCF; --muted: #66625A; --faint: #8F8A7E;
+    --on-dark: #CFC9BC; --on-dark-faint: #8F8A7E;
+    --red: #D7262B; --gold: #F2B33D;
+    --sans: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Hiragino Sans GB", sans-serif;
+    --brush: "STXingkai", "Xingkai SC", "KaiTi", "STKaiti", "Kaiti SC", serif;
+    --mono: "SF Mono", "Cascadia Mono", "Consolas", "Menlo", monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #0B0B0B; font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+  body { overflow: hidden; height: 100vh; }
+  #stage { position: absolute; left: 50%; top: 50%; width: 1968px; height: 551px; }
+  .slide { position: absolute; inset: 0; width: 1968px; height: 551px; overflow: hidden; display: none;
+           padding: 30px 40px 26px; flex-direction: column; }
+  .slide.active { display: flex; }
+  .light { background: var(--paper); color: var(--ink); }
+  .dark { background: var(--ink); color: var(--paper); }
+  .mono { font-family: var(--mono); }
+  .brush { font-family: var(--brush); font-weight: 400; }
+  .num { font-family: var(--mono); font-weight: 600; letter-spacing: -1px; }
+  .head { display: flex; align-items: center; justify-content: space-between; height: 34px; }
+  .crumb { display: flex; align-items: baseline; gap: 14px; }
+  .crumb b { font-family: var(--mono); font-size: 20px; color: var(--red); }
+  .dark .crumb b { color: var(--gold); }
+  .crumb h2 { font-size: 30px; font-weight: 800; letter-spacing: -0.5px; }
+  .crumb span { font-size: 18px; color: var(--faint); }
+  .brand { display: flex; align-items: center; gap: 8px; font-family: var(--brush); font-size: 24px; }
+  .light .brand { color: var(--ink); } .dark .brand { color: var(--gold); }
+  .brand svg { width: 40px; height: 33px; }
+  .row { flex: 1; display: flex; gap: 18px; margin-top: 16px; min-height: 0; }
+  .card { background: var(--card); border: 1.5px solid var(--rule); border-radius: 16px; }
+  .dcard { background: var(--ink-2); border-radius: 16px; }
+  .label { font-size: 16px; letter-spacing: 1.5px; color: var(--faint); }
+  .foot { display: flex; justify-content: space-between; font-size: 15px; color: var(--faint); margin-top: 10px; }
+  table.t { width: 100%; border-collapse: collapse; font-size: 18px; }
+  table.t th, table.t td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; line-height: 1.32; }
+  table.t th { font-size: 15px; font-weight: 600; letter-spacing: 1px; color: var(--faint); border-bottom: 2px solid var(--ink); }
+  table.t td.k { color: var(--muted); white-space: nowrap; }
+  @media print {
+    @page { size: 10.25in 2.87in; margin: 0; }
+    html, body { background: none; overflow: visible; height: auto; }
+    body { zoom: 0.5; }
+    #stage { position: static; transform: none !important; width: 1968px; height: auto; }
+    .slide { position: relative; display: flex; page-break-after: always; break-after: page; }
+    .slide:last-child { page-break-after: auto; break-after: auto; }
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <g id="p-ears"><circle cx="86" cy="22" r="50" fill="#161616"/><circle cx="394" cy="22" r="50" fill="#161616"/></g>
+    <g id="p-ears-dark"><circle cx="86" cy="22" r="50" fill="#161616" stroke="#F4F1EA" stroke-width="7"/><circle cx="394" cy="22" r="50" fill="#161616" stroke="#F4F1EA" stroke-width="7"/></g>
+    <g id="p-patch">
+      <ellipse cx="144" cy="156" rx="56" ry="80" fill="#161616" transform="rotate(24 144 156)"/>
+      <ellipse cx="336" cy="156" rx="56" ry="80" fill="#161616" transform="rotate(-24 336 156)"/>
+      <ellipse cx="138" cy="256" rx="27" ry="12" fill="#F4B3AB"/><ellipse cx="342" cy="256" rx="27" ry="12" fill="#F4B3AB"/>
+      <ellipse cx="240" cy="231" rx="16" ry="11" fill="#161616"/>
+    </g>
+    <g id="p-open">
+      <rect x="125" y="104" width="54" height="92" rx="27" fill="#F7F4EC"/><rect x="301" y="104" width="54" height="92" rx="27" fill="#F7F4EC"/>
+      <circle cx="156" cy="142" r="12" fill="#161616"/><circle cx="332" cy="142" r="12" fill="#161616"/>
+      <path d="M224 243 A8 8 0 0 0 240 243 A8 8 0 0 0 256 243" fill="none" stroke="#161616" stroke-width="5" stroke-linecap="round"/>
+    </g>
+    <g id="p-happy">
+      <path d="M127 170 A26 26 0 0 1 179 170" fill="none" stroke="#F7F4EC" stroke-width="11" stroke-linecap="round"/>
+      <path d="M301 170 A26 26 0 0 1 353 170" fill="none" stroke="#F7F4EC" stroke-width="11" stroke-linecap="round"/>
+      <ellipse cx="240" cy="254" rx="13" ry="10" fill="#161616"/><ellipse cx="240" cy="259" rx="8" ry="5" fill="#E0605A"/>
+    </g>
+    <g id="p-listen">
+      <rect x="125" y="104" width="54" height="92" rx="27" fill="#9B7EF0"/><rect x="301" y="104" width="54" height="92" rx="27" fill="#9B7EF0"/>
+      <rect x="170" y="238" width="140" height="40" rx="20" fill="#161616"/>
+      <rect x="184" y="250" width="9" height="16" rx="4" fill="#9B7EF0"/><rect x="204" y="244" width="9" height="28" rx="4" fill="#9B7EF0"/>
+      <rect x="224" y="247" width="9" height="22" rx="4" fill="#9B7EF0"/><rect x="244" y="241" width="9" height="34" rx="4" fill="#9B7EF0"/>
+      <rect x="264" y="248" width="9" height="20" rx="4" fill="#9B7EF0"/><rect x="284" y="252" width="9" height="12" rx="4" fill="#9B7EF0"/>
+    </g>
+    <g id="p-think">
+      <rect x="135" y="92" width="54" height="92" rx="27" fill="#9B7EF0"/><rect x="311" y="92" width="54" height="92" rx="27" fill="#9B7EF0"/>
+      <path d="M224 243 A8 8 0 0 0 240 243 A8 8 0 0 0 256 243" fill="none" stroke="#161616" stroke-width="5" stroke-linecap="round"/>
+      <circle cx="402" cy="-6" r="10" fill="#C7B6F6"/><circle cx="430" cy="-36" r="14" fill="#B19BF3"/><circle cx="462" cy="-72" r="19" fill="#9B7EF0"/>
+    </g>
+    <g id="p-collar">
+      <rect x="140" y="298" width="200" height="28" rx="14" fill="#D7262B"/>
+      <circle cx="240" cy="338" r="28" fill="#F2B33D" stroke="#B7791F" stroke-width="5"/><rect x="231" y="329" width="18" height="18" fill="#A81C20"/>
+    </g>
+    <g id="p-paw">
+      <line x1="372" y1="336" x2="410" y2="290" stroke="#F4F1EA" stroke-width="66" stroke-linecap="round"/>
+      <line x1="372" y1="336" x2="410" y2="290" stroke="#161616" stroke-width="56" stroke-linecap="round"/>
+      <circle cx="412" cy="268" r="38" fill="#161616" stroke="#F4F1EA" stroke-width="5"/>
+      <ellipse cx="412" cy="278" rx="15" ry="13" fill="#F2A7A0"/>
+      <circle cx="391" cy="256" r="8" fill="#F2A7A0"/><circle cx="404" cy="244" r="8" fill="#F2A7A0"/><circle cx="420" cy="244" r="8" fill="#F2A7A0"/><circle cx="433" cy="256" r="8" fill="#F2A7A0"/>
+    </g>
+  </defs>
+  <symbol id="mark" viewBox="30 -32 420 350"><use href="#p-ears"/><ellipse cx="240" cy="165" rx="205" ry="150" fill="#FBF9F4" stroke="#161616" stroke-width="16"/><use href="#p-patch"/><use href="#p-open"/></symbol>
+  <symbol id="mark-dark" viewBox="30 -32 420 350"><use href="#p-ears-dark"/><ellipse cx="240" cy="165" rx="205" ry="150" fill="#F4F1EA"/><use href="#p-patch"/><use href="#p-open"/></symbol>
+  <symbol id="mascot" viewBox="0 -40 480 420"><use href="#p-ears-dark"/><ellipse cx="240" cy="165" rx="205" ry="150" fill="#F4F1EA" stroke="#161616" stroke-width="8"/><use href="#p-patch"/><use href="#p-open"/><use href="#p-collar"/><use href="#p-paw"/></symbol>
+  <symbol id="mascot-happy" viewBox="0 -40 480 420"><use href="#p-ears-dark"/><ellipse cx="240" cy="165" rx="205" ry="150" fill="#F4F1EA" stroke="#161616" stroke-width="8"/><use href="#p-patch"/><use href="#p-happy"/><use href="#p-collar"/><use href="#p-paw"/></symbol>
+  <symbol id="st-idle" viewBox="20 -110 460 480"><use href="#p-ears"/><ellipse cx="240" cy="165" rx="205" ry="150" fill="#FBF9F4" stroke="#161616" stroke-width="8"/><use href="#p-patch"/><use href="#p-open"/><use href="#p-collar"/></symbol>
+  <symbol id="st-listen" viewBox="20 -110 460 480"><use href="#p-ears"/><ellipse cx="240" cy="165" rx="205" ry="150" fill="#FBF9F4" stroke="#161616" stroke-width="8"/><use href="#p-patch"/><use href="#p-listen"/><use href="#p-collar"/></symbol>
+  <symbol id="st-think" viewBox="20 -110 460 480"><use href="#p-ears"/><ellipse cx="240" cy="165" rx="205" ry="150" fill="#FBF9F4" stroke="#161616" stroke-width="8"/><use href="#p-patch"/><use href="#p-think"/><use href="#p-collar"/></symbol>
+  <symbol id="st-happy" viewBox="20 -110 460 480"><use href="#p-ears"/><ellipse cx="240" cy="165" rx="205" ry="150" fill="#FBF9F4" stroke="#161616" stroke-width="8"/><use href="#p-patch"/><use href="#p-happy"/><use href="#p-collar"/></symbol>
+</svg>
+
+<div id="stage">
+
+<!-- ============ 1 项目简介 ============ -->
+<section class="slide dark" style="padding:28px 40px 24px">
+  <div class="row" style="margin-top:0;gap:26px">
+    <div style="width:250px;display:flex;flex-direction:column;justify-content:space-between">
+      <svg style="width:250px;height:219px" role="img" aria-label="招财熊猫吉祥物"><use href="#mascot"/></svg>
+      <p style="font-size:15px;color:var(--on-dark-faint);line-height:1.5">2026 苏客松<br>AI+生活办公 × PandaAI 赛道</p>
+    </div>
+    <div style="width:640px;display:flex;flex-direction:column;justify-content:center;gap:14px">
+      <h1 class="brush" style="font-size:118px;line-height:0.95;color:var(--gold)">招财机器人</h1>
+      <p style="font-size:28px;font-weight:700;line-height:1.35">摆在工位上的熊猫：问它行情，它查 PandaAI 告诉你；行情有异动，它转过头来叫你。</p>
+      <p style="font-size:18px;line-height:1.55;color:var(--on-dark)">上班时间就是 A 股交易时间。看一眼行情要切窗口、开 App，弹窗又多到没人看。我们把行情放进一个不用操作的桌面机器人：开口问，抬眼看。</p>
+    </div>
+    <div class="dcard" style="width:330px;padding:20px 22px;display:flex;flex-direction:column;gap:10px">
+      <p class="label" style="color:var(--on-dark-faint)">一次真实的问答（语音实测）</p>
+      <p style="font-size:22px;font-weight:700">“宁德时代今天涨了吗”</p>
+      <div style="display:flex;flex-direction:column;gap:7px;font-size:18px;color:var(--on-dark)">
+        <p><span class="num" style="color:var(--gold);font-size:22px">0.8 s</span>　豆包语音识别听懂</p>
+        <p><span class="num" style="color:var(--gold);font-size:22px">1.2 s</span>　从 PandaAI 拿到数据</p>
+        <p><span class="num" style="color:var(--gold);font-size:22px">→</span>　点头 · 屏幕出答案卡 · 开口说</p>
+      </div>
+      <p style="font-size:17px;line-height:1.45;color:var(--paper);margin-top:auto;padding:10px 12px;background:#1B1810;border-radius:10px">“涨了。宁德时代 10 月 30 日收盘 232.92 元，涨 1.68%。”</p>
+    </div>
+    <div style="width:270px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;border:1px solid #3A3733;border-radius:16px">
+      <div style="padding:14px 16px;border-right:1px solid #3A3733;border-bottom:1px solid #3A3733"><p class="num" style="font-size:36px;color:var(--gold)">5,223</p><p style="font-size:15px;color:var(--on-dark)">只 A 股都能问</p></div>
+      <div style="padding:14px 16px;border-bottom:1px solid #3A3733"><p class="num" style="font-size:36px;color:var(--gold)">21</p><p style="font-size:15px;color:var(--on-dark)">个行业板块</p></div>
+      <div style="padding:14px 16px;border-right:1px solid #3A3733"><p class="num" style="font-size:36px;color:var(--gold)">305</p><p style="font-size:15px;color:var(--on-dark)">个 PandaAI 数据接口</p></div>
+      <div style="padding:14px 16px"><p class="num" style="font-size:36px;color:var(--gold)">±20°</p><p style="font-size:15px;color:var(--on-dark)">点头 / 转头舵机</p></div>
+    </div>
+    <div style="flex:1;position:relative">
+      <img src="assets/device.jpg" alt="招财机器人实物" style="width:100%;height:100%;object-fit:cover;object-position:50% 40%;border-radius:16px">
+      <p style="position:absolute;right:12px;top:12px;font-size:14px;padding:3px 10px;border-radius:999px;background:rgba(22,22,22,.82);color:var(--paper)">实物 · 3D 打印外壳</p>
+      <p class="mono" style="position:absolute;right:12px;bottom:10px;font-size:14px;color:var(--paper);background:rgba(22,22,22,.7);padding:2px 8px;border-radius:6px">1 / 5</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 2 硬件 ============ -->
+<section class="slide light">
+  <div class="head">
+    <div class="crumb"><b>02</b><h2>一块 ESP32-S3，一块屏，两个舵机</h2><span>硬件 · 拆开看看</span></div>
+    <div class="brand"><svg><use href="#mark"/></svg>招财机器人</div>
+  </div>
+  <div class="row">
+    <div class="card" style="width:330px;padding:8px;background:var(--paper);display:flex;align-items:center;justify-content:center">
+      <img src="assets/teardown.png" alt="招财机器人结构爆炸图" style="height:100%;max-width:100%;object-fit:contain">
+    </div>
+    <div style="width:250px;display:flex;flex-direction:column;justify-content:center;gap:10px">
+      <p class="label">结构</p>
+      <p style="font-size:19px;line-height:1.55">3D 打印外壳，零螺丝：卡、插、粘。</p>
+      <p style="font-size:19px;line-height:1.55">两轴云台：下面的舵机转头，头盒里的舵机点头。</p>
+      <p style="font-size:19px;line-height:1.55">舵机只在开机摆动的范围里动，接线不会被扯到。</p>
+    </div>
+    <div style="width:700px">
+      <table class="t">
+        <tr><th style="width:17%">部件</th><th>型号</th><th style="width:30%">做什么</th></tr>
+        <tr><td class="k">主控</td><td>ESP32-S3 N16R8（16 MB Flash · 8 MB PSRAM）</td><td>联网、画屏、动作</td></tr>
+        <tr><td class="k">屏幕</td><td>3.5″ 480×320 · ST7796 + GT911 触摸</td><td>熊猫脸、答案卡</td></tr>
+        <tr><td class="k">舵机 ×2</td><td>飞特 STS3215 总线舵机</td><td>点头 ±20° · 转头 ±10°</td></tr>
+        <tr><td class="k">麦克风</td><td>INMP441 数字麦</td><td>边说边传到云端</td></tr>
+        <tr><td class="k">喇叭</td><td>MAX98357A 功放 + 1 W 喇叭</td><td>边收边放回答</td></tr>
+        <tr><td class="k">网络</td><td>Wi-Fi 直连腾讯云（WSS）</td><td>不需要电脑</td></tr>
+      </table>
+    </div>
+    <div class="card" style="flex:1;padding:12px 14px;display:flex;flex-direction:column;gap:6px">
+      <p class="label">屏幕上的招财熊猫：脸跟着舵机一起动</p>
+      <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:4px 8px">
+        <div style="display:flex;align-items:center;gap:8px"><svg style="width:92px;height:96px;flex:none" role="img" aria-label="待机"><use href="#st-idle"/></svg><p style="font-size:17px;line-height:1.35"><b>待机</b><br><span style="color:var(--muted)">眨眼、四处看</span></p></div>
+        <div style="display:flex;align-items:center;gap:8px"><svg style="width:92px;height:96px;flex:none" role="img" aria-label="在听"><use href="#st-listen"/></svg><p style="font-size:17px;line-height:1.35"><b>在听</b><br><span style="color:var(--muted)">紫色眼睛、声波</span></p></div>
+        <div style="display:flex;align-items:center;gap:8px"><svg style="width:92px;height:96px;flex:none" role="img" aria-label="想一想"><use href="#st-think"/></svg><p style="font-size:17px;line-height:1.35"><b>想一想</b><br><span style="color:var(--muted)">显示听到的话</span></p></div>
+        <div style="display:flex;align-items:center;gap:8px"><svg style="width:92px;height:96px;flex:none" role="img" aria-label="笑"><use href="#st-happy"/></svg><p style="font-size:17px;line-height:1.35"><b>点头时笑</b><br><span style="color:var(--muted)">眼睛弯、耳朵抖</span></p></div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>结构爆炸图来自 DeskBot 结构方案 3D 模型</span><span class="mono">2 / 5</span></div>
+</section>
+
+<!-- ============ 3 语音问答 ============ -->
+<section class="slide light">
+  <div class="head">
+    <div class="crumb"><b>03</b><h2>问一句，3 秒内听到回答</h2><span>语音问答 · 现场演示</span></div>
+    <div class="brand"><svg><use href="#mark"/></svg>招财机器人</div>
+  </div>
+  <div class="row">
+    <!-- 真机答案卡（480×320 屏，放大 1.6 倍后再缩到 0.78） -->
+    <div style="width:594px;height:402px;position:relative;flex:none">
+      <div style="zoom:0.75;background:var(--ink);padding:12px;border-radius:30px;width:792px">
+        <div style="position:relative;width:768px;height:512px;background:#F1E8D2;border-radius:20px;overflow:hidden">
+          <svg style="position:absolute;left:20px;top:14px;width:48px;height:40px" role="img" aria-label="熊猫小头像"><use href="#mark"/></svg>
+          <p style="position:absolute;left:78px;top:16px;width:480px;font-size:24px;color:#625A47">“宁德时代今天涨了吗”</p>
+          <p style="position:absolute;left:640px;top:12px;width:104px;font-size:24px;font-weight:700;text-align:center;padding:2px 0;background:#FF5B14;color:#1A1710;border-radius:999px">点头</p>
+          <p style="position:absolute;left:24px;top:68px;width:300px;font-size:44px;font-weight:800;color:#1A1710">涨了</p>
+          <p class="mono" style="position:absolute;left:24px;top:136px;width:320px;font-size:54px;font-weight:700;color:#BD241A;white-space:nowrap">▲+1.68%</p>
+          <p style="position:absolute;left:24px;top:220px;width:330px;font-size:24px;color:#625A47">300750 · 宁德时代</p>
+          <svg style="position:absolute;left:354px;top:70px" width="390" height="166" viewBox="0 0 390 166" role="img" aria-label="10-30 分时：宁德时代收涨 1.68%，创业板指收跌 4.13%">
+            <line x1="0" y1="76.2" x2="390" y2="76.2" stroke="#8D846C" stroke-width="2" stroke-dasharray="6 6"/>
+            <polyline fill="none" stroke="#8D846C" stroke-width="3" stroke-linejoin="round" points="0.0,123.0 8.3,130.8 16.6,133.4 24.9,141.7 33.2,143.2 41.5,122.8 49.8,130.6 58.1,124.0 66.4,107.2 74.7,105.3 83.0,105.3 91.3,118.7 99.6,122.8 107.9,123.4 116.2,127.2 124.5,127.9 132.8,128.1 141.1,128.5 149.4,127.2 157.7,130.8 166.0,136.4 174.3,133.8 182.6,123.2 190.9,101.3 199.1,85.1 207.4,84.7 215.7,99.8 224.0,102.3 232.3,107.9 240.6,107.2 248.9,108.9 257.2,108.9 265.5,114.0 273.8,113.4 282.1,117.0 290.4,120.4 298.7,128.5 307.0,130.2 315.3,136.1 323.6,132.5 331.9,140.6 340.2,139.6 348.5,151.5 356.8,153.4 365.1,143.4 373.4,152.7 381.7,157.2 390.0,164.0"/>
+            <polyline fill="none" stroke="#BD241A" stroke-width="5" stroke-linejoin="round" points="0.0,49.4 8.3,43.5 16.6,54.5 24.9,49.8 33.2,25.8 41.5,33.7 49.8,42.0 58.1,41.3 66.4,35.2 74.7,37.5 83.0,47.5 91.3,47.5 99.6,47.7 107.9,44.5 116.2,46.6 124.5,44.1 132.8,43.7 141.1,40.3 149.4,39.6 157.7,44.9 166.0,47.3 174.3,43.5 182.6,38.4 190.9,30.1 199.1,22.8 207.4,2.0 215.7,16.0 224.0,20.5 232.3,24.3 240.6,20.3 248.9,21.1 257.2,21.3 265.5,24.3 273.8,25.2 282.1,27.3 290.4,33.0 298.7,39.4 307.0,40.7 315.3,40.3 323.6,34.5 331.9,39.6 340.2,35.0 348.5,40.7 356.8,37.1 365.1,31.6 373.4,36.0 381.7,33.3 390.0,40.5"/>
+          </svg>
+          <p style="position:absolute;left:354px;top:240px;width:390px;font-size:22px;color:#625A47"><span style="color:#BD241A">━ 宁德时代</span>　━ 创业板指</p>
+          <div style="position:absolute;left:24px;top:280px;width:720px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+            <div><p style="font-size:22px;color:#625A47">收盘</p><p class="mono" style="font-size:28px;color:#1A1710">232.92</p></div>
+            <div><p style="font-size:22px;color:#625A47">振幅</p><p class="mono" style="font-size:28px;color:#1A1710">4.2%</p></div>
+            <div><p style="font-size:22px;color:#625A47">量比</p><p class="mono" style="font-size:28px;color:#1A1710">0.8</p></div>
+            <div><p style="font-size:22px;color:#625A47">成交额</p><p class="mono" style="font-size:28px;color:#1A1710">103亿</p></div>
+          </div>
+          <p style="position:absolute;left:16px;top:366px;width:736px;font-size:24px;line-height:1.4;padding:12px 22px;background:#1B1810;color:#F4ECD8;border-radius:18px">涨了。宁德时代10月30日收盘报 232.92 元，涨 1.68%，量比 0.8。</p>
+          <p style="position:absolute;left:24px;top:470px;width:400px;font-size:22px;color:#625A47">PandaAI · 10-30 收盘</p>
+          <p style="position:absolute;left:444px;top:470px;width:300px;font-size:22px;text-align:right;color:#625A47">不构成投资建议</p>
+        </div>
+      </div>
+    </div>
+    <div style="width:230px;display:flex;flex-direction:column;gap:6px">
+      <p class="label">一句话的流程（实测）</p>
+      <div class="card" style="padding:8px 12px"><p style="font-size:15px;color:var(--faint)">① 说话</p><p style="font-size:17px">边说边上传</p></div>
+      <div class="card" style="padding:8px 12px"><p style="font-size:15px;color:var(--faint)">② 听懂 · <span class="num" style="color:var(--red)">0.5–0.9 s</span></p><p style="font-size:17px">豆包语音识别</p></div>
+      <div class="card" style="padding:8px 12px"><p style="font-size:15px;color:var(--faint)">③ 取数 · <span class="num" style="color:var(--red)">~1.2 s</span></p><p style="font-size:17px">PandaAI SDK / MCP</p></div>
+      <div class="card" style="padding:8px 12px"><p style="font-size:15px;color:var(--faint)">④ 合成 · <span class="num" style="color:var(--red)">~1.5 s</span></p><p style="font-size:17px">豆包语音合成</p></div>
+      <div style="padding:8px 12px;background:var(--ink);color:var(--paper);border-radius:16px"><p style="font-size:15px;color:var(--gold)">⑤ 表态</p><p style="font-size:17px">卡片 + 点头/摇头 + 念</p></div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:10px;min-width:0">
+      <table class="t">
+        <tr><th style="width:38%">今晚实测问过的</th><th>它的回答（PandaAI 真实数据）</th><th style="width:11%">动作</th></tr>
+        <tr><td>宁德时代今天涨了吗</td><td>涨了，收涨 1.68%</td><td>点头</td></tr>
+        <tr><td>生物医药现在怎么样</td><td>指数涨 0.25%，近 5 日跌 2.98%</td><td>—</td></tr>
+        <tr><td>宁德时代属于哪些概念</td><td>76 个：麒麟电池、宁组合…</td><td>—</td></tr>
+        <tr><td>昨天龙虎榜成交额最大</td><td>海洋王，126.04 亿</td><td>—</td></tr>
+        <tr><td>腾讯港股最近怎么样</td><td>5 日跌 0.62%，收 383.6 港元</td><td>—</td></tr>
+        <tr><td>把工商银行加到自选</td><td>已加入，现在 6 只</td><td>点头</td></tr>
+      </table>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="padding:10px 14px;background:var(--ink);color:var(--paper);border-radius:14px"><p style="font-size:18px;font-weight:700;color:var(--gold)">问它买什么：摇头</p><p style="font-size:15px;color:var(--on-dark)">不荐股，只说自选里谁涨得多</p></div>
+        <div class="card" style="padding:10px 14px"><p style="font-size:18px;font-weight:700">旁边人聊天：不搭理</p><p style="font-size:15px;color:var(--muted)">实测现场 6 段别人的聊天，一句没接</p></div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>数字由 Python 从 PandaAI 数据算出，大模型只组织语言；10-30 收盘数据（周末无行情）· 不构成投资建议</span><span class="mono">3 / 5</span></div>
+</section>
+
+<!-- ============ 4 主动提醒 + 系统 ============ -->
+<section class="slide light">
+  <div class="head">
+    <div class="crumb"><b>04</b><h2>不弹通知，按轻重转头</h2><span>主动提醒 · 系统 · 完成度</span></div>
+    <div class="brand"><svg><use href="#mark"/></svg>招财机器人</div>
+  </div>
+  <div class="row">
+    <div style="width:520px;display:flex;flex-direction:column;gap:10px">
+      <p style="font-size:18px;line-height:1.5;color:var(--muted)">人对余光里的动作最敏感：屏幕角落的行情组件看不见，转过头来的熊猫一定会看见。</p>
+      <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="card" style="padding:10px 14px"><p class="num" style="font-size:26px;color:var(--faint)">0 <span style="font-family:var(--sans);font-size:22px;font-weight:700;color:var(--ink)">安静</span></p><p style="font-size:16px;color:var(--muted)">小波动，只眨眼</p></div>
+        <div class="card" style="padding:10px 14px"><p class="num" style="font-size:26px;color:var(--faint)">1 <span style="font-family:var(--sans);font-size:22px;font-weight:700;color:var(--ink)">瞥一眼</span></p><p style="font-size:16px;color:var(--muted)">快到阈值，轻转头</p></div>
+        <div style="padding:10px 14px;background:var(--ink);color:var(--paper);border-radius:16px"><p class="num" style="font-size:26px;color:var(--gold)">2 <span style="font-family:var(--sans);font-size:22px;font-weight:700;color:var(--paper)">转头看你</span></p><p style="font-size:16px;color:var(--on-dark)">过 ±2%：转头、出卡、念出来</p></div>
+        <div style="padding:10px 14px;background:var(--red);color:#FBF9F4;border-radius:16px"><p class="num" style="font-size:26px;color:#F9DCA0">3 <span style="font-family:var(--sans);font-size:22px;font-weight:700;color:#FBF9F4">叫你</span></p><p style="font-size:16px;color:#FBE9E6">急涨急跌、放量：再点头/摇头</p></div>
+      </div>
+    </div>
+    <div class="card" style="width:500px;padding:14px 18px;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:16px">
+        <p class="num" style="font-size:66px;line-height:0.9;white-space:nowrap">3<span style="font-family:var(--sans);font-size:24px;font-weight:700;margin-left:4px">次</span></p>
+        <p style="font-size:17px;line-height:1.45">PandaAI 10-30 的 5 分钟线回放一整天，自选 5 只，它只转了 3 次头。</p>
+      </div>
+      <p class="label" style="margin-top:4px">周末无行情：说“行情异动模拟”现场演一遍（05:27 彩排记录）</p>
+      <table class="t" style="font-size:16px">
+        <tr><td class="k">瞥</td><td>比亚迪涨 1.5%，“我先帮你看着”</td></tr>
+        <tr><td class="k">叫你</td><td>中芯国际 5 分钟急涨 2.1% → 转头 + 点头</td></tr>
+        <tr><td class="k">转头</td><td>宁德时代跌到 2.3%，“要看看吗？”</td></tr>
+        <tr><td class="k">叫你</td><td>贵州茅台放量，量比 3.2 → 转头 + 点头</td></tr>
+      </table>
+    </div>
+    <div style="width:420px;display:flex;flex-direction:column;gap:6px">
+      <p class="label">系统</p>
+      <div class="card" style="padding:8px 14px;display:flex;justify-content:space-between"><p style="font-size:18px;font-weight:700">机器人</p><p style="font-size:15px;color:var(--muted)">ESP32-S3 · 麦克风 / 喇叭 / 舵机</p></div>
+      <p style="font-size:14px;color:var(--faint);padding-left:14px">↓ WSS：音频压缩上传，边收边放</p>
+      <div style="padding:8px 14px;background:var(--ink);color:var(--paper);border-radius:16px;display:flex;justify-content:space-between"><p style="font-size:18px;font-weight:700">腾讯云中枢</p><p style="font-size:15px;color:var(--on-dark)">意图 · Python 算指标 · 提醒</p></div>
+      <p style="font-size:14px;color:var(--faint);padding-left:14px">↓</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;flex:1">
+        <div class="card" style="padding:8px 12px"><p style="font-size:18px;font-weight:700;color:var(--red)">PandaAI</p><p style="font-size:14px;line-height:1.45;color:var(--muted)">SDK：行情、指数、成分股<br>MCP：概念、龙虎榜、港股、财务</p></div>
+        <div class="card" style="padding:8px 12px"><p style="font-size:18px;font-weight:700">火山引擎</p><p style="font-size:14px;line-height:1.45;color:var(--muted)">豆包语音识别 / 合成<br>DeepSeek V4.1（只组织语言）</p></div>
+      </div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+      <div class="card" style="flex:1;padding:10px 14px"><p style="font-size:18px;font-weight:700">今天能演示</p><p style="font-size:15px;line-height:1.55;color:var(--muted);margin-top:4px">语音问答 · 自由提问（MCP）· 21 个行业 · 提醒阶梯 + 异动模拟 · 语音增删自选 · 不荐股 · 跟着舵机动的熊猫脸</p></div>
+      <div style="flex:1;padding:10px 14px;background:var(--ink-2);color:var(--paper);border-radius:16px"><p style="font-size:18px;font-weight:700;color:var(--gold)">下一步</p><p style="font-size:15px;line-height:1.55;color:var(--on-dark);margin-top:4px">交易日盘中实时 · 交易人格 · 用资金流向解释“为什么”</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>提醒阈值按交易人格调：稳健型更少打扰；模拟数据以最近收盘为基准，卡片上标“模拟”</span><span class="mono">4 / 5</span></div>
+</section>
+
+<!-- ============ 5 团队 ============ -->
+<section class="slide dark">
+  <div class="head">
+    <div class="crumb"><b>05</b><h2 style="color:var(--paper)">两个人，软件、硬件、数据都自己做</h2><span>团队</span></div>
+    <div class="brand"><svg><use href="#mark-dark"/></svg>招财机器人</div>
+  </div>
+  <div class="row">
+    <div class="dcard" style="width:560px;padding:14px;display:flex;gap:16px">
+      <img src="assets/shi-pu.jpg" alt="石璞" style="width:260px;height:100%;object-fit:cover;object-position:30% 40%;border-radius:12px">
+      <div style="display:flex;flex-direction:column;justify-content:center;gap:10px">
+        <h3 style="font-size:36px;font-weight:800">石璞</h3>
+        <p style="font-size:19px;line-height:1.55;color:var(--on-dark)">前谷歌员工，15 年工作经验，精通软硬件开发，连续创业者。</p>
+      </div>
+    </div>
+    <div class="dcard" style="width:560px;padding:14px;display:flex;gap:16px">
+      <img src="assets/darin.jpg" alt="Darin Hall（杜汉文）" style="width:260px;height:100%;object-fit:cover;object-position:50% 22%;border-radius:12px">
+      <div style="display:flex;flex-direction:column;justify-content:center;gap:10px">
+        <h3 style="font-size:32px;font-weight:800;line-height:1.2">Darin Hall<br>（杜汉文）</h3>
+        <p style="font-size:19px;line-height:1.55;color:var(--on-dark)">美国留学生，在上海交大读书；凯斯西储大学数据科学本科，全栈工程师。</p>
+      </div>
+    </div>
+    <div style="width:340px;display:flex;flex-direction:column;gap:6px">
+      <p class="label" style="color:var(--on-dark-faint)">11 月 1 日凌晨（服务器日志）</p>
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:space-between;border-left:2px solid #3A3733;padding-left:16px">
+        <p style="font-size:17px;color:var(--on-dark)"><span class="num" style="color:var(--gold)">02:00</span>　中枢搬上腾讯云</p>
+        <p style="font-size:17px;color:var(--on-dark)"><span class="num" style="color:var(--gold)">02:56</span>　第一次语音问答成功</p>
+        <p style="font-size:17px;color:var(--on-dark)"><span class="num" style="color:var(--gold)">03:33</span>　接入 PandaAI MCP</p>
+        <p style="font-size:17px;color:var(--on-dark)"><span class="num" style="color:var(--gold)">04:04</span>　21 个行业板块</p>
+        <p style="font-size:17px;color:var(--on-dark)"><span class="num" style="color:var(--gold)">04:52</span>　招财熊猫的脸上机</p>
+      </div>
+    </div>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:10px">
+      <svg style="width:230px;height:201px" role="img" aria-label="招财熊猫笑着举爪"><use href="#mascot-happy"/></svg>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <p class="brush" style="font-size:60px;line-height:1;color:var(--gold);white-space:nowrap">谢谢</p>
+        <p style="font-size:16px;color:var(--on-dark-faint);white-space:nowrap">不用盯盘，它替你盯</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>招财机器人 · 2026 苏客松 · PandaAI 赛道</span><span class="mono">5 / 5</span></div>
+</section>
+
+</div>
+
+<script>
+  const slides = [...document.querySelectorAll('.slide')];
+  const stage = document.getElementById('stage');
+  let cur = Math.min(Math.max(parseInt(location.hash.slice(1)) || 1, 1), slides.length) - 1;
+  function fit() { const s = Math.min(innerWidth / 1968, innerHeight / 551); stage.style.transform = `translate(-50%, -50%) scale(${s})`; }
+  function show(i) { cur = (i + slides.length) % slides.length; slides.forEach((el, k) => el.classList.toggle('active', k === cur)); history.replaceState(null, '', '#' + (cur + 1)); }
+  addEventListener('resize', fit);
+  addEventListener('keydown', (e) => {
+    if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); show(cur + 1); }
+    else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key)) { e.preventDefault(); show(cur - 1); }
+  });
+  addEventListener('click', (e) => show(cur + (e.clientX < innerWidth / 3 ? -1 : 1)));
+  fit(); show(cur);
+</script>
+</body>
+</html>
