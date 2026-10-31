@@ -747,6 +747,28 @@ void setMode(const char *mode, bool save) {
 
 const char *mode() { return dispMode == 0 ? "simple" : dispMode == 1 ? "compact" : "pro"; }
 
+bool openRowAt(int px, int py, JsonDocument &out, char *code, size_t codeLen) {
+  if (strcmp(lastState, "watch")) return false;
+  JsonArrayConst rows = lastCard["rows"];
+  const int n = dispMode == 0 ? min((int)rows.size(), 3) : min((int)rows.size(), 5);
+  if (!n) return false;
+  int idx;
+  if (dispMode == 0) { idx = (py - 44) / 82; if (py < 44 || py - 44 - idx * 82 > 76) return false; }
+  else { const int rh = min(75, 225 / n); if (py < 67) return false; idx = (py - 67) / rh; }
+  if (idx < 0 || idx >= n) return false;
+  JsonVariantConst r = rows[idx];
+  strlcpy(code, r["code"] | "", codeLen);
+  out.clear();
+  JsonObject c = out["card"].to<JsonObject>();
+  for (const char *k : {"name", "code", "pct", "price", "prev_close", "open", "high", "low", "amount", "amp", "vol_ratio", "spark"})
+    if (!r[k].isNull()) c[k] = r[k];
+  c["mode"] = lastCard["mode"] | "close";
+  c["asof"] = lastCard["asof"] | "";
+  out["t"] = "face";
+  out["state"] = "mkt";
+  return true;
+}
+
 void store(const char *state, JsonVariantConst card) { lastCard.set(card); strlcpy(lastState, state, sizeof lastState); }
 
 void redraw() { if (lastState[0]) paint(); }

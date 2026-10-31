@@ -130,12 +130,14 @@ static void serialInject() {
 }
 
 // 离线演示：开机 25 秒还没连上中枢（或之后断线 25 秒），就循环显示内置的示例卡片（带「示例」标记），连上中枢后立刻让位
+static uint32_t lastTouchAt = 0;   // 最近一次触摸：离线演示在触摸后让出 20 秒
+
 static void offlineDemo(uint32_t now) {
   static uint32_t lastHub = 0, lastCard = 0;
   static int idx = 0;
   static bool running = false;
   if (net::connected()) { lastHub = now; running = false; return; }
-  if (now - lastHub < 25000 || ui::boss()) return;
+  if (now - lastHub < 25000 || ui::boss() || (lastTouchAt && now - lastTouchAt < 20000)) return;
   if (running && now - lastCard < 9000) return;
   running = true;
   lastCard = now;
@@ -155,11 +157,23 @@ void loop() {
   if (now - lastRead >= 20) { lastRead = now; tp.read(); touchedNow = tp.isTouched && tp.touches > 0; }   // 每 20 ms 读一次，不要空转刷 I2C
   const bool touched = touchedNow;
   if (touched && !wasTouched) {   // 刚按下
+    lastTouchAt = now;
     ui::wake();                   // 玩球 / 睡觉时摸一下就醒
     int x, y;
     mapTouch(tp.points[0].x, tp.points[0].y, x, y);
     Serial.printf("[touch] 原始 %d,%d → 屏幕 %d,%d\n", tp.points[0].x, tp.points[0].y, x, y);
-    net::sendTouch(x, y);   // 单击：上报中枢（场景里 = 翻到下一页）
+    JsonDocument detail;
+    char code[16];
+    if (!ui::boss() && screens::openRowAt(x, y, detail, code, sizeof code)) {   // 盯盘列表里点了一只股票：打开它的详情
+      if (net::connected()) {   // 连着中枢：让中枢发带完整数据的详情（成交量、涨跌停价、20 日区间…），12 秒后自动回来
+        JsonDocument od;
+        od["t"] = "open";
+        od["code"] = code;
+        net::send(od);
+      } else {
+        onMessage(detail);      // 离线演示：用这一行自带的数据拼一张详情
+      }
+    } else net::sendTouch(x, y);   // 其他单击：上报中枢（场景里 = 下一项）
   }
   // 手势：长按右上角 0.7 秒 = 简洁 ↔ 专业；长按左上角 1.2 秒 = 老板键；老板键开着时长按 1 秒退出
   static uint32_t pressAt = 0;
