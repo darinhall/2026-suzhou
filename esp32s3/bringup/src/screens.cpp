@@ -321,122 +321,6 @@ static void drawMkt(JsonVariantConst c) {
   txt(CJK12, 470, 300, TR_DATUM, MUTED, GROUND, !strcmp(mode, "sample") ? "示例数据 · 不构成投资建议" : "PandaAI · 不构成投资建议");
 }
 
-// ---------- 起床后 ----------
-static int emLen(const char *s) { int w = 0; for (const unsigned char *p = (const unsigned char *)s; *p; p++) if ((*p & 0xC0) != 0x80) w += *p > 127 ? 10 : 6; return w; }
-
-static void wrap2(const char *s, int maxw, char *l1, char *l2, size_t n) {   // 折成两行（按字宽）
-  l1[0] = l2[0] = 0;
-  int w = 0; const char *p = s; size_t i = 0;
-  while (*p) {
-    const int clen = (*p & 0x80) ? ((*p & 0xE0) == 0xC0 ? 2 : (*p & 0xF0) == 0xE0 ? 3 : 4) : 1;
-    const int cw = (unsigned char)*p > 127 ? 10 : 6;
-    if (w + cw > maxw) break;
-    if (i + clen < n) { memcpy(l1 + i, p, clen); i += clen; l1[i] = 0; }
-    w += cw; p += clen;
-  }
-  if (*p) strlcpy(l2, p, n);
-}
-
-static void kv(int x, int y, int xr, const char *k, const char *v) {
-  txt(CJK12, x, y, TL_DATUM, MUTED, GROUND, k);
-  txt(CJK12, xr, y, TR_DATUM, INK, GROUND, v);
-}
-
-static void drawToday(JsonVariantConst c) {
-  statusBar(c["market"] | "", c["next_open"].isNull() ? "" : "");
-  JsonVariantConst sample = c["sample"];
-
-  // 第一栏 10,24,133：日期
-  txtf(CJK12, 10, 25, TL_DATUM, MUTED, GROUND, "%d 月 · 周%s", (int)(c["month"] | 0), (const char *)(c["weekday"] | ""));
-  txtf(M44, 10, 40, TL_DATUM, INK, GROUND, "%d", (int)(c["day"] | 0));
-  if (!c["lunar"].isNull()) txtf(CJK12, 10, 92, TL_DATUM, MUTED, GROUND, "农历 %s", (const char *)c["lunar"]);
-  chip(10, 112, c["market"] | "", 46);
-  if (!c["next_open"].isNull()) { txtf(CJK12, 10, 134, TL_DATUM, MUTED, GROUND, "下次开盘 %s", (const char *)c["next_open"]); txtf(CJK12, 10, 150, TL_DATUM, MUTED, GROUND, "还有 %s", (const char *)(c["open_in"] | "")); }
-  if (!c["last_idx"].isNull()) {
-    const float p = c["last_idx"]["pct"] | 0.0f;
-    txt(CJK12, 10, 200, TL_DATUM, MUTED, GROUND, "上一交易日");
-    txt(CJK12, 10, 220, TL_DATUM, MUTED, GROUND, c["last_idx"]["name"] | "");
-    txtf(M15, 42, 219, TL_DATUM, INK, GROUND, "%.1f", c["last_idx"]["value"] | 0.0f);
-    tri(112, 224, p >= 0, dirColor(p));
-    txtf(M12, 122, 222, TL_DATUM, dirColor(p), GROUND, "%.2f%%", fabsf(p));
-  }
-
-  // 第二栏 153,24,153：天气
-  JsonVariantConst w = c["wx"];
-  const char *city = c["city"] | "";
-  txtf(CJK12, 153, 25, TL_DATUM, MUTED, GROUND, "%s", city);
-  const float temp = !w.isNull() ? (w["temp"] | 0.0f) : (c["temp"] | 0.0f);
-  txtf(M44, 153, 40, TL_DATUM, INK, GROUND, "%d°", (int)lroundf(temp));
-  txt(CJK17, 306, 56, TR_DATUM, INK, GROUND, !w.isNull() ? (w["text"] | "") : (c["text"] | ""));
-  int y = 100;
-  char b[48];
-  if (!w.isNull()) {
-    snprintf(b, sizeof b, "%d° · 湿度 %d%%", (int)(w["feels"] | 0), (int)(w["humidity"] | 0)); kv(153, y, 306, "体感", b); y += 17;
-    snprintf(b, sizeof b, "%d-%d° · 雨 %d%%", (int)(w["lo"] | 0), (int)(w["hi"] | 0), (int)(w["rain"] | 0)); kv(153, y, 306, "今天", b); y += 17;
-    if (!w["wind"].isNull()) { kv(153, y, 306, "风", w["wind"]); y += 17; }
-    if (!w["aqi"].isNull()) { snprintf(b, sizeof b, "AQI %d · %s", (int)w["aqi"], (const char *)(w["aqi_text"] | "")); kv(153, y, 306, "空气", b); y += 17; }
-    if (!w["uv"].isNull()) { snprintf(b, sizeof b, "%d 级", (int)w["uv"]); kv(153, y, 306, "紫外线", b); y += 17; }
-    if (!w["sunrise"].isNull()) { snprintf(b, sizeof b, "%s / %s", (const char *)w["sunrise"], (const char *)(w["sunset"] | "")); kv(153, y, 306, "日出落", b); y += 17; }
-    snprintf(b, sizeof b, "%s %d-%d°", (const char *)(w["tmr_text"] | ""), (int)(w["tmr_lo"] | 0), (int)(w["tmr_hi"] | 0)); kv(153, y, 306, "明天", b);
-    JsonArrayConst h = w["hourly"];
-    if (h.size() >= 2) spark(h, 153, 224, 153, 26, INK, 0, false);
-  } else {   // v1 卡片：只有一行天气和明天
-    snprintf(b, sizeof b, "%s %d-%d°", (const char *)(c["tmr_text"] | ""), (int)(c["tmr_lo"] | 0), (int)(c["tmr_hi"] | 0)); kv(153, y, 306, "明天", b);
-  }
-
-  // 第三栏 317,24,153：日程 + 汇率
-  txt(CJK12, 317, 25, TL_DATUM, INK, GROUND, "日程");
-  if (!sample["events"].isNull() && (bool)sample["events"]) sampleTag(348, 26);
-  fb->drawFastHLine(317, 42, 153, C(INK));
-  JsonArrayConst ev = c["events"];
-  int ey = 47;
-  if (ev.isNull() || ev.size() == 0) {
-    if (!c["next_title"].isNull()) { fb->fillRoundRect(313, ey, 161, 22, 8, C(CARD)); txt(M12, 319, ey + 5, TL_DATUM, ON_CARD, CARD, c["next_time"] | ""); txt(CJK12, 358, ey + 4, TL_DATUM, ON_CARD, CARD, c["next_title"] | ""); }
-    else txt(CJK12, 317, ey + 4, TL_DATUM, MUTED, GROUND, "今天没有会议了");
-  } else {
-    for (int i = 0; i < (int)min(ev.size(), (size_t)3); i++, ey += 24) {
-      if (i == 0) { fb->fillRoundRect(313, ey, 161, 22, 8, C(CARD)); txt(M12, 319, ey + 5, TL_DATUM, ON_CARD, CARD, ev[i]["time"] | ""); txt(CJK12, 358, ey + 4, TL_DATUM, ON_CARD, CARD, ev[i]["title"] | ""); }
-      else { fb->drawFastHLine(317, ey + 22, 153, C(RULE)); txt(M12, 317, ey + 5, TL_DATUM, INK, GROUND, ev[i]["time"] | ""); txt(CJK12, 358, ey + 4, TL_DATUM, INK, GROUND, ev[i]["title"] | ""); }
-    }
-  }
-  JsonArrayConst fx = c["fx"];
-  if (fx.size()) {
-    txt(CJK12, 317, 130, TL_DATUM, MUTED, GROUND, "汇率");
-    txt(CJK12, 470, 130, TR_DATUM, MUTED, GROUND, "ECB 日终");
-    fb->drawFastHLine(317, 146, 153, C(RULE));
-    for (int i = 0; i < (int)min(fx.size(), (size_t)3); i++) {
-      const int yy = 151 + i * 19;
-      const float p = fx[i]["pct"] | 0.0f;
-      txt(M12, 317, yy, TL_DATUM, MUTED, GROUND, fx[i]["pair"] | "");
-      txtf(M12, 400, yy, TR_DATUM, INK, GROUND, "%.4f", fx[i]["rate"] | 0.0f);
-      tri(405, yy + 3, p >= 0, dirColor(p));
-      txtf(M12, 470, yy, TR_DATUM, dirColor(p), GROUND, "%.2f%%", fabsf(p));
-    }
-  }
-
-  // 盘前简报 10,256,460,37 + 隔夜外盘脚注
-  if (!c["brief"].isNull()) {
-    fb->drawFastHLine(10, 255, 460, C(RULE));
-    char l1[80], l2[80];
-    wrap2(c["brief"], 395, l1, l2, sizeof l1);
-    txt(CJK12, 10, 261, TL_DATUM, MUTED, GROUND, "盘前简报");
-    txt(CJK12, 74, 261, TL_DATUM, INK, GROUND, l1);
-    if (l2[0]) txt(CJK12, 10, 277, TL_DATUM, INK, GROUND, l2);
-  }
-  JsonArrayConst on = c["overnight"];
-  if (on.size()) {
-    txt(CJK12, 10, 298, TL_DATUM, MUTED, GROUND, "隔夜外盘");
-    int x = 70;
-    if (!sample["overnight"].isNull() && (bool)sample["overnight"]) { sampleTag(x, 299); x += 34; }
-    for (JsonVariantConst o : on) {
-      const float p = o["pct"] | 0.0f;
-      txt(CJK12, x, 298, TL_DATUM, MUTED, GROUND, o["name"] | "");
-      tri(x + 32, 302, p >= 0, dirColor(p));
-      txtf(M12, x + 44, 299, TL_DATUM, dirColor(p), GROUND, "%.2f%%", fabsf(p));
-      x += 110;
-    }
-  }
-}
 
 
 // ================= 简洁模式（密度 A：大字，一屏一件事）=================
@@ -522,40 +406,6 @@ static void drawMktSimple(JsonVariantConst c) {
   pageDots(306);
 }
 
-static void drawTodaySimple(JsonVariantConst c) {
-  txtf(CJK14, 14, 15, TL_DATUM, MUTED, GROUND, "%d 月 · 周%s", (int)(c["month"] | 0), (const char *)(c["weekday"] | ""));
-  chip(466 - 62, 10, c["market"] | "", 62, false, CJK14, 24);
-  txtf(M56, 14, 38, TL_DATUM, INK, GROUND, "%d", (int)(c["day"] | 0));
-  JsonVariantConst w = c["wx"];
-  const float temp = !w.isNull() ? (w["temp"] | 0.0f) : (c["temp"] | 0.0f);
-  const char *wtxt = !w.isNull() ? (w["text"] | "") : (c["text"] | "");
-  char b[64];
-  snprintf(b, sizeof b, "%s %d° %s", (const char *)(c["city"] | ""), (int)lroundf(temp), wtxt);
-  txt(CJK18, 168, 54, TL_DATUM, INK, GROUND, b);
-  const char *tt = !w.isNull() ? (w["tmr_text"] | "") : (c["tmr_text"] | "");
-  const int tlo = !w.isNull() ? (int)(w["tmr_lo"] | 0) : (int)(c["tmr_lo"] | 0), thi = !w.isNull() ? (int)(w["tmr_hi"] | 0) : (int)(c["tmr_hi"] | 0);
-  snprintf(b, sizeof b, "明天 %s %d-%d°", tt, tlo, thi);
-  txt(CJK14, 168, 82, TL_DATUM, MUTED, GROUND, b);
-  if (!c["next_open"].isNull()) { snprintf(b, sizeof b, "下次开盘 %s", (const char *)c["next_open"]); txt(CJK14, 14, 112, TL_DATUM, MUTED, GROUND, b); }
-  // 唯一的反白卡：下一个日程
-  JsonArrayConst ev = c["events"];
-  const char *et = nullptr, *tm = nullptr;
-  if (ev.size()) { et = ev[0]["title"]; tm = ev[0]["time"]; }
-  else if (!c["next_title"].isNull()) { et = c["next_title"]; tm = c["next_time"]; }
-  fb->fillRoundRect(14, 160, 452, 130, 16, C(CARD));
-  if (et) {
-    snprintf(b, sizeof b, "下一个 · %s%s%s", tm ? tm : "", c["next_in"].isNull() ? "" : " · ", (const char *)(c["next_in"] | ""));
-    txt(CJK14, 30, 176, TL_DATUM, ON_CARD_MUTED, CARD, b);
-    txt(CJK26, 30, 206, TL_DATUM, ON_CARD, CARD, et);
-    if (!c["next_where"].isNull()) txt(CJK14, 30, 252, TL_DATUM, ON_CARD_MUTED, CARD, c["next_where"]);
-  } else {
-    txt(CJK14, 30, 176, TL_DATUM, ON_CARD_MUTED, CARD, "日程");
-    txt(CJK26, 30, 206, TL_DATUM, ON_CARD, CARD, "今天没有会议了");
-  }
-  const JsonVariantConst smp = c["sample"];
-  if (!smp["events"].isNull() && (bool)smp["events"]) txt(CJK14, 450, 176, TR_DATUM, ON_CARD_MUTED, CARD, "示例");
-  pageDots(301);
-}
 
 // ================= 文字卡片：消息、护栏、角色、简报、市场天气、天气 =================
 // 按像素宽度折行（CJK 占 px，ASCII 约 0.55 px），最多 maxLines 行；超出的丢掉
@@ -664,7 +514,7 @@ bool begin(TFT_eSPI *tft) {
 }
 
 bool handles(const char *state) {
-  static const char *const S[] = {"watch", "mkt", "today", "brief", "msg", "ask", "agent", "colortest"};
+  static const char *const S[] = {"watch", "mkt", "brief", "msg", "ask", "agent", "colortest"};
   for (const char *x : S) if (!strcmp(state, x)) return true;
   return false;
 }
@@ -677,7 +527,6 @@ static void paint() {
   const bool simple = dispMode == 0;
   if (!strcmp(lastState, "watch")) simple ? drawWatchSimple(c) : drawWatch(c);
   else if (!strcmp(lastState, "mkt")) simple ? drawMktSimple(c) : drawMkt(c);
-  else if (!strcmp(lastState, "today")) simple ? drawTodaySimple(c) : drawToday(c);
   else if (!strcmp(lastState, "brief")) drawBrief(c);
   else if (!strcmp(lastState, "msg")) drawMsg(c);
   else if (!strcmp(lastState, "ask")) drawAsk(c);
