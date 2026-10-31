@@ -46,6 +46,9 @@ static void onMessage(JsonDocument &d) {
   const char *t = d["t"] | "";
   if (!strcmp(t, "servo_rebase")) { servotest::rebaseYaw(d["deg"] | 10.0f); return; }   // 需要时再定一次基准
   if (!strcmp(t, "servo_test")) { servotest::run(); return; }
+  if (!strcmp(t, "servo_pos")) { servotest::reportPos(); return; }          // 只读：现在的位置和基准
+  if (!strcmp(t, "servo_home_set")) { servotest::setHomeHere(); return; }   // 现在的位置 = 新基准
+  if (!strcmp(t, "servo_home")) { servotest::goHome(); return; }            // 走回基准
   if (!strcmp(t, "gesture")) {   // 中枢的提醒阶梯 / 问答表态：nod / shake / glance / look（不阻塞，loop() 里慢慢做）
     servotest::gesture(d["name"] | "", d["times"] | 1, d["amp"] | 0.0f, d["hold"] | 0.0f);
     return;

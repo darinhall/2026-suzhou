@@ -1,6 +1,7 @@
 #include "servotest.h"
 
 #include <Arduino.h>
+#include <Preferences.h>
 
 #include "net.h"
 #include "servo.h"
@@ -11,7 +12,8 @@ static const int RX = 47, TX = 21;
 static const int STEPS_10DEG = 114;   // 4096 步 = 360°，10° ≈ 114 步
 
 static const uint8_t PITCH = 1, YAW = 2;
-static const int LOOK_DIR = 1;   // 「转头看你」往哪边转：+1 = 位置增大。装好后如果转反了改成 -1   // 11-01 实测：ID1 = 点头（俯仰），ID2 = 横向转头（偏航）
+static const int LOOK_DIR = 1;   // 「转头看你」往哪边转：+1 = 位置增大。装好后如果转反了改成 -1
+// 11-01 实测：ID1 = 点头（俯仰），ID2 = 横向转头（偏航）
 
 // 每个舵机允许的摆幅（单边，步数）。连线复杂：所有动作都不能超出开机摆动的范围。
 // 11-01：ID1（点头）±20°；ID2（转头）±10°
@@ -20,8 +22,22 @@ int amp(uint8_t id) { return id == PITCH ? 2 * STEPS_10DEG : STEPS_10DEG; }
 // 开机摆动实际走过的范围 [lo, hi] 和原位：之后所有动作都夹在这里面
 static int lo[3] = {0, -1, -1}, hi[3] = {0, -1, -1}, rest[3] = {0, -1, -1};
 
+// 基准位置（home）：存在 NVS（home1 / home2）。第一次开机把当时的位置记成基准（11-01 02:00 的位置）；
+// 之后每次开机、每个动作做完都检查，偏离超过 DRIFT 就记一条 SERVO_DRIFT 日志并拉回基准
+static const int DRIFT = 23;   // ≈ 2°
+static int home[3] = {0, -1, -1};
+
+static int loadHome(uint8_t id) {
+  if (home[id] < 0) { Preferences pr; pr.begin("deskbot", true); home[id] = pr.getInt(id == 1 ? "home1" : "home2", -1); pr.end(); }
+  return home[id];
+}
+static void saveHome(uint8_t id, int pos) {
+  Preferences pr; pr.begin("deskbot", false); pr.putInt(id == 1 ? "home1" : "home2", pos); pr.end();
+  home[id] = pos;
+}
+
 static void report(const char *lvl, const char *code, const char *fmt, ...) {
-  char m[160];
+  char m[192];
   va_list ap; va_start(ap, fmt); vsnprintf(m, sizeof m, fmt, ap); va_end(ap);
   Serial.printf("[servo] %s\n", m);
   net::log(lvl, code, m);
@@ -53,11 +69,19 @@ void wiggle(uint8_t id, int times) {
   delay(100);
   int p0 = -1;
   if (!pingRetry(id) || !readPosRetry(id, p0)) { report("error", "SERVO_TIMEOUT", "ID%d 没应答", id); return; }
+  servo::setTorqueLimit(id, 300);
+  servo::setTorqueEnable(id, true);
+  if (loadHome(id) < 0) {
+    saveHome(id, p0);
+    report("info", "SERVO_HOME_SET", "ID%d 记下基准位置 %d（第一次开机）", id, p0);
+  } else if (abs(p0 - home[id]) > DRIFT) {
+    report("warn", "SERVO_DRIFT", "ID%d 开机时偏离基准 %+d 步（%+.1f°）：现在 %d，基准 %d → 拉回", id, p0 - home[id], (p0 - home[id]) * 360.0f / 4096, p0, home[id]);
+    goAndRead(id, home[id]);
+  }
+  p0 = home[id];   // 原位 = 基准：摆动、动作都围着它
   const int a = amp(id);
   const int c0 = constrain(p0, a + 10, 4095 - a - 10);
   lo[id] = c0 - a; hi[id] = c0 + a; rest[id] = p0;
-  servo::setTorqueLimit(id, 300);
-  servo::setTorqueEnable(id, true);
   for (int i = 0; i < times; i++) { goAndRead(id, c0 - a); goAndRead(id, c0 + a); }
   const int end = goAndRead(id, p0);
   servo::setTorqueEnable(id, false);
@@ -77,7 +101,7 @@ static void push(uint8_t id, int offset, uint16_t speed, uint16_t extraMs = 60) 
   if (qn >= 16 || rest[id] < 0) return;
   const int t = clampT(id, rest[id] + offset);
   const int prev = qn > 0 && q[qn - 1].id == id ? q[qn - 1].target : rest[id];
-  q[qn++] = {id, t, speed, (uint16_t)(abs(t - prev) * 1000 / speed + extraMs)};
+  q[qn++] = {id, t, speed, (uint16_t)(abs(t - prev) * 1000 / speed + 150 + extraMs)};   // +150 ms：加速 / 减速的时间
 }
 
 bool busy() { return qi < qn; }
@@ -105,13 +129,56 @@ void gesture(const char *name, int times, float ampDeg, float holdS) {
     return;
   }
   nextAt = millis();
+  report("info", "SERVO_GESTURE", "%s ×%d（幅度 %.0f°，停 %.1f 秒）", name, times, ampDeg, holdS);
+}
+
+void reportPos() {
+  servo::begin(RX, TX, -1);
+  int p1 = -1, p2 = -1;
+  readPosRetry(1, p1);
+  readPosRetry(2, p2);
+  report("info", "SERVO_POS", "ID1（点头）%d · 基准 %d ｜ ID2（转头）%d · 基准 %d", p1, loadHome(1), p2, loadHome(2));
+}
+
+void setHomeHere() {
+  servo::begin(RX, TX, -1);
+  for (uint8_t id = 1; id <= 2; id++) {
+    int p = -1;
+    if (!readPosRetry(id, p)) { report("error", "SERVO_TIMEOUT", "ID%d 没应答，基准没改", id); continue; }
+    const int old = loadHome(id);
+    saveHome(id, p);
+    rest[id] = p;
+    report("info", "SERVO_HOME_SET", "ID%d 基准 %d → %d", id, old, p);
+  }
+}
+
+void goHome() {
+  servo::begin(RX, TX, -1);
+  for (uint8_t id = 1; id <= 2; id++) {
+    int p = -1;
+    if (loadHome(id) < 0 || !readPosRetry(id, p)) continue;
+    servo::setTorqueLimit(id, 300);
+    servo::setTorqueEnable(id, true);
+    const int end = goAndRead(id, home[id]);
+    servo::setTorqueEnable(id, false);
+    report("info", "SERVO_HOME", "ID%d 回基准：%d → %d（基准 %d）", id, p, end, home[id]);
+  }
 }
 
 void tick() {
   if ((int32_t)(millis() - nextAt) < 0) return;   // 上一步还在走：最后一步（回原位）也要等走完，不然一放松扭矩就停在半路
   if (!busy()) {
-    if (qn) {   // 做完了：放松扭矩（手还能拧动，也不发热）
-      for (uint8_t id = 1; id <= 2; id++) if (torqueOn[id]) { servo::setTorqueEnable(id, false); torqueOn[id] = false; }
+    if (qn) {   // 做完了：检查回没回到基准，再放松扭矩（手还能拧动，也不发热）
+      for (uint8_t id = 1; id <= 2; id++) {
+        if (!torqueOn[id]) continue;
+        int p = -1;
+        // 舵机有加速度，算出来的时间不一定够：最多再等 1 秒，等它真的回到基准附近再放松
+        for (uint32_t t0 = millis(); readPosRetry(id, p) && rest[id] >= 0 && abs(p - rest[id]) > 8 && millis() - t0 < 1000;) delay(30);
+        if (p >= 0 && rest[id] >= 0 && abs(p - rest[id]) > DRIFT)
+          report("warn", "SERVO_DRIFT", "ID%d 动作做完没回到基准：%d，基准 %d（差 %+.1f°）", id, p, rest[id], (p - rest[id]) * 360.0f / 4096);
+        servo::setTorqueEnable(id, false);
+        torqueOn[id] = false;
+      }
       qn = qi = 0;
     }
     return;
@@ -151,6 +218,7 @@ void rebaseYaw(float deg) {
   readPosRetry(id, p2);
   setCenterHere(id);                 // 新位置定为基准（2048）
   readPosRetry(id, p3);
+  if (p3 >= 0) saveHome(id, p3);   // 编码器零点变了：基准跟着换成新位置
   servo::setTorqueEnable(id, false);
   report("info", "SERVO_REBASE", "ID2 定基准：原来 %d → 校正后 %d → 转 %+d 步（约 %+d°）到 %d → 新基准 %d（应接近 2048）", p0, p1, steps, (int)lroundf(deg), p2, p3);
 }

@@ -15,7 +15,11 @@ void wiggle(uint8_t id, int times);
 void gesture(const char *name, int times = 1, float ampDeg = 0, float holdS = 0);
 void tick();
 bool busy();
-void nod();   // = gesture("nod", 1, 8)
+void nod();
+// 基准位置（NVS home1 / home2；第一次开机记下当时的位置）
+void reportPos();     // 只读：两个舵机现在的位置和基准（SERVO_POS 日志），不动
+void setHomeHere();   // 把现在的位置记成新的基准
+void goHome();        // 两个舵机慢慢走回基准   // = gesture("nod", 1, 8)
 // 重新定基准：ID2（转头）先把当前位置校正成 2048，转 deg 度，再把那里校正成 2048。
 // 只需要做一次（舵机把偏移存在自己的 EEPROM 里）；开机时用 NVS 记一下做过没有
 void rebaseYaw(float deg = 10);   // deg > 0：位置增大；deg < 0：位置减小（开机第一下的方向）
