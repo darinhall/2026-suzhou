@@ -146,6 +146,10 @@ async def client_log(ws, ip: str, msg: dict):
     await broadcast_raw(entry)
 
 
+DISPLAY_MODES = ("simple", "compact", "pro")
+DISPLAY = {"mode": "pro"}   # 当前显示模式：简洁 / 紧凑 / 专业；真机和网页共用
+
+
 async def broadcast_raw(msg: dict, exclude=None):
     """不打印、不按 role 过滤，发给所有人（日志用）。"""
     raw = json.dumps(msg, ensure_ascii=False)
@@ -194,6 +198,10 @@ async def handler(ws):
         await ws.send(json.dumps(engine.last_state, ensure_ascii=False))   # 新连上的人马上知道现在是哪个场景、第几页
     except Exception:
         pass
+    try:
+        await ws.send(json.dumps({"t": "display", "mode": DISPLAY["mode"]}))   # 新连上的人马上知道现在是哪种显示模式
+    except Exception:
+        pass
     if robots[ws] not in ("face", "body"):   # 网页：补发历史日志
         try:
             await ws.send(json.dumps({"t": "logs", "items": list(log_buf)}, ensure_ascii=False))
@@ -212,6 +220,13 @@ async def handler(ws):
             t = msg.get("t")
             if t == "log":
                 await client_log(ws, ip, msg)
+                continue
+            if t == "display":                                          # 显示模式：simple / compact / pro，存下来并广播给其他人
+                mode = msg.get("mode")
+                if mode in DISPLAY_MODES:
+                    DISPLAY["mode"] = mode
+                    await broadcast({"t": "display", "mode": mode}, exclude=ws)
+                    await hub_log("info", "DISPLAY_MODE", f"显示模式 → {mode}")
                 continue
             if t == "scene":                                            # 场景：morning / watch / close / booth / stop
                 await engine.handle(msg)
