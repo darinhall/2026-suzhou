@@ -24,7 +24,8 @@ void selfTest();
 float calibrate(int ms = 3000);
 float background();
 // 在 loop() 里一直调：不阻塞，读麦克风里已经有的数据；说话开始 / 结束时打日志（以后接语音识别 / 动作）
-void listenTick();
+int listenTick();       // 返回 0 = 没事，1 = 开始说话，2 = 说完了（时长 ≥ 0.3 秒才算）
+float level();          // 最近 50 ms 的麦克风 RMS（调试显示用）
 bool speaking();
 
 }  // namespace audio

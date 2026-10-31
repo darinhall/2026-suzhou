@@ -50,6 +50,23 @@ void wiggle(uint8_t id, int times) {
   report("info", "SERVO_WIGGLE", "ID%d 来回摆了 %d 次（±10°），回到 %d（原位 %d）", id, times, end, p0);
 }
 
+void nod() {
+  static bool begun = false;
+  if (!begun) { servo::begin(RX, TX, -1); begun = true; delay(20); }
+  const uint8_t PITCH = 2;
+  int p0 = -1;
+  if (!readPosRetry(PITCH, p0)) { Serial.println("[servo] 点头：ID2 没应答"); return; }
+  const int d = 90;   // ≈ 8°
+  const int down = p0 - d >= 0 ? p0 - d : p0 + d;   // 靠近量程边上时往另一边点
+  servo::setTorqueLimit(PITCH, 300);
+  servo::setTorqueEnable(PITCH, true);
+  servo::move(PITCH, down, 900, 40);
+  delay(280);
+  servo::move(PITCH, p0, 900, 40);
+  delay(300);
+  servo::setTorqueEnable(PITCH, false);
+}
+
 void run() {
   servo::begin(RX, TX, -1);   // 没有方向脚：TX、RX 都经电阻接 DATA，发出的字节会回显，驱动里会丢掉
   delay(200);

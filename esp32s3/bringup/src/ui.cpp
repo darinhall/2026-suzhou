@@ -331,6 +331,7 @@ void set(State s, int c, float p, float v, bool a, const char *l) {   // 外面�
 void poke() { lastActive = millis(); }
 
 bool isText() { return cur == State::Text; }
+State current() { return cur; }
 
 void setText() {
   lastActive = millis();

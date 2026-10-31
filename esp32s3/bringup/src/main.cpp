@@ -164,11 +164,40 @@ static void offlineDemo(uint32_t now) {
   if (!deserializeJson(d, DEMO_CARDS[idx++ % DEMO_COUNT])) onMessage(d);
 }
 
+// 说话检测的反应：开始说话 → 点一下头 + 屏幕换成"在听"（紫色眼睛 + 声波）；说完 → 回到原来的屏
+static void voiceTick(uint32_t now) {
+  static ui::State before = ui::State::Idle;
+  const int ev = audio::listenTick();
+  if (ev == 1) {
+    before = ui::current();
+    ui::set(ui::State::Listening);
+    servotest::nod();
+  } else if (ev == 2) {
+    if (before == ui::State::Text) { screens::redraw(); ui::setText(); }
+    else ui::set(before == ui::State::Listening ? ui::State::Idle : before);
+  }
+  // 调试：右下角小条显示 背景 / 现在 / 倍数，每 200 ms 刷新（直接画在屏上，被整屏重画盖掉后下次再画）
+  static uint32_t last = 0;
+  if (now - last < 200 || audio::background() <= 0) return;
+  last = now;
+  const float bg = audio::background(), lv = audio::level(), r = lv / bg;
+  const int x = 330, y = 303, w = 150, h = 17;
+  tft.fillRect(x, y, w, h, TFT_BLACK);
+  const int bw = 54, filled = min(bw, (int)(r / 8.0f * bw));   // 条：0–8 倍；白线 = 4 倍阈值
+  tft.fillRect(x + 92, y + 5, filled, 7, r >= 4 ? TFT_ORANGE : TFT_DARKGREY);
+  tft.drawFastVLine(x + 92 + bw / 2, y + 2, 13, TFT_WHITE);
+  char b[24];
+  snprintf(b, sizeof b, "%ldk %ldk x%d.%d", (long)(bg / 1000), (long)(lv / 1000), (int)r, (int)(r * 10) % 10);
+  tft.setTextDatum(TL_DATUM);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawString(b, x + 3, y + 5, 1);
+}
+
 void loop() {
   const uint32_t now = millis();
   offlineDemo(now);
   serialInject();
-  audio::listenTick();   // 按音量检测有没有人说话
+  voiceTick(now);   // 按音量检测有没有人说话：说话时换"在听"的表情 + 点头；右下角显示实时音量
   net::loop();
 
   static bool wasTouched = false;

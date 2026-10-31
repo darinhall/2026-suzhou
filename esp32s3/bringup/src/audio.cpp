@@ -210,12 +210,12 @@ void selfTest() {
 // ================= 语音检测 =================
 static const float VOICE_RATIO = 4.0f;          // 超过背景 4 倍才算说话
 static const int WIN = RATE / 20;               // 50 ms 一个窗口
-static const int START_WINS = 3, END_WINS = 12; // 连续 150 ms 超过 = 开始；连续 600 ms 低于 = 结束
+static const int START_WINS = 6, END_WINS = 12; // 连续 300 ms 超过 = 开始（短于这个的敲桌子、拍手不算）；连续 600 ms 低于 = 结束
 static float bg = 0;
 static bool talking = false;
 static int above = 0, below = 0;
 static uint32_t talkStart = 0;
-static float talkPeak = 0;
+static float talkPeak = 0, lastRms = 0;
 
 static float windowRms(const int32_t *buf, int frames) {   // 只算左声道（INMP441 的 L/R 接地）
   double sum = 0, sq = 0;
@@ -247,21 +247,25 @@ float calibrate(int ms) {
 float background() { return bg; }
 bool speaking() { return talking; }
 
-void listenTick() {
-  if (!ok || bg <= 0 || playing) return;
+float level() { return lastRms; }
+
+int listenTick() {
+  if (!ok || bg <= 0 || playing) return 0;
   static int32_t buf[WIN * 2];
   static int filled = 0;
   size_t got = 0;
   i2s_read(PORT, (uint8_t *)buf + filled * 8, (WIN - filled) * 8, &got, 0);   // 不等：有多少读多少
   filled += got / 8;
-  if (filled < WIN) return;
+  if (filled < WIN) return 0;
   filled = 0;
-  const float ratio = windowRms(buf, WIN) / bg;
+  lastRms = windowRms(buf, WIN);
+  const float ratio = lastRms / bg;
   if (!talking) {
     above = ratio >= VOICE_RATIO ? above + 1 : 0;
     if (above >= START_WINS) {
       talking = true; below = 0; talkStart = millis() - START_WINS * 50; talkPeak = ratio;
       Serial.printf("[voice] 有人说话（音量 %d.%d 倍背景）\n", (int)ratio, (int)(ratio * 10) % 10);
+      return 1;
     }
   } else {
     talkPeak = max(talkPeak, ratio);
@@ -274,8 +278,10 @@ void listenTick() {
       snprintf(m, sizeof m, "说完了：时长 %lu.%lu 秒，最大音量 %d.%d 倍背景", (unsigned long)(dur / 1000), (unsigned long)(dur % 1000 / 100), (int)talkPeak, (int)(talkPeak * 10) % 10);
       Serial.printf("[voice] %s\n", m);
       net::log("info", "VOICE_SEGMENT", m);
+      return 2;
     }
   }
+  return 0;
 }
 
 }  // namespace audio
