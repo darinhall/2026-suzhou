@@ -38,6 +38,8 @@ static void mapTouch(int rx, int ry, int &x, int &y) {
 #endif
 }
 
+static bool bossFromHub = false;   // 时钟是中枢让进的（模式 = 时钟）：中枢换了别的模式就跟着退出；自己长按进的时钟只能自己长按退出
+
 // 中枢发来的消息：这块板只管脸，pose / gesture / torque 之类给身体的直接忽略
 static void onMessage(JsonDocument &d) {
   const char *t = d["t"] | "";
@@ -52,6 +54,10 @@ static void onMessage(JsonDocument &d) {
   if (strcmp(t, "face") != 0) return;
   const char *st = d["state"] | "idle";
   JsonVariantConst card = d["card"];
+  if (bossFromHub && strcmp(st, "decoy")) {   // 中枢从"时钟"模式切走了
+    bossFromHub = false;
+    if (ui::boss()) { ui::setBoss(false); net::sendBoss(false); }
+  }
   if (screens::handles(st) && ui::boss()) {   // 老板键开着：卡片先存着，退出后再画（不然新卡片会盖掉时钟）
     screens::store(st, card);
     ui::setText();
@@ -59,7 +65,7 @@ static void onMessage(JsonDocument &d) {
   }
   if (screens::handles(st)) {   // 文字屏
     const uint32_t t0 = millis();
-    if (screens::show(st, card)) { ui::setText(); Serial.printf("[face] %s 画好 %u ms\n", st, millis() - t0); return; }
+    if (screens::show(st, card)) { ui::setText(); Serial.printf("[face] %s 画好 %u ms（%s）\n", st, millis() - t0, screens::mode()); return; }
   }
   Serial.printf("[face] %s\n", st);
 
@@ -72,7 +78,7 @@ static void onMessage(JsonDocument &d) {
   else if (!strcmp(st, "stealth")) ui::set(ui::State::Stealth, 0, card["pct"] | 0.0f, card["vol"] | 0.3f, card["alert"] | false);
   else if (!strcmp(st, "play")) ui::set(ui::State::Play);
   else if (!strcmp(st, "sleep")) ui::set(ui::State::Sleep);
-  else if (!strcmp(st, "decoy")) ui::setBoss(true);
+  else if (!strcmp(st, "decoy")) { ui::setBoss(true); bossFromHub = true; }
   else ui::set(ui::State::Unsupported, 0, 0, 0, false, st);
 }
 
@@ -182,6 +188,7 @@ void loop() {
   if (touched && !fired && pressAt && now - pressAt > 1000 && ui::boss()) {   // 老板键开着：长按 1 秒退出
     fired = true;
     ui::setBoss(false);
+    bossFromHub = false;
     net::sendBoss(false);
     Serial.println("[boss] 长按退出");
   }
