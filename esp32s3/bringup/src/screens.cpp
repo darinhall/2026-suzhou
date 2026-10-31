@@ -147,15 +147,33 @@ static const char *modeText(const char *m) {
 static char sceneName[12] = "", sceneClock[8] = "";
 static int scenePage = 0, sceneOf = 0;
 
+// 招财熊猫小头像（品牌）：每张卡片左上角都有。r = 脸的半径
+static void miniPanda(int cx, int cy, int r) {
+  const uint32_t ink = 0x161616, face = 0xF4F1EA;
+  fb->fillCircle(cx - r * 3 / 4, cy - r * 3 / 4, max(2, r * 4 / 10), C(ink));   // 耳朵
+  fb->fillCircle(cx + r * 3 / 4, cy - r * 3 / 4, max(2, r * 4 / 10), C(ink));
+  fb->fillCircle(cx, cy, r, C(ink));
+  fb->fillCircle(cx, cy, r - 1, C(face));
+  fb->fillEllipse(cx - r * 4 / 10, cy + r / 10, max(2, r * 3 / 10), max(2, r * 4 / 10), C(ink));   // 眼斑
+  fb->fillEllipse(cx + r * 4 / 10, cy + r / 10, max(2, r * 3 / 10), max(2, r * 4 / 10), C(ink));
+  if (r >= 10) {
+    fb->fillCircle(cx - r * 4 / 10, cy, max(1, r / 9), C(face));   // 眼睛
+    fb->fillCircle(cx + r * 4 / 10, cy, max(1, r / 9), C(face));
+  }
+  fb->fillCircle(cx, cy + r / 2, max(1, r / 8), C(ink));   // 鼻子
+  if (r >= 10) fb->fillRect(cx - r, cy + r - 2, 2 * r, 3, C(0xD7262B));   // 红项圈
+}
+
 static void statusBar(const char *mode, const char *asof) {
   const bool live = !strcmp(mode, "replay") || !strcmp(mode, "live");
-  fb->fillCircle(15, 9, 3, C(live ? ACCENT : FAINT));
-  txt(CJK12, 24, 3, TL_DATUM, INK, GROUND, modeText(mode));
+  miniPanda(10, 10, 7);
+  fb->fillCircle(25, 9, 3, C(live ? ACCENT : FAINT));
+  txt(CJK12, 32, 3, TL_DATUM, INK, GROUND, modeText(mode));
   char clk[8] = "";
   if (sceneClock[0]) strlcpy(clk, sceneClock, sizeof clk);
   else { struct tm tm; if (getLocalTime(&tm, 0) && tm.tm_year > 120) snprintf(clk, sizeof clk, "%02d:%02d", tm.tm_hour, tm.tm_min); }
-  txt(M12, 58, 3, TL_DATUM, INK, GROUND, clk);
-  txt(CJK12, 104, 3, TL_DATUM, MUTED, GROUND, asof);
+  txt(M12, 66, 3, TL_DATUM, INK, GROUND, clk);
+  txt(CJK12, 112, 3, TL_DATUM, MUTED, GROUND, asof);
   for (int i = 0, n = min(sceneOf, 8), x = 470 - (n - 1) * 9 - 14; i < n; i++, x += 9) {   // 页码点
     if (i + 1 == scenePage) fb->fillRoundRect(x - 2, 7, 14, 5, 2, C(INK));
     else fb->drawCircle(x + 3 + (i + 1 > scenePage ? 7 : 0), 9, 2, C(RULE));
@@ -508,7 +526,8 @@ static void drawAnswer(JsonVariantConst c) {
   // 第一行：问题 + 动作标签（和舵机同时）
   char q[80];
   snprintf(q, sizeof q, "“%s”", c["q"] | "");
-  txt(CJK14, 14, 12, TL_DATUM, MUTED, GROUND, q);
+  miniPanda(26, 22, 13);
+  txt(CJK14, 48, 12, TL_DATUM, MUTED, GROUND, q);
   const char *act = c["act"] | "";
   if (*act) chip(466 - 64, 8, act, 64, true, CJK14, 24);
 
