@@ -6,11 +6,12 @@
 
 namespace ui {
 
-enum class State { Idle, Blink, Happy, Listening, Thinking, Ok, Stealth, Play, Sleep, Unsupported };
+enum class State { Idle, Blink, Happy, Listening, Thinking, Ok, Stealth, Play, Sleep, Text, Unsupported };
 
 void begin(TFT_eSPI *tft);
 void set(State s, int count = 0, float pct = 0, float vol = 0.3f, bool alert = false, const char *label = nullptr);
 void tick(uint32_t now);            // 眨眼、波形、点点的动画
+void setText();                     // 文字屏（screens.cpp）正在显示：待机动画停住，老板键退出后重画它
 void poke();                        // 有人动过它：待机计时重新开始
 void wake();                        // 摸一下：玩球 / 睡觉都醒过来（睡着的会被吓一跳）
 void setBoss(bool on);              // 老板键：伪装成办公助手的时钟

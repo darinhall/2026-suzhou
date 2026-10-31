@@ -38,10 +38,19 @@ w, h = cfg["wifi"], cfg["hub"]
 #endif
 ''')
 
+# 备用 WiFi（比如你自己的手机热点）：config/network_local.json = {"fallback": [{"ssid": "...", "password": "..."}]}，不进 git。
+# 主 WiFi 扫不到时，板子会改连这里的第一个能扫到的热点。
+fallback = ""
+local_net = HERE / "network_local.json"
+if local_net.exists():
+    fb = json.loads(local_net.read_text()).get("fallback", [])
+    for i, f in enumerate(fb[:2], 1):
+        fallback += f'#define DB_WIFI_FB{i}_SSID "{f["ssid"]}"\n#define DB_WIFI_FB{i}_PASS "{f["password"]}"\n'
+
 token_file = HERE.parent / "hub" / ".token"
 if token_file.exists():
     token = token_file.read_text().strip()
-    (HERE / "deskbot_net_local.h").write_text(f'// 本地令牌，来自 hub/.token，不进 git\n#define DB_HUB_TOKEN "{token}"\n')
+    (HERE / "deskbot_net_local.h").write_text(f'// 本地令牌和备用 WiFi，不进 git\n#define DB_HUB_TOKEN "{token}"\n{fallback}')
     print("wrote config/deskbot_net.h and config/deskbot_net_local.h（含令牌）")
 else:
     print("wrote config/deskbot_net.h；还没有 hub/.token：先启动一次 hub/mock_hub.py 再运行本脚本，才会生成 deskbot_net_local.h")

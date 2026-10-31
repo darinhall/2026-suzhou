@@ -1,6 +1,6 @@
 """生成 TFT_eSPI 的 .vlw 平滑字体（含常用汉字），放进 esp32s3/bringup/data/，再 `pio run -t uploadfs` 传到板子的 LittleFS。
 
-    uvx --python 3.12 --with pillow python esp32s3/tools/make_vlw.py <字体文件> <字号> <输出名>
+    uvx --python 3.12 --with pillow python esp32s3/tools/make_vlw.py <字体文件> <字号> <输出名> [ascii] [ttc 序号]
     uvx --python 3.12 --with pillow python esp32s3/tools/make_vlw.py "/System/Library/Fonts/STHeiti Medium.ttc" 22 cjk22
 
 字符集：ASCII + 常用标点 + GB2312 一级汉字（3755 个，覆盖日常 99% 以上）。
@@ -13,11 +13,13 @@ import sys
 from PIL import Image, ImageDraw, ImageFont
 
 font_path, size, name = sys.argv[1], int(sys.argv[2]), sys.argv[3]
-font = ImageFont.truetype(font_path, size)
+ascii_only = "ascii" in sys.argv[4:]                       # 只要 ASCII + 少数符号（等宽数字字体用）
+index = next((int(a) for a in sys.argv[4:] if a.isdigit()), 0)   # .ttc 里的第几个字体
+font = ImageFont.truetype(font_path, size, index=index)
 
 chars = {chr(c) for c in range(0x20, 0x7F)}
-chars |= set("，。！？：；、（）“”‘’—…·¥％▲▼→←↑↓①②③℃°×÷±≈＋－")
-for hi in range(0xB0, 0xD8):          # GB2312 一级汉字区
+chars |= set("−·%+" if ascii_only else "，。！？：；、（）“”‘’—…·¥％▲▼→←↑↓①②③℃°×÷±≈＋－")
+for hi in ([] if ascii_only else range(0xB0, 0xD8)):          # GB2312 一级汉字区
     for lo in range(0xA1, 0xFF):
         try:
             chars.add(bytes([hi, lo]).decode("gb2312"))
