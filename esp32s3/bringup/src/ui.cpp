@@ -164,15 +164,48 @@ static void pushBall() {
   obx = (int)bx; oby = (int)by;
 }
 
-static void pushEyes() {
-  for (int i = 0; i < 2; i++) composeAndPush(eyeSpr, eyeBoxX(i), eyeBoxY(), EW, EH, true);
+static void pushEyes(bool withBall = true) {
+  for (int i = 0; i < 2; i++) composeAndPush(eyeSpr, eyeBoxX(i), eyeBoxY(), EW, EH, withBall);
 }
 
-static void playStart() {
-  if (!ballSpr) {
-    ballSpr = new TFT_eSprite(T); ballSpr->setColorDepth(16); ballSpr->createSprite(BS, BS);
-    eyeSpr = new TFT_eSprite(T); eyeSpr->setColorDepth(16); eyeSpr->createSprite(EW, EH);
+static void ensureSprites() {
+  if (ballSpr) return;
+  ballSpr = new TFT_eSprite(T); ballSpr->setColorDepth(16); ballSpr->createSprite(BS, BS);
+  eyeSpr = new TFT_eSprite(T); eyeSpr->setColorDepth(16); eyeSpr->createSprite(EW, EH);
+}
+
+// 眼睛"变形"的一帧：两只眼睛都画成高 h、中心在 cy+off 的胶囊，在 sprite 里画好一次推上屏（所以不闪）
+static void morphEyes(int h, int off) {
+  for (int i = 0; i < 2; i++) {
+    const int bx0 = eyeBoxX(i), by0 = eyeBoxY();
+    eyeSpr->fillSprite(C(GROUND));
+    const int x = W() / 2 + (i == 0 ? -EYE_GAP / 2 - EYE_W : EYE_GAP / 2);
+    eyeSpr->fillRoundRect(x - bx0, cy() + off - h / 2 - by0, EYE_W, h, min(EYE_W / 2, h / 2), C(INK));
+    eyeSpr->pushSprite(bx0, by0);
   }
+}
+
+// 闭着的眼睛（U 形，和 sleepEyes 画的一样）：画进 sprite
+static void sleepEyesPush() {
+  const int ytop = cy() + 16;
+  for (int i = 0; i < 2; i++) {
+    const int bx0 = eyeBoxX(i), by0 = eyeBoxY();
+    const int x = W() / 2 + (i == 0 ? -EYE_GAP / 2 - EYE_W : EYE_GAP / 2) - bx0, yt = ytop - by0;
+    eyeSpr->fillSprite(C(GROUND));
+    eyeSpr->fillRoundRect(x, yt - 40, EYE_W, 40 + 34, 32, C(INK));
+    eyeSpr->fillRoundRect(x + 14, yt - 70, EYE_W - 28, 70 + 34 - 14, 18, C(GROUND));
+    eyeSpr->fillRect(x - 1, yt - 44, EYE_W + 2, 44, C(GROUND));
+    eyeSpr->pushSprite(bx0, by0);
+  }
+}
+
+static void eraseBall() {   // 球所在的方块重画一遍（不带球）
+  const int x = constrain((int)bx - BS / 2, 0, W() - BS), y = constrain((int)by - BS / 2, 0, H() - BS);
+  composeAndPush(ballSpr, x, y, BS, BS, false);
+}
+
+static void playStart(bool fresh = true) {
+  ensureSprites();
   bx = W() * (0.15f + random(0, 20) / 100.0f);
   by = H() * 0.3f;
   bvx = (random(2) ? 1 : -1) * W() * 0.3f;
@@ -181,7 +214,7 @@ static void playStart() {
   bLast = millis();
   gazeX = gazeY = 0;
   obx = (int)bx; oby = (int)by;
-  T->fillScreen(C(GROUND));
+  if (fresh) T->fillScreen(C(GROUND));
   pushEyes();
   pushBall();
 }
@@ -228,9 +261,43 @@ static void sleepStart() {
   sleepEyes();
 }
 
-static void startle() {   // 被吵醒：眼睛一下睁大
-  const int hs[3] = {14, 128, EYE_H};
-  for (int h : hs) { eyeBand(); eyesPill(INK, h); delay(45); }
+// ---------- 状态之间的过渡（都是 sprite 里画好再推，不整屏重画，所以不闪）----------
+static void clearMouth() { T->fillRect(W() / 2 - MOUTH_W / 2 - 3, 242 - 3, MOUTH_W + 6, MOUTH_H + 6, C(GROUND)); }
+
+static void idleToPlay() {   // 嘴消失，球从上面掉下来
+  clearMouth();
+  cur = State::Play;
+  stateSince = millis();
+  playStart(false);
+}
+
+// 玩球 → 睡觉：球先收掉，眼睛慢慢眯成一条线，再变成闭眼的弧线
+static void playToSleep() {
+  ensureSprites();
+  eraseBall();
+  gazeX = gazeY = 0;
+  pushEyes(false);
+  const int hs[] = {104, 92, 78, 62, 48, 38, 32};
+  for (int i = 0; i < 7; i++) { morphEyes(hs[i], 33 * (i + 1) / 7); delay(45); }
+  sleepEyesPush();
+  cur = State::Sleep;
+  stateSince = millis();
+}
+
+// 睡觉 / 玩球 → 醒：眼睛从闭着一下睁开，过一点头再回来，然后小嘴出现
+static void wakeUp(bool fromSleep) {
+  ensureSprites();
+  if (fromSleep) {
+    T->fillRect(366, 24, 114, 150, C(GROUND));   // z 擦掉
+    const int hs[] = {20, 52, 92, 126, 134, 122, 112};
+    for (int i = 0; i < 7; i++) { morphEyes(hs[i], 33 * (6 - i) / 6); delay(34); }
+  } else {
+    eraseBall();
+    gazeX = gazeY = 0;
+    pushEyes(false);
+  }
+  mouth();
+  nextBlink = millis() + 2500;
 }
 
 // ---------- 整屏重画 ----------
@@ -280,8 +347,10 @@ void wake() {
   lastActive = millis();
   if (bossOn || (cur != State::Play && cur != State::Sleep)) return;
   const bool wasSleep = cur == State::Sleep;
-  apply(State::Idle, 0, 0, 0.3f, false, nullptr);
-  if (wasSleep) startle();
+  cur = State::Idle;
+  cnt = 0; alertFlag = false;
+  stateSince = millis();
+  wakeUp(wasSleep);
 }
 
 void setBoss(bool on) {
@@ -298,8 +367,8 @@ void tick(uint32_t now) {
     return;
   }
   // 待机导演：idle 安静一阵 → 玩球 → 睡觉，直到有人动它
-  if (cur == State::Idle && now - lastActive > IDLE_AFTER) { apply(State::Play, 0, 0, 0.3f, false, nullptr); return; }
-  if (cur == State::Play && now - stateSince > PLAY_FOR) { apply(State::Sleep, 0, 0, 0.3f, false, nullptr); return; }
+  if (cur == State::Idle && now - lastActive > IDLE_AFTER) { idleToPlay(); return; }
+  if (cur == State::Play && now - stateSince > PLAY_FOR) { playToSleep(); return; }
   if (cur == State::Play && now - lastAnim > 28) { lastAnim = now; playStep(now); return; }
   if (cur == State::Sleep && now - lastAnim > 100) {
     lastAnim = now;
