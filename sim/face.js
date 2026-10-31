@@ -2,6 +2,8 @@
 // 状态名就是协议里的 face.state；真机用 LVGL 按同样的布局和像素尺寸画。
 // 设计系统规则：每屏最多一张 loud 卡片、一个 accent 元素；lilac 只给 AI；涨跌必须带 ▲▼ 和 +/− 号。
 
+import { denseView, updateBar, DENSE_STATES } from './dense-views.js';
+
 const esc = (s = '') => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const LEGAL = '<div class="caption">示例数据 · 不构成投资建议</div>';
 const sign = (v) => (v >= 0 ? '+' : '−');
@@ -233,6 +235,24 @@ const VIEWS = {
 
 export const STATES = Object.keys(VIEWS);
 
+// ---------- 显示模式：简洁（原来的大字视图）/ 紧凑 / 专业（信息密度版，见 dense-views.js）----------
+// 只有开了 opts.dense 的屏幕（主屏和 3D 头里的镜像屏）会跟着切换；实验室、游戏页的屏幕不受影响。
+export const DENSITIES = ['simple', 'compact', 'pro'];
+const DENSITY_KEY = 'deskbot.sim.density';
+const readDensity = () => { try { const v = localStorage.getItem(DENSITY_KEY); return DENSITIES.includes(v) ? v : 'pro'; } catch { return 'pro'; } };
+let density = readDensity();
+const densityListeners = new Set();
+export const getDensity = () => density;
+export function setDensity(mode) {
+  if (!DENSITIES.includes(mode) || mode === density) return false;
+  density = mode;
+  try { localStorage.setItem(DENSITY_KEY, mode); } catch {}
+  densityListeners.forEach((fn) => fn(mode));
+  return true;
+}
+export const onDensity = (fn) => densityListeners.add(fn);
+
+
 // 行情 → 表情：pct 是自选股平均涨跌幅（%），vol 是波动程度 0–1
 function updateStealth(root, { pct = 0, vol = 0.3, alert = false } = {}) {
   const s = root.querySelector('.stealth');
@@ -256,6 +276,7 @@ export class Face {
     this.el = el;
     this.opts = opts;
     this.state = 'idle';
+    this.scene = null;   // 场景引擎的 {page, of, clock}：专业 / 紧凑屏的状态栏用
     this.stateSince = this.lastActive = performance.now();
     el.addEventListener('pointerdown', (e) => {
       this.poke();
@@ -265,9 +286,24 @@ export class Face {
       onTouch(Math.round(((e.clientX - r.left) / r.width) * el.offsetWidth), Math.round(((e.clientY - r.top) / r.height) * el.offsetHeight));
       e.stopPropagation();
     });
+    if (opts.dense) {   // 跟随显示模式；状态栏的时钟每 20 秒刷新一次
+      this.el.dataset.density = density;
+      onDensity((mode) => {
+        if (!this.el.isConnected) return;
+        this.el.dataset.density = mode;
+        if (DENSE_STATES.includes(this.state)) this._show(this.state, this.card);   // 当前就是信息屏：换成对应模式重画
+      });
+      setInterval(() => { if (this.el.isConnected) updateBar(this.el, this.scene); }, 20000);
+    }
     this.blinkLoop();
     this.lookLoop();
     if (opts.idleAfter > 0) this.directorTimer = setInterval(() => this.direct(), 500);
+  }
+
+  // 中枢的场景引擎走到第几页 / 回放到几点：只换信息屏的状态栏，不重画整屏
+  setScene(info) {
+    this.scene = info && info.name ? { page: info.page, of: info.of, clock: info.clock } : null;
+    if (this.opts.dense) updateBar(this.el, this.scene);
   }
 
   // 有人动过它（消息、触摸、按头）：重新计时
@@ -315,7 +351,8 @@ export class Face {
   }
 
   _show(state, card) {
-    const view = VIEWS[state];
+    let view = VIEWS[state];
+    if (this.opts.dense && density !== 'simple' && DENSE_STATES.includes(state)) view = (c) => denseView(state, c, density, this.scene);   // 紧凑 / 专业：信息密度版
     if (!view) return console.warn('unknown face state', state);
     const prev = this.state;
     this.stopAnim();

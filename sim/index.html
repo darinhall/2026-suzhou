@@ -6,6 +6,7 @@
   <title>DeskBot 模拟器</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="screen.css">
+  <link rel="stylesheet" href="dense-views.css">
 </head>
 <body class="console">
   <header class="bar">
@@ -100,6 +101,9 @@
       </div>
       <div class="hero-bar">
         <div class="tele" id="telemetry"></div>
+        <div class="seg keep" id="density-seg" role="group" aria-label="显示模式" title="显示模式（V）">
+          <button data-density="simple">简洁</button><button data-density="compact">紧凑</button><button data-density="pro">专业</button>
+        </div>
         <div class="seg" id="scale-seg" role="group" aria-label="屏幕缩放">
           <button data-scale="auto">自适应</button><button data-scale="1">1×</button><button data-scale="1.5">1.5×</button><button data-scale="2">2×</button>
         </div>
@@ -167,12 +171,13 @@
         <dt><kbd>T</kbd> <kbd>S</kbd> <kbd>W</kbd> <kbd>M</kbd></dt><dd>today · sky · watch · mkt</dd>
         <dt><kbd>空格</kbd></dt><dd>按头</dd>
         <dt><kbd>B</kbd></dt><dd>老板键（再按一次恢复）</dd>
+        <dt><kbd>V</kbd></dt><dd>切换显示模式：简洁 → 紧凑 → 专业（同步到真机）</dd>
         <dt><kbd>F</kbd></dt><dd>切换屏幕缩放：自适应 → 1× → 1.5× → 2×</dd>
         <dt><kbd>D</kbd></dt><dd>显示 / 隐藏 3D 机身预览</dd>
         <dt><kbd>L</kbd></dt><dd>打开日志页</dd>
         <dt><kbd>?</kbd></dt><dd>显示 / 关闭这个面板</dd>
       </dl>
-      <p class="note">在输入框里打字时快捷键不生效。URL 参数：<code>?view=3d</code> <code>?idle=秒</code> <code>?ws=</code> <code>?token=</code> <code>?face=</code> <code>?demo=</code></p>
+      <p class="note">在输入框里打字时快捷键不生效。URL 参数：<code>?view=3d</code> <code>?density=simple|compact|pro</code> <code>?idle=秒</code> <code>?ws=</code> <code>?token=</code> <code>?face=</code> <code>?demo=</code></p>
     </div>
   </div>
 

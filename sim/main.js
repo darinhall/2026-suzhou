@@ -1,5 +1,5 @@
 import { Body } from './body.js';
-import { Face } from './face.js';
+import { Face, DENSITIES, getDensity, setDensity, onDensity } from './face.js';
 import { Link, defaultUrl, defaultToken } from './link.js';
 import { demos } from './demo.js';
 import { follow } from './design.js';
@@ -32,12 +32,14 @@ const face = new Face(heroScreen, (x, y) => {
   if (now - lastTap < 350) toggleBoss();
   lastTap = now;
   up({ t: 'touch', x, y });
-}, { idleAfter: idleParam === null ? 25 : Number(idleParam) });
-const mirror = new Face(body.screen);   // 不自己导演（没有 idleAfter），完全跟主屏
+}, { idleAfter: idleParam === null ? 25 : Number(idleParam), dense: true });
+const mirror = new Face(body.screen, () => {}, { dense: true });   // 不自己导演（没有 idleAfter），完全跟主屏
 const showHero = face._show.bind(face);
 face._show = (state, card) => { showHero(state, card); mirror._show(state, card); };   // 主屏所有换屏（指令、触摸唤醒、待机导演）都会走这里
 follow(heroScreen, body.screen);   // 设计实验室里调的主题 / 字体等，这里实时跟着变
 window.deskbot = { face };   // 调试用：控制台里 deskbot.face.set('mkt', {...})
+// ?density=simple|compact|pro：直接用某个显示模式打开（也会记住）
+if (DENSITIES.includes(params.get('density'))) setDensity(params.get('density'));
 // ?face=decoy 之类：直接打开某个表情，方便看屏幕设计
 face.set(params.get('face') || 'idle');
 
@@ -121,6 +123,10 @@ function onHub(m) {
   }
   if (m.t === 'log') return hubLog(m);
   if (m.t === 'logs') { if (Array.isArray(m.items)) m.items.slice(-12).forEach((e) => hubLog(e)); return; }   // 刚连上：补最近几条
+  if (m.t === 'display') {   // 别的客户端（或刚连上时中枢）告诉我们当前显示模式：直接应用，不回发，免得回环
+    if (setDensity(m.mode)) log('down', JSON.stringify(m));
+    return;
+  }
   if (m.t === 'scene_state') return showScene(m);   // 中枢的场景引擎：现在在第几页
   if (m.t === 'notice') {
     if (m.level === 'error') link.report('error', 'REQ_FAILED', String(m.text).slice(0, 200));
@@ -207,6 +213,7 @@ setInterval(() => {
 const sceneRunner = createSceneRunner({ handle: act, onState: (m) => showScene(m), caption: (t) => bot.caption(t) });
 function showScene(m) {
   const on = m.name && m.name !== 'stop';
+  for (const f of [face, mirror]) f.setScene(on ? m : null);   // 专业 / 紧凑屏状态栏的页码点和回放时钟
   const sc = SCENES.find((x) => x.id === m.name);
   const label = sc?.label ?? m.name;
   const box = $('#scene-state'), chip = $('#scene-chip');
@@ -225,6 +232,21 @@ document.querySelectorAll('[data-scene]').forEach((b) => (b.onclick = () => {
   else if (name === 'stop') sceneRunner.stop();
   else sceneRunner.start(name);
 }));
+
+// ---------- 显示模式：简洁 / 紧凑 / 专业 ----------
+// 点按钮 / 按 V：本机立刻切换；连着中枢就发 {"t":"display","mode":…}，中枢存下来并转给真机和别的网页
+const DENSITY_NAME = { simple: '简洁', compact: '紧凑', pro: '专业' };
+const syncDensityUi = () => document.querySelectorAll('#density-seg [data-density]').forEach((b) => b.classList.toggle('on', b.dataset.density === getDensity()));
+onDensity(syncDensityUi);
+syncDensityUi();
+function chooseDensity(mode) {
+  if (setDensity(mode)) {
+    bot.caption(`显示模式：${DENSITY_NAME[mode]}`);
+    setTimeout(() => bot.caption(''), 2500);
+  }
+  if (link.connected) up({ t: 'display', mode });   // 已经是这个模式也发一次：让真机对齐
+}
+document.querySelectorAll('#density-seg [data-density]').forEach((b) => (b.onclick = () => chooseDensity(b.dataset.density)));
 
 // ---------- 连接 ----------
 function onStatus(kind, text) {
@@ -377,6 +399,7 @@ window.addEventListener('keydown', (e) => {
   if (FACE_KEYS[k]) return act({ t: 'face', state: FACE_KEYS[k] });
   if (k === ' ') { e.preventDefault(); return pressHead(); }
   if (k === 'b') return toggleBoss();
+  if (k === 'v') return chooseDensity(DENSITIES[(DENSITIES.indexOf(getDensity()) + 1) % DENSITIES.length]);
   if (k === 'f') return cycleScale();
   if (k === 'd') return setPreview($('#sec-3d').classList.contains('off'));
   if (k === 'l') return window.open('logs.html', '_blank');

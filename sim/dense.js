@@ -1,42 +1,8 @@
-// 信息密度原型：5 张屏 × 3 档密度 × 2 种尺寸。数据在 dense-data.js；每个 .smp 角标 = 现在没有数据源的"示例"字段。
+// 信息密度原型（合成数据）：5 张屏 × 3 档密度 × 2 种尺寸。数据在 dense-data.js；每个 .smp 角标 = 现在没有数据源的"示例"字段。
 import { WATCH, INDICES, BREADTH, WEATHER, FX, OVERNIGHT, EVENTS, BRIEF } from './dense-data.js';
+import { esc, smp, lunarOf, f2, cls, sg, pct, pctS, spark, rangeBar, line24 } from './dense-views.js';   // 小部件和真数据版共用
 
 const $ = (s, r = document) => r.querySelector(s);
-const esc = (s = '') => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-const smp = '<i class="smp">示例</i>';
-const LD = ['初一','初二','初三','初四','初五','初六','初七','初八','初九','初十','十一','十二','十三','十四','十五','十六','十七','十八','十九','二十','廿一','廿二','廿三','廿四','廿五','廿六','廿七','廿八','廿九','三十'];
-const lunarOf = (d) => { const p = new Intl.DateTimeFormat('zh-CN-u-ca-chinese', { month: 'long', day: 'numeric' }).formatToParts(d); return p.find((x) => x.type === 'month').value + LD[+p.find((x) => x.type === 'day').value - 1]; };
-const f2 = (v) => Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const cls = (v) => (v > 0 ? 'up' : v < 0 ? 'down' : '');
-const sg = (v) => (v > 0 ? '▲' : v < 0 ? '▼' : '–');
-const pct = (v, plus = true) => `<span class="pct ${cls(v)}">${sg(v)} ${v > 0 && plus ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(2)}%</span>`;
-const pctS = (v) => `<span class="pct ${cls(v)}">${sg(v)}${Math.abs(v).toFixed(2)}%</span>`;   // 指数条里用，省一个符号位
-
-// ---------- 图 ----------
-function spark(points, pre, area = false) {
-  const lo = Math.min(...points, pre), hi = Math.max(...points, pre), span = hi - lo || 1, n = points.length;
-  const X = (i) => (i / (n - 1)) * 100, Y = (v) => 28 - ((v - lo) / span) * 26 - 1;
-  const line = points.map((v, i) => `${X(i).toFixed(2)},${Y(v).toFixed(2)}`).join(' ');
-  const color = points[n - 1] >= pre ? 'var(--up)' : 'var(--down)';
-  return `<svg viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
-    <line x1="0" x2="100" y1="${Y(pre)}" y2="${Y(pre)}" stroke="var(--faint)" stroke-width="1" stroke-dasharray="2 2" vector-effect="non-scaling-stroke"/>
-    ${area ? `<polygon points="0,${Y(pre)} ${line} 100,${Y(pre)}" fill="${color}" opacity=".10"/>` : ''}
-    <polyline points="${line}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
-}
-const rangeBar = (lo, hi, v, open) => {
-  const p = (x) => `${(((x - lo) / (hi - lo || 1)) * 100).toFixed(1)}%`;
-  return `<div class="rng"><b style="left:0;width:100%"></b>${open != null ? `<i style="left:${p(open)};background:var(--faint)"></i>` : ''}<i style="left:${p(v)}"></i></div>`;
-};
-function line24(vals, now) {
-  const lo = Math.min(...vals), hi = Math.max(...vals), span = hi - lo || 1, n = vals.length;
-  const X = (i) => (i / (n - 1)) * 100, Y = (v) => 26 - ((v - lo) / span) * 22 - 2;
-  const pts = vals.map((v, i) => `${X(i).toFixed(2)},${Y(v).toFixed(2)}`).join(' ');
-  return `<svg viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
-    <polygon points="0,28 ${pts} 100,28" fill="var(--ink)" opacity=".07"/>
-    <polyline points="${pts}" fill="none" stroke="var(--ink)" stroke-width="1.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
-    <line x1="${X(now)}" x2="${X(now)}" y1="0" y2="28" stroke="var(--accent)" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`;
-}
-
 // ---------- 状态栏 ----------
 function bar(mode, time, asof, page, of) {
   const names = { live: '实时', replay: '回放', close: '收盘', closed: '休市', pre: '盘前' };
