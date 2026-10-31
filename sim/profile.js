@@ -2,7 +2,7 @@
 //
 // 客户端 → 中枢
 //   {"t":"profile","set":{…部分字段…}}        改设置（深度合并）
-//   {"t":"mode","name":"watch|weather|today|clock|idle|booth"}
+//   {"t":"mode","name":"watch|list|today|clock|idle|booth"}
 //   {"t":"mode_ctl","op":"prev|next|pause|resume"}   （假设：翻页 / 暂停；中枢没实现就忽略）
 //   {"t":"symbols","q":"宁德"}                  搜股票
 // 中枢 → 客户端
@@ -10,16 +10,17 @@
 //   {"t":"profile_result","ok":true|false,"error":"…"}   只回给发起者
 //   {"t":"symbols_result","q":"宁德","items":[{"code":"300750","name":"宁德时代"}]}
 //   {"t":"scene_state","name","page","of","label","item"}
+//   {"t":"shown","state":"mkt","mode":"pro","item":"中芯国际"}   真机每画完一张卡发一条（中枢转给所有人）
 //
 // 没连中枢时：设置存在 localStorage，立刻生效（离线示例模式）。
 
 export const MODES = [
-  { id: 'watch', label: '盯盘', desc: '自选逐只轮播（或列表）' },
-  { id: 'weather', label: '天气', desc: '在设好的城市之间轮播' },
+  { id: 'watch', label: '盯盘', desc: '自选逐只轮播（单股大图）' },
+  { id: 'list', label: '自选', desc: '自选总览：多行列表，一屏看全' },
   { id: 'today', label: '今天', desc: '日期 · 天气 · 日程' },
   { id: 'clock', label: '时钟', desc: '老板键伪装屏' },
   { id: 'idle', label: '待机', desc: '眼睛 · 玩球 · 睡觉' },
-  { id: 'booth', label: '展台', desc: '盯盘 → 天气 → 今天 循环' },
+  { id: 'booth', label: '展台', desc: '盯盘 → 自选 → 今天 循环' },
 ];
 
 export const LIMITS = {

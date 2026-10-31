@@ -84,6 +84,8 @@ function up(msg) {
 // 协议层在 profile.js：连着中枢就发 {"t":"profile"} / {"t":"mode"}，没连就存在 localStorage、用示例数据本地轮播
 const sync = new ProfileSync({ connected: () => link.connected, send: (m) => up(m) });
 let boardDisplay = null;   // 真机（经中枢）当前的显示模式
+let shown = null;          // 真机最近画完的一张卡：{state, mode, item}（固件每画完发一条 {"t":"shown"}，中枢转给所有人）
+let curMode = null;        // 控制台现在期望的模式（来自 scene_state / 点的按钮）
 
 // ---------- 下行消息分发（真机固件里是同一张表） ----------
 let pressWaiters = [];
@@ -131,6 +133,7 @@ function onHub(m) {
   }
   if (m.t === 'log') return hubLog(m);
   if (m.t === 'logs') { if (Array.isArray(m.items)) m.items.slice(-12).forEach((e) => hubLog(e)); return; }   // 刚连上：补最近几条
+  if (m.t === 'shown') { shown = { state: m.state, mode: m.mode, item: m.item ?? '' }; return; }
   if (m.t === 'profile') {   // 中枢广播的完整设置：以它为准（连上 hello 之后也会收到一份）
     sync.applyRemote(m.profile);
     const d = sync.profile.display;
@@ -236,6 +239,7 @@ let modeShown = false;
 function showScene(m) {
   const on = !!m.name && m.name !== 'stop';
   modeShown = on;
+  curMode = on ? m.name : null;
   for (const f of [face, mirror]) f.setScene(on ? m : null);   // 专业 / 紧凑屏状态栏的页码点和回放时钟
   const mode = MODES.find((x) => x.id === m.name), sc = SCENES.find((x) => x.id === m.name);
   const label = mode?.label ?? m.label ?? sc?.label ?? m.name;
@@ -309,7 +313,7 @@ function onStatus(kind, text) {
   $('#scene-src').textContent = kind === 'on' ? '中枢调度 · 真数据' : '示例数据';
   $('#hub-note').textContent = kind === 'on' ? '已连接' : kind === 'wait' ? '连接中…' : '离线';
   if (kind === 'on') sync.setState('applied'); else if (kind === 'off') sync.setState('offline');
-  if (kind === 'off') boardDisplay = null;
+  if (kind === 'off') { boardDisplay = null; shown = null; peers = { face: 0, body: 0, view: 0 }; }
   if (kind === 'off') for (const id of ['face', 'body', 'view']) { $(`#pr-${id}`).classList.remove('on'); $(`#pr-${id} b`).textContent = 0; }
   if (kind === 'off' && /拒绝|令牌/.test(text)) setTokenPop(true);   // 令牌不对：把令牌框弹出来
   log('sys', text);
@@ -429,13 +433,44 @@ const settingsUi = mountSettings({
   root: $('#settings-root'), sync,
   density: { get: getDensity, set: chooseDensity },
 });
+// 控制台期望真机现在显示什么：模式 → 屏幕状态；null = 不做要求（展台 / 没选模式）
+const DENSE_STATES = ['watch', 'mkt', 'today', 'sky', 'weather'];
+function expectedStates() {
+  switch (curMode) {
+    case 'watch': case 'list': return ['watch', 'mkt'];   // 回放里异动会弹单股卡，两种都算对
+    case 'today': return ['today'];
+    case 'clock': return ['decoy', 'clock'];
+    case 'idle': return ['idle', 'blink', 'happy', 'play', 'sleep', 'listening', 'thinking', 'ok', 'stealth'];
+    default: return null;
+  }
+}
+let mismatchSince = 0;
+function deviceInfo() {
+  const faceOn = link.connected && peers.face > 0, exp = expectedStates();
+  const bad = faceOn && shown && ((exp && !exp.includes(shown.state)) || (DENSE_STATES.includes(shown.state) && shown.mode && shown.mode !== getDensity()));
+  if (!bad) mismatchSince = 0; else if (!mismatchSince) mismatchSince = performance.now();
+  return {
+    connected: link.connected, peers, board: boardDisplay ? DENSITY_NAME[boardDisplay] ?? boardDisplay : null,
+    expect: `${exp ? exp[0] : curMode === 'booth' ? '轮播' : '—'} · ${DENSITY_NAME[getDensity()]}`,
+    shown: shown ? `${shown.state}${shown.mode && DENSE_STATES.includes(shown.state) ? ` · ${DENSITY_NAME[shown.mode] ?? shown.mode}` : ''}${shown.item ? ` · ${shown.item}` : ''}` : null,
+    mismatch: !!mismatchSince && performance.now() - mismatchSince > 5000,   // 持续 5 秒以上不一致才报，翻页的瞬间不算
+  };
+}
 const deviceUi = mountDevice({
   root: $('#device-root'),
-  getInfo: () => ({ connected: link.connected, peers, board: boardDisplay ? DENSITY_NAME[boardDisplay] ?? boardDisplay : null, face: face.state }),
+  getInfo: deviceInfo,
   onResend: () => up({ t: 'relay', msg: { t: 'face', state: face.state, ...(face.card ? { card: face.card } : {}) } }),
 });
-setInterval(() => deviceUi.paint(), 500);
-deviceUi.paint();
+function paintDevice() {
+  deviceUi.paint();
+  const online = link.connected && peers.face > 0;
+  modesUi.setPreview(!online);
+  const bar = $('#warn-bar');
+  bar.hidden = online;
+  bar.querySelector('span').textContent = link.connected ? '真机没连上中枢 — 面板只控制模拟器预览' : '没连上中枢 — 面板只控制模拟器预览';
+}
+setInterval(paintDevice, 500);
+paintDevice();
 let rtab = store.get('rtab', 'settings');
 function setRTab(id) {
   if (!['settings', 'demos', '3d'].includes(id)) id = 'settings';
@@ -451,6 +486,8 @@ setRTab(rtab);
 const setSheet = (on) => { document.body.classList.toggle('sheet', on); if (on) setRTab('settings'); };
 $('#btn-settings').onclick = () => setSheet(!document.body.classList.contains('sheet'));
 $('#btn-sheet-close').onclick = () => setSheet(false);
+
+$('#warn-connect').onclick = (e) => { e.preventDefault(); $('#ws-url').focus(); };
 
 // ---------- 快捷键 ----------
 const helpEl = $('#help');
