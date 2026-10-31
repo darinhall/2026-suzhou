@@ -22,3 +22,4 @@ package = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = [".", "data", "hub"]
+markers = ["live: 真的调 PandaAI / 大模型（DESKBOT_LIVE=1 才跑）"]

@@ -42,13 +42,17 @@
 
 **最重要的一条（来自评审视角）：Python 算数，大模型只解释。** 卡片上的每个数字都来自 `metrics.py`；大模型拿到算好的指标写一句话。`tests/test_reply.py` 会检查"大模型说出来的数字必须在指标里出现过"。
 
+**网络：** 笔记本上的中枢是 WebSocket 服务器（8765）；板子开机用 UDP 8766 广播自动找到笔记本 IP，然后作为客户端连上来；模拟器也是客户端。板子和笔记本要在同一个 Wi-Fi。PandaAI 和大模型都由笔记本调用。详见 decisions.md §0。
+
+**休市：** 问答跟着中枢的"周五回放时钟"回答（decisions.md §10），卡片写明「10-30 回放 HH:MM」。
+
 ## 三条并行轨道
 
 | 轨道 | 负责 | 任务 |
 |---|---|---|
 | **A 硬件 / 固件** | 板子、舵机、音频 | T01 T07 T08b T09a T12 |
 | **B 大脑 / 后端** | brain/、hub 接入 | T00 T02 T03 T04 T05 T06 T08a T09b |
-| **C 前端 / 展示** | sim/、PPT、提交 | T10 T11 T13 |
+| **C 前端 / 展示** | sim/、PPT、提交、熊猫形象 | T10 T11 T13 T14 |
 
 人少就按 B → A → C 的优先级排：**B 是演示的核心，A 是"显眼包"，C 可以压缩**。
 
@@ -70,17 +74,20 @@
 | [T11](tasks/T11-demo-rehearsal.md) | 演示剧本 + 彩排脚本 | 全员 | 3 | T06 |
 | [T12](tasks/T12-hardening.md) | 演示加固（开机、断网、噪音） | A | 3 | — |
 | [T13](tasks/T13-presentation.md) | PPT、备用视频、提交材料 | C | 3 | — |
+| [T14](tasks/T14-panda-face.md) | 熊猫脸 + 黑白主题（板子 + 模拟器） | A/C | 1–2 | — |
 
 ## 测试怎么跑
 
 ```bash
 uv run --group dev pytest            # 全部（还没实现的模块自动跳过）
 uv run --group dev pytest -k metrics # 只跑一部分
+DESKBOT_LIVE=1 uv run --group dev pytest -m live -v   # 真数据：PandaAI + 大模型（要联网、要 data/.env）
 uv run --group dev python scripts/rehearse.py   # 彩排：三个剧本打字跑一遍（T11）
 ```
 
 - `tests/` 里的测试**先于代码写好**，定义每个模块的接口。模块没写时整文件跳过（`importorskip`），写好之后自动生效。
-- 测试**不联网、不连板子**：行情用 `tests/fixtures/` 的样本，大模型用假的。
+- 默认测试**不联网、不连板子**：行情用假数据，大模型用假的。
+- **真数据测试**（`-m live`，`tests/test_live.py`）：真的调 PandaAI 和大模型，确认我们和 PandaAI 接口同步。后端任务完成时、上台前各跑一次。
 - 硬件测试是手动清单：每个任务文件里的「验收」。
 
 ## 完成的定义（每个任务都一样）
