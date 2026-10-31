@@ -54,7 +54,7 @@ const VIEWS = {
         ${c.vol_ratio != null ? `<span class="label" style="margin-left:auto">量比 ${Number(c.vol_ratio).toFixed(1)}</span>` : ''}</div>
       <div class="hero ${dir(pct)}"><span class="live" style="margin-bottom:14px"></span><span class="sign">${glyph(pct)} ${sign(pct)}</span><span class="numeral-xl">${numeral(fixed(pct))}</span><span class="sign">%</span></div>
       <div class="grow">${spark(c.spark, pct >= 0)}</div>
-      <div class="foot"><span class="hint">${esc(c.hint ?? '')}</span>${LEGAL}</div>
+      <div class="foot"><span class="hint">${esc(c.hint ?? '')}</span>${c.legal ? `<div class="caption">${esc(c.legal)}</div>` : LEGAL}</div>
     </div>`;
   },
 

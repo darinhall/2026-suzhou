@@ -23,7 +23,9 @@ from symbols import symbol
 
 
 def login() -> None:
-    """从环境变量或 data/.env 读账号并登录。不打印任何账号信息。"""
+    """从环境变量或 data/.env 读账号并登录。不打印任何账号信息。已经登录过（token 还有效）就直接返回，中枢每次请求都调它。"""
+    if panda_data.is_authenticated():
+        return
     env = Path(__file__).with_name(".env")
     if env.exists():
         from dotenv import load_dotenv   # panda_data 依赖里自带 python-dotenv
