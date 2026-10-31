@@ -38,7 +38,7 @@ static bool linkUp() { return WiFi.status() == WL_CONNECTED || (apMode && WiFi.s
 
 
 // ---------- 日志 ----------
-struct LogItem { char lvl[6], code[24], msg[96]; uint32_t up; };
+struct LogItem { char lvl[6], code[24], msg[192]; uint32_t up; };
 static LogItem pend[16];
 static int pendN = 0;
 
@@ -55,12 +55,23 @@ static void sendLog(const LogItem &it) {
   ws.sendTXT(out);
 }
 
+// 截断可能把一个中文字切成两半：把结尾不完整的 UTF-8 字符去掉，否则中枢会因为"不是合法 UTF-8"断开连接（1007）
+static void utf8Trim(char *s) {
+  size_t n = strlen(s), i = n;
+  while (i > 0 && (s[i - 1] & 0xC0) == 0x80) i--;   // 往回跳过续字节
+  if (i == 0) return;
+  const unsigned char lead = s[i - 1];
+  const size_t need = lead >= 0xF0 ? 4 : lead >= 0xE0 ? 3 : lead >= 0xC0 ? 2 : 1;
+  if (n - (i - 1) < need) s[i - 1] = 0;
+}
+
 void log(const char *lvl, const char *code, const char *msg) {
   Serial.printf("[%s] %s %s\n", lvl, code, msg);
   LogItem it;
   strlcpy(it.lvl, lvl, sizeof it.lvl);
   strlcpy(it.code, code, sizeof it.code);
   strlcpy(it.msg, msg, sizeof it.msg);
+  utf8Trim(it.msg);
   it.up = millis();
   if (wsUp) { sendLog(it); return; }
   if (pendN == 16) { memmove(pend, pend + 1, sizeof(LogItem) * 15); pendN = 15; }   // 满了丢最旧的
@@ -114,7 +125,11 @@ static void onWsEvent(WStype_t type, uint8_t *payload, size_t length) {
 
 static void startWs() {
   ws.disconnect();
+#ifdef DB_HUB_CLOUD_HOST
+  ws.beginSSL(hubHost.c_str(), hubPort, hubPath.c_str());   // 云端中枢走 wss（nginx + Let's Encrypt）；不校验证书，只要加密
+#else
   ws.begin(hubHost.c_str(), hubPort, hubPath.c_str());
+#endif
   ws.onEvent(onWsEvent);
   ws.setReconnectInterval(2000);
   ws.enableHeartbeat(20000, 15000, 3);   // 弱信号下回包慢：15 秒内没收到 pong 才算一次失败，连续 3 次才断
@@ -305,8 +320,16 @@ void loop() {
     } else {
       Serial.println("[wifi] 热点上有客户端了（直连模式）");
     }
-    udp.begin(DB_DISCOVERY_PORT + 1);
     configTime(8 * 3600, 0, "ntp.aliyun.com", "pool.ntp.org");   // 老板键的时钟要用
+#ifdef DB_HUB_CLOUD_HOST
+    hubHost = DB_HUB_CLOUD_HOST;   // 只用云端中枢：不广播、不找局域网里的电脑
+    hubPort = DB_HUB_CLOUD_PORT;
+    hubPath = DB_HUB_WS_PATH;
+    Serial.printf("[hub] 连云端 wss://%s:%u%s\n", hubHost.c_str(), hubPort, hubPath.c_str());
+    startWs();
+#else
+    udp.begin(DB_DISCOVERY_PORT + 1);
+#endif
   }
 
   if (phase == Phase::Discover && now - lastTry > 1000) {
@@ -334,6 +357,7 @@ void loop() {
 
   if (phase == Phase::Ws) {
     ws.loop();
+#ifndef DB_HUB_CLOUD_HOST   // 云端地址固定：WebSocketsClient 自己会一直重连，不用回去重新发现
     if (!wsUp && wsFails >= 3 && now - lastTry > 5000) {   // 连不上：中枢可能换了地址，回去重新发现
       lastTry = now;
       phase = Phase::Discover;
@@ -341,6 +365,7 @@ void loop() {
       ws.disconnect();
       log("warn", "WS_DOWN", "连不上中枢，重新发现（令牌不对会被锁 30 秒）");
     }
+#endif
   }
 }
 

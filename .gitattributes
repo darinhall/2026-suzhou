@@ -1,0 +1,3 @@
+# 部署文件在 Linux 上跑：永远用 LF
+*.sh text eol=lf
+deploy/* text eol=lf

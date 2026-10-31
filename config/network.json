@@ -9,6 +9,9 @@
     "ws_path": "/robot",
     "http_port": 8090,
     "discovery_port": 8766,
-    "beacon_seconds": 2
+    "beacon_seconds": 2,
+    "cloud_host": "api-suzhou-hackathon.ppclaw.cn",
+    "cloud_port": 443,
+    "note": "板子只连云端中枢 wss://cloud_host:cloud_port/robot（nginx 443 → 127.0.0.1:ws_port）。去掉 cloud_host 就回到局域网 UDP 自动发现"
   }
 }

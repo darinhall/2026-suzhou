@@ -304,8 +304,8 @@ function setTokenPop(open) { $('#token-pop').hidden = !open; $('#btn-token').set
 $('#btn-token').onclick = () => setTokenPop($('#token-pop').hidden);
 $('#ws-token').onkeydown = (e) => { if (e.key === 'Enter') $('#btn-connect').click(); };
 $('#ws-url').onkeydown = (e) => { if (e.key === 'Enter') $('#btn-connect').click(); };
-// https 页面（比如部署出去的 H5）连不了 ws:// 的笔记本，默认只在本地打开时自动连
-if (location.protocol !== 'https:' || params.has('ws')) link.connect($('#ws-url').value);
+// 本地打开连笔记本 ws://…:8765；云端 https 页面连同域名的 wss://…/robot（见 link.js defaultUrl）
+link.connect($('#ws-url').value);
 
 // ---------- 控件 ----------
 // 场景卡片：标题 + 谁在用，来自 usecases.js
