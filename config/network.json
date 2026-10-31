@@ -1,0 +1,14 @@
+{
+  "wifi": {
+    "ssid": "NAMI-guest",
+    "password": "123456789",
+    "note": "赛场 WiFi，选手手册 4.2.1。板子只有 2.4 GHz；同一个 SSID 的 2.4 / 5 GHz 实测在同一个网段里。"
+  },
+  "hub": {
+    "ws_port": 8765,
+    "ws_path": "/robot",
+    "http_port": 8090,
+    "discovery_port": 8766,
+    "beacon_seconds": 2
+  }
+}
