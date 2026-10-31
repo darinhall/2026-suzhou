@@ -555,6 +555,136 @@ static void drawTodaySimple(JsonVariantConst c) {
   pageDots(301);
 }
 
+// ================= 文字卡片：消息、护栏、角色、简报、市场天气、天气 =================
+// 按像素宽度折行（CJK 占 px，ASCII 约 0.55 px），最多 maxLines 行；超出的丢掉
+static int wrapPx(const char *text, int px, int maxw, char lines[][60], int maxLines) {
+  int n = 0, w = 0;
+  size_t len = 0;
+  lines[0][0] = 0;
+  for (const char *p = text; *p && n < maxLines;) {
+    const int clen = (*p & 0x80) ? ((*p & 0xE0) == 0xC0 ? 2 : (*p & 0xF0) == 0xE0 ? 3 : 4) : 1;
+    const int cw = (unsigned char)*p > 127 ? px : (int)(px * 0.55f);
+    if (w + cw > maxw && len) { if (++n >= maxLines) break; lines[n][0] = 0; w = 0; len = 0; }
+    if (len + clen < 59) { memcpy(lines[n] + len, p, clen); len += clen; lines[n][len] = 0; }
+    w += cw; p += clen;
+  }
+  return min(n + 1, maxLines);
+}
+
+static void legalLine() { txt(CJK14, 466, 301, TR_DATUM, MUTED, GROUND, "示例数据 · 不构成投资建议"); }
+
+static void drawMsg(JsonVariantConst c) {
+  fb->fillRoundRect(14, 14, 452, 236, 18, C(CARD));
+  txt(CJK14, 34, 32, TL_DATUM, ON_CARD_MUTED, CARD, c["title"] | "");
+  if (!strcmp(c["level"] | "", "urgent")) chip(466 - 20 - 56, 28, "紧急", 56, true, CJK14, 24);
+  char L[4][60];
+  const int n = wrapPx(c["body"] | "", 26, 410, L, 3);
+  for (int i = 0; i < n; i++) txt(CJK26, 34, 72 + i * 36, TL_DATUM, ON_CARD, CARD, L[i]);
+  if (!c["meta"].isNull()) txt(CJK14, 34, 222, TL_DATUM, ON_CARD_MUTED, CARD, c["meta"]);
+  txt(CJK18, 14, 266, TL_DATUM, INK, GROUND, c["hint"] | "");
+}
+
+static void drawAsk(JsonVariantConst c) {
+  fb->fillRoundRect(14, 14, 452, 236, 18, C(CARD));
+  txt(CJK14, 34, 32, TL_DATUM, ON_CARD_MUTED, CARD, c["why"] | "");
+  char L[3][60];
+  const int n = wrapPx(c["title"] | "确定吗？", 26, 410, L, 2);
+  for (int i = 0; i < n; i++) txt(CJK26, 34, 84 + i * 40, TL_DATUM, ON_CARD, CARD, L[i]);
+  if (!c["meta"].isNull()) txt(CJK14, 34, 222, TL_DATUM, ON_CARD_MUTED, CARD, c["meta"]);
+  txt(CJK18, 14, 266, TL_DATUM, INK, GROUND, c["hint"] | "按头 = 确认 · 不动 = 算了");
+}
+
+static void drawAgent(JsonVariantConst c) {
+  const char *name = c["name"] | "";
+  fb->fillRoundRect(14, 14, 18 + (int)strlen(name) / 3 * 15 + 14, 26, 13, C(DB_LIGHT_LILAC));
+  txt(CJK14, 14 + 12, 19, TL_DATUM, DB_LIGHT_ON_ACCENT, DB_LIGHT_LILAC, name);
+  txt(CJK14, 466, 19, TR_DATUM, MUTED, GROUND, c["source"] | "A2A 办公室 · 盘前简报");
+  char L[5][60];
+  const int n = wrapPx(c["say"] | "", 26, 440, L, 4);
+  for (int i = 0; i < n; i++) txt(CJK26, 14, 66 + i * 38, TL_DATUM, INK, GROUND, L[i]);
+  const int of = c["of"] | 3, at = c["n"] | 1;
+  for (int i = 0; i < of; i++) fb->fillRoundRect(14 + i * 30, 296, 24, 4, 2, C(i < at ? DB_LIGHT_LILAC : RULE));
+  if (!(c["legal"].is<bool>() && !(bool)c["legal"])) legalLine();
+}
+
+static void drawBrief(JsonVariantConst c) {
+  txt(CJK14, 14, 15, TL_DATUM, MUTED, GROUND, c["title"] | "盘前简报");
+  JsonArrayConst it = c["items"];
+  int y = 44;
+  for (int i = 0; i < (int)min(it.size(), (size_t)3); i++) {
+    char L[3][60];
+    const int n = wrapPx(it[i] | "", 18, 420, L, 2);
+    txtf(M14, 14, y + 3, TL_DATUM, MUTED, GROUND, "%d", i + 1);
+    for (int k = 0; k < n; k++) txt(CJK18, 40, y + k * 26, TL_DATUM, INK, GROUND, L[k]);
+    y += 26 * n + 18;
+    if (i < 2) fb->drawFastHLine(14, y - 10, 452, C(RULE));
+  }
+  txt(CJK14, 14, 280, TL_DATUM, INK, GROUND, c["hint"] | "");
+  if (!(c["legal"].is<bool>() && !(bool)c["legal"])) legalLine();
+}
+
+static void drawMarketWeather(JsonVariantConst c) {
+  const int up = c["up"] | 0, down = c["down"] | 0, tot = max(1, up + down);
+  const int share = (int)lroundf(up * 100.0f / tot);
+  txtf(CJK14, 14, 15, TL_DATUM, MUTED, GROUND, "市场天气 · %s", (const char *)(c["time"] | ""));
+  txtf(M56, 14, 44, TL_DATUM, INK, GROUND, "%d", share);
+  txt(CJK26, 150, 60, TL_DATUM, INK, GROUND, c["word"] | "");
+  txt(CJK14, 150, 96, TL_DATUM, MUTED, GROUND, "上涨家数占比 %");
+  fb->fillRoundRect(14, 200, 452, 14, 4, C(DOWNC));
+  fb->fillRoundRect(14, 200, max(8, 452 * share / 100), 14, 4, C(UPC));
+  tri(14, 228, true, UPC);
+  txtf(M14, 28, 225, TL_DATUM, UPC, GROUND, "%d", up);
+  tri(110, 228, false, DOWNC);
+  txtf(M14, 124, 225, TL_DATUM, DOWNC, GROUND, "%d", down);
+  if (!c["limit_up_n"].isNull()) txtf(CJK14, 466, 225, TR_DATUM, MUTED, GROUND, "涨停 %d · 跌停 %d", (int)c["limit_up_n"], (int)(c["limit_down_n"] | 0));
+  txt(CJK14, 14, 301, TL_DATUM, MUTED, GROUND, !strcmp(c["mode"] | "", "sample") ? "示例数据 · 不构成投资建议" : "行情数据仅供参考 · 不构成投资建议");
+}
+
+static void drawSky(JsonVariantConst c, bool pro) {
+  const float temp = c["temp"] | 0.0f;
+  const char *advice = c["advice"] | "";
+  if (!pro) {
+    txtf(CJK14, 14, 15, TL_DATUM, MUTED, GROUND, "%s · %s", (const char *)(c["city"] | ""), (const char *)(c["time"] | ""));
+    txtf(M56, 14, 40, TL_DATUM, INK, GROUND, "%d", (int)lroundf(temp));
+    txt(CJK18, 100, 50, TL_DATUM, MUTED, GROUND, "°C");
+    txt(CJK26, 466, 48, TR_DATUM, INK, GROUND, c["text"] | "");
+    txtf(CJK14, 466, 86, TR_DATUM, MUTED, GROUND, "体感 %d° · 湿度 %d%%", (int)(c["feels"] | 0), (int)(c["humidity"] | 0));
+    fb->fillRoundRect(14, 160, 452, 130, 16, C(CARD));
+    char b[80];
+    snprintf(b, sizeof b, "今天 %d-%d° · 明天 %s %d-%d°", (int)(c["lo"] | 0), (int)(c["hi"] | 0), (const char *)(c["tmr_text"] | ""), (int)(c["tmr_lo"] | 0), (int)(c["tmr_hi"] | 0));
+    txt(CJK14, 30, 176, TL_DATUM, ON_CARD_MUTED, CARD, b);
+    char L[3][60];
+    const int n = wrapPx(advice, 26, 410, L, 2);
+    for (int i = 0; i < n; i++) txt(CJK26, 30, 206 + i * 36, TL_DATUM, ON_CARD, CARD, L[i]);
+    return;
+  }
+  // 专业：左栏大温度 + kv 行；右栏 24 小时气温曲线 + 降水概率柱
+  txtf(CJK12, 10, 25, TL_DATUM, MUTED, GROUND, "%s · %s", (const char *)(c["city"] | ""), (const char *)(c["time"] | ""));
+  txtf(M44, 10, 40, TL_DATUM, INK, GROUND, "%d°", (int)lroundf(temp));
+  txt(CJK17, 213, 56, TR_DATUM, INK, GROUND, c["text"] | "");
+  int y = 100;
+  char b[48];
+  snprintf(b, sizeof b, "%d° · 湿度 %d%%", (int)(c["feels"] | 0), (int)(c["humidity"] | 0)); kv(10, y, 213, "体感", b); y += 20;
+  snprintf(b, sizeof b, "%d-%d°", (int)(c["lo"] | 0), (int)(c["hi"] | 0)); kv(10, y, 213, "今天", b); y += 20;
+  if (!c["wind_dir"].isNull() || !c["wind"].isNull()) { kv(10, y, 213, "风", c["wind"].isNull() ? c["wind_dir"] : c["wind"]); y += 20; }
+  if (!c["aqi"].isNull()) { snprintf(b, sizeof b, "AQI %d · %s", (int)c["aqi"], (const char *)(c["aqi_text"] | "")); kv(10, y, 213, "空气", b); y += 20; }
+  if (!c["uv"].isNull()) { snprintf(b, sizeof b, "%d 级", (int)c["uv"]); kv(10, y, 213, "紫外线", b); y += 20; }
+  if (!c["sunrise"].isNull()) { snprintf(b, sizeof b, "%s / %s", (const char *)c["sunrise"], (const char *)(c["sunset"] | "")); kv(10, y, 213, "日出落", b); y += 20; }
+  snprintf(b, sizeof b, "%s %d-%d°", (const char *)(c["tmr_text"] | ""), (int)(c["tmr_lo"] | 0), (int)(c["tmr_hi"] | 0)); kv(10, y, 213, "明天", b);
+  JsonArrayConst h = c["hourly"];
+  txt(CJK12, 223, 25, TL_DATUM, MUTED, GROUND, "24 小时气温");
+  fb->drawFastHLine(223, 41, 247, C(INK));
+  if (h.size() >= 2) spark(h, 223, 47, 247, 158, INK, 0, false);
+  JsonArrayConst rn = c["rain_hourly"];
+  txt(CJK12, 223, 232, TL_DATUM, MUTED, GROUND, "降水概率");
+  fb->drawFastHLine(223, 248, 247, C(INK));
+  for (int i = 0; i < (int)min(rn.size(), (size_t)24); i++) {
+    const int hh = (int)(rn[i].as<float>() / 100.0f * 30);
+    fb->fillRect(223 + i * 10, 284 - hh, 8, max(1, hh), C(rn[i].as<float>() > 0 ? DB_LIGHT_LILAC : RULE));
+  }
+  txt(CJK12, 10, 296, TL_DATUM, INK, GROUND, advice);
+}
+
 // ---------- 入口 ----------
 static JsonDocument lastCard;
 static uint8_t dispMode = 2;   // 0 简洁 · 1 紧凑（真机暂时按专业画）· 2 专业
@@ -574,7 +704,11 @@ bool begin(TFT_eSPI *tft) {
   return true;
 }
 
-bool handles(const char *state) { return !strcmp(state, "watch") || !strcmp(state, "mkt") || !strcmp(state, "today"); }
+bool handles(const char *state) {
+  static const char *const S[] = {"watch", "mkt", "today", "sky", "weather", "brief", "msg", "ask", "agent"};
+  for (const char *x : S) if (!strcmp(state, x)) return true;
+  return false;
+}
 
 static void paint() {
   if (!fb) return;
@@ -585,6 +719,12 @@ static void paint() {
   if (!strcmp(lastState, "watch")) simple ? drawWatchSimple(c) : drawWatch(c);
   else if (!strcmp(lastState, "mkt")) simple ? drawMktSimple(c) : drawMkt(c);
   else if (!strcmp(lastState, "today")) simple ? drawTodaySimple(c) : drawToday(c);
+  else if (!strcmp(lastState, "sky")) drawSky(c, !simple);
+  else if (!strcmp(lastState, "weather")) drawMarketWeather(c);
+  else if (!strcmp(lastState, "brief")) drawBrief(c);
+  else if (!strcmp(lastState, "msg")) drawMsg(c);
+  else if (!strcmp(lastState, "ask")) drawAsk(c);
+  else if (!strcmp(lastState, "agent")) drawAgent(c);
   flush();
   fb->pushSprite(0, 0);
 }
@@ -606,6 +746,8 @@ void setMode(const char *mode, bool save) {
 }
 
 const char *mode() { return dispMode == 0 ? "simple" : dispMode == 1 ? "compact" : "pro"; }
+
+void store(const char *state, JsonVariantConst card) { lastCard.set(card); strlcpy(lastState, state, sizeof lastState); }
 
 void redraw() { if (lastState[0]) paint(); }
 

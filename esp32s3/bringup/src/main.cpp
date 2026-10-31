@@ -52,7 +52,12 @@ static void onMessage(JsonDocument &d) {
   if (strcmp(t, "face") != 0) return;
   const char *st = d["state"] | "idle";
   JsonVariantConst card = d["card"];
-  if (screens::handles(st)) {   // 盯盘 / 单股 / 起床后：整屏文字屏
+  if (screens::handles(st) && ui::boss()) {   // 老板键开着：卡片先存着，退出后再画（不然新卡片会盖掉时钟）
+    screens::store(st, card);
+    ui::setText();
+    return;
+  }
+  if (screens::handles(st)) {   // 文字屏
     const uint32_t t0 = millis();
     if (screens::show(st, card)) { ui::setText(); Serial.printf("[face] %s 画好 %u ms\n", st, millis() - t0); return; }
   }
@@ -145,7 +150,6 @@ void loop() {
   net::loop();
 
   static bool wasTouched = false;
-  static uint32_t lastTap = 0;
   static uint32_t lastRead = 0;
   static bool touchedNow = false;
   if (now - lastRead >= 20) { lastRead = now; tp.read(); touchedNow = tp.isTouched && tp.touches > 0; }   // 每 20 ms 读一次，不要空转刷 I2C
@@ -155,26 +159,29 @@ void loop() {
     int x, y;
     mapTouch(tp.points[0].x, tp.points[0].y, x, y);
     Serial.printf("[touch] 原始 %d,%d → 屏幕 %d,%d\n", tp.points[0].x, tp.points[0].y, x, y);
-    if (now - lastTap < 600) {    // 连点两下：老板键
-      ui::setBoss(!ui::boss());
-      net::sendBoss(ui::boss());
-      Serial.printf("[boss] %s\n", ui::boss() ? "开" : "关");
-    } else {
-      net::sendTouch(x, y);
-    }
-    lastTap = now;
+    net::sendTouch(x, y);   // 单击：上报中枢（场景里 = 翻到下一页）
   }
-  // 长按右上角 0.7 秒：简洁 ↔ 专业（不用单击，免得和"连点两下 = 老板键"撞上）
+  // 手势：长按右上角 0.7 秒 = 简洁 ↔ 专业；长按左上角 1.2 秒 = 老板键；老板键开着时长按 1 秒退出
   static uint32_t pressAt = 0;
   static bool fired = false;
   if (touched && !wasTouched) { pressAt = now; fired = false; }
-  if (touched && !fired && pressAt && now - pressAt > 1500 && ui::boss()) {   // 老板键开着时长按 1.5 秒也能退出（连点两下不容易点准）
+  if (touched && !fired && pressAt && now - pressAt > 1000 && ui::boss()) {   // 老板键开着：长按 1 秒退出
     fired = true;
     ui::setBoss(false);
     net::sendBoss(false);
     Serial.println("[boss] 长按退出");
   }
-  if (touched && !fired && pressAt && now - pressAt > 700 && ui::isText()) {
+  if (touched && !fired && pressAt && now - pressAt > 1200 && !ui::boss()) {   // 长按左上角 1.2 秒 = 老板键（连点太容易误触：评委一快点就进时钟）
+    int lx, ly;
+    mapTouch(tp.points[0].x, tp.points[0].y, lx, ly);
+    if (lx < 110 && ly < 70) {
+      fired = true;
+      ui::setBoss(true);
+      net::sendBoss(true);
+      Serial.println("[boss] 开（长按左上角）");
+    }
+  }
+  if (touched && !fired && pressAt && now - pressAt > 700 && ui::isText() && !ui::boss()) {
     int lx, ly;
     mapTouch(tp.points[0].x, tp.points[0].y, lx, ly);
     if (lx > 380 && ly < 60) {
