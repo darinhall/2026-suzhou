@@ -130,6 +130,32 @@ const VIEWS = {
     </div>`;
   },
 
+  // 今天：日期是点阵大数字；右边一行天气；唯一的 loud 卡片 = 下一个日程。休市 / 盘前 / 交易中 是一个不带颜色的 chip。
+  // 缺字段 / 为 null 用示例值（点 chip 也能看到完整一屏）；没有日程时卡片说"今天没有会议了"。
+  today: (c = {}) => {
+    const sample = { month: 10, day: 30, weekday: '周五', market: '盘前', city: '苏州', temp: 16, text: '雾',
+      tmr_text: '小阵雨', tmr_lo: 16, tmr_hi: 26, next_time: '15:00', next_in: '6 小时后', next_title: '产品评审会', next_where: '3 号会议室' };
+    const clean = Object.fromEntries(Object.entries(c).filter(([, v]) => v != null));
+    // 数据来自真实接口时（有 city 但没有 next_title），说明今天没有后续日程，不要拿示例日程冒充
+    const d = { ...sample, ...clean, ...(c.city && !c.next_title ? { next_title: null } : {}) };
+    // 这一行放不下就丢掉地点：汉字约 1em、其他约 0.6em，小屏一行大约能放 22em
+    const emLen = (t) => [...t].reduce((n, ch) => n + (ch.charCodeAt(0) > 255 ? 1 : 0.6), 0);
+    const meta = [`下一个`, d.next_time, d.next_in, d.next_where].filter(Boolean);
+    if (emLen(meta.join(' · ')) > 21) meta.pop();
+    const card = d.next_title
+      ? `<div class="label meta">${esc(meta.join(' · '))}</div><div class="title">${esc(d.next_title)}</div>`
+      : `<div class="label meta">日程</div><div class="title">今天没有会议了</div>`;
+    return `
+    <div class="pane today">
+      <div class="row label">${esc(d.month)}月 · ${esc(d.weekday)}<span class="chip" style="margin-left:auto">${esc(d.market)}</span></div>
+      <div class="row today-hero grow">
+        <span class="numeral-xl">${esc(d.day)}</span>
+        <div class="today-side"><div class="headline">${esc(d.city)} ${esc(d.temp)}° ${esc(d.text)}</div><div class="label">明天 ${esc(d.tmr_text)} ${esc(d.tmr_lo)}–${esc(d.tmr_hi)}°</div></div>
+      </div>
+      <div class="loud">${card}</div>
+    </div>`;
+  },
+
   // 简报：三条要点
   brief: (c = {}) => `
     <div class="pane brief">

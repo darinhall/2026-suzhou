@@ -7,7 +7,7 @@
 机器人连上 ws://<本机IP>:8765/robot 后：
 - 打印所有上行消息（hello / head_press / touch；state 太多，默认不打印）
 - 在终端里输入一行 JSON 回车，就发给机器人
-- 输入 demo 回车，跑一遍"飞书 @我"的小剧本；输入 weather 回车，抓一次实时天气发到屏幕；输入 token 回车，再显示一次令牌
+- 输入 demo 回车，跑一遍"飞书 @我"的小剧本；输入 weather 回车，抓一次实时天气发到屏幕；输入 today 回车，发「今天」一屏（日期、交易状态、天气、下一个日程）；输入 token 回车，再显示一次令牌
 
 双板（见 双板方案.md）：hello 里带 role=face（T5）或 role=body（ESP32），
 face/audio 只发给 face，pose/gesture/torque 只发给 body；没报 role 的（如 sim/）收全部。
@@ -214,6 +214,17 @@ async def send_weather(loop):
     await broadcast({"t": "face", "state": "sky", "card": card})
 
 
+async def send_today(loop):
+    from today import get_today
+    try:
+        out = await loop.run_in_executor(None, get_today)
+    except Exception as e:
+        print(f"今天获取失败：{type(e).__name__}: {e}")
+        return
+    print(f"  交易日来源：{out['market_source']}")
+    await broadcast({"t": "face", "state": "today", "card": out["card"]})
+
+
 async def stdin_loop():
     loop = asyncio.get_running_loop()
     while True:
@@ -234,6 +245,9 @@ async def stdin_loop():
         if line == "weather":
             await send_weather(loop)
             continue
+        if line == "today":
+            await send_today(loop)
+            continue
         if line == "token":
             print(f"令牌：{TOKEN}" if AUTH else "（令牌检查已关闭）")
             continue
@@ -249,7 +263,7 @@ async def main(port: int):
         print(f"mock hub  ws://{lan_ip()}:{port}/robot   （本机 ws://localhost:{port}/robot）")
         print(f"令牌：{TOKEN}（也在 hub/.token；本机连接不用）" if AUTH
               else "⚠️ 令牌检查已关闭（--no-auth）：同一个 WiFi 里的任何人都能连上来控制机器人")
-        print("输入 JSON、demo、weather 或 token")
+        print("输入 JSON、demo、weather、today 或 token")
         await stdin_loop()
 
 
