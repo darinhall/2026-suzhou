@@ -33,8 +33,8 @@ static bool useFont(const char *name) {
 }
 
 // 设计系统 light 色板
-static const uint32_t GROUND = 0xE9E9E6, INK = 0x121212, MUTED = 0x5F5F5C, ACCENT = 0xFF5B14, LILAC = 0x9B7EF0, UPC = 0xC8281E, ON_INK = 0xF5F5F3;
-static const uint32_t SURFACE = 0xF5F5F3, RULE = 0xC9C9C4;
+static const uint32_t GROUND = 0xF1E8D2, INK = 0x1A1710, MUTED = 0x625A47, ACCENT = 0xFF5B14, LILAC = 0x9B7EF0, UPC = 0xBD241A, ON_INK = 0xF8F2E1;   // 米黄（design/deskbot_tokens.h 的 DB_LIGHT_*）
+static const uint32_t SURFACE = 0xF8F2E1, RULE = 0xD3C8AA;
 static const int EYE_W = 64, EYE_H = 112, EYE_GAP = 104, MOUTH_W = 28, MOUTH_H = 7;
 static const uint32_t IDLE_AFTER = 25000, PLAY_FOR = 12000;   // 安静 25 秒玩球，玩 12 秒去睡（和 sim 一样）
 

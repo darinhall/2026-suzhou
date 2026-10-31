@@ -1,4 +1,4 @@
-DeskBot's face: a 3.5" touch screen on a desk robot that nods, turns and gets pressed on the head. The look is quiet instrument: warm grey, black type, numbers set big, and one orange signal. The screen is read from a metre away, at a glance, so each state shows **one** thing.
+DeskBot's face: a 3.5" touch screen on a desk robot that nods, turns and gets pressed on the head. The look is quiet instrument: warm cream, black type, numbers set big, and one orange signal. The screen is read from a metre away, at a glance, so each state shows **one** thing.
 
 ## Content
 
