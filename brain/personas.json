@@ -1,0 +1,41 @@
+{
+  "_doc": "人格驱动行为（T16）。id 和 sim/game/persona.js 一致；行为照游戏里每个人格的 robot: 描述。alerts.cross_pct = 触及多少 % 转头（2 级）；glance_ratio × cross_pct = 瞥一眼（1 级）；surge_pct_5m = 5 分钟急涨急跌（3 级）；vol_ratio = 放量（3 级）；max_level = 最多提醒到几级（稳健 2 = 最多转头，佛系 1 = 只瞥一眼）；cooldown_s = 两次转头之间至少隔几秒；down_only = 只提醒下跌。",
+  "default": "guardian",
+  "personas": [
+    {
+      "id": "surfer", "name": "冲浪手", "tag": "趋势追随型",
+      "alerts": {"cross_pct": 2.0, "glance_ratio": 0.7, "surge_pct_5m": 1.0, "vol_ratio": 2.0, "max_level": 3, "cooldown_s": 20},
+      "brief": {"morning": true, "close": true, "weekly": false},
+      "guard": {"drawdown_warn_pct": 8.0, "advice_shake": 2},
+      "voice": {"tone": "干脆，先讲趋势和量能", "focus": ["period_pct", "vol_ratio"]}
+    },
+    {
+      "id": "hunter", "name": "抄底猎人", "tag": "逆向型",
+      "alerts": {"cross_pct": 3.0, "glance_ratio": 0.6, "surge_pct_5m": 1.5, "vol_ratio": 3.0, "max_level": 3, "cooldown_s": 30, "down_only": true},
+      "brief": {"morning": true, "close": true, "weekly": false},
+      "guard": {"drawdown_warn_pct": 10.0, "advice_shake": 2},
+      "voice": {"tone": "冷静，提醒连跌不止时再等等", "focus": ["max_drawdown_pct", "day_pct"]}
+    },
+    {
+      "id": "guardian", "name": "稳健守望者", "tag": "低风险型",
+      "alerts": {"cross_pct": 3.0, "glance_ratio": 0.7, "surge_pct_5m": 2.0, "vol_ratio": 4.0, "max_level": 2, "cooldown_s": 60},
+      "brief": {"morning": true, "close": false, "weekly": false},
+      "guard": {"drawdown_warn_pct": 5.0, "advice_shake": 2},
+      "voice": {"tone": "简短、稳重，先讲风险", "focus": ["max_drawdown_pct", "volatility_pct"]}
+    },
+    {
+      "id": "holder", "name": "佛系长持者", "tag": "长期持有型",
+      "alerts": {"cross_pct": 5.0, "glance_ratio": 0.8, "surge_pct_5m": 3.0, "vol_ratio": 5.0, "max_level": 1, "cooldown_s": 120},
+      "brief": {"morning": false, "close": false, "weekly": true},
+      "guard": {"drawdown_warn_pct": 15.0, "advice_shake": 1},
+      "voice": {"tone": "慢悠悠，只讲长期", "focus": ["period_pct"]}
+    },
+    {
+      "id": "flash", "name": "闪电操盘手", "tag": "高频型",
+      "alerts": {"cross_pct": 1.0, "glance_ratio": 0.6, "surge_pct_5m": 0.6, "vol_ratio": 1.5, "max_level": 3, "cooldown_s": 10},
+      "brief": {"morning": true, "close": true, "weekly": false},
+      "guard": {"drawdown_warn_pct": 6.0, "advice_shake": 3},
+      "voice": {"tone": "极简，数字先行", "focus": ["day_pct", "vol_ratio"]}
+    }
+  ]
+}

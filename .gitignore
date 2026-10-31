@@ -4,3 +4,7 @@ esp32s3/bringup/fonts.bin
 config/network_local.json
 hub/profile.json
 config/network_local.json*
+
+# PandaAI SDK 登录缓存（加密的账号）：在哪个目录跑就写在哪，别提交
+user.json
+__pycache__/
