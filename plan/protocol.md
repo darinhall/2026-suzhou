@@ -44,6 +44,8 @@
 ```jsonc
 // 中枢 → 板子
 {"t":"gesture","name":"nod|shake","times":2,"amp":8}   // amp 单位：度，上限 15
+{"t":"gesture","name":"look","hold":3}                // 主动提醒：从休息姿势转头正对用户，停 hold 秒再转回去
+{"t":"gesture","name":"glance"}                       // 提醒 1 级：只有屏幕动画（熊猫眼睛看你 / 耳朵动），不动舵机
 ```
 
 ## 语音：上行（板子麦克风 → 中枢）
@@ -66,3 +68,18 @@
 ```
 
 - 板子播放时不录音、不做音量检测（现有逻辑）。播放用现有音量上限 0.3。
+
+## 主动提醒（T15）
+
+```jsonc
+// 中枢 → 所有人（模拟器记录 + 日志）
+{"t":"alert","code":"300750","name":"宁德时代","level":2,"kind":"cross|surge|volume|limit",
+ "pct":2.04,"clock":"10:35","say":"宁德时代涨到 2.0%，要看看吗？","persona":"guardian"}
+// 级别 ≥2 时同时发：face mkt（异动卡，card 里带 "say" 字幕）+ gesture look；级别 3 再加 chime 和 nod/shake
+```
+
+## 设置：人格（T16）
+
+```jsonc
+{"t":"profile","set":{"persona":"surfer|hunter|guardian|holder|flash"}}
+```
