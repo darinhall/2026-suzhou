@@ -30,10 +30,15 @@ import asyncio
 import copy
 import json
 import re
+import sys
 import time
 from pathlib import Path
 
 from scenes import DEFAULTS, SceneEngine
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # brain/（提醒阶梯、人格）
+from brain import persona as personas  # noqa: E402
+from brain.alerts import AlertWatcher, Tick  # noqa: E402
 
 MODES = ("watch", "list", "idle", "booth")
 REMOVED = ("weather", "clock", "today")   # 已移除的模式：收到会给友好的提示；读到旧设置文件里的就迁移成 watch
@@ -50,6 +55,7 @@ DEFAULT_PROFILE = {
     "watch": {"codes": ["300750", "688981", "600519", "002594", "600036"], "view": "single", "interval": 10},
     "booth": {"enabled": False, "dwell": 30},
     "replay": {"enabled": True, "speed": 1.0, "loop": True},
+    "persona": "guardian",   # 交易人格（brain/personas.json）：决定提醒阶梯的阈值
 }
 LABEL = {"watch": "盯盘", "list": "自选", "idle": "待机", "booth": "展台"}
 
@@ -89,6 +95,7 @@ class ModeEngine(SceneEngine):
         self.step = 0                 # 上一个 / 下一个：-1 / +1，由循环取走
         self.display_hook = None      # mock_hub 注入：显示模式变了要广播 {"t":"display"}
         self._names_try = 0.0
+        self.alerts = AlertWatcher(personas.load(self.profile["persona"]))
 
     # ---------- profile 读写 ----------
     def _load(self) -> dict:
@@ -153,6 +160,10 @@ class ModeEngine(SceneEngine):
                         w["interval"] = _num(v, 3, 120, "watch.interval")
                     elif k != "stocks":   # stocks 是只读的名称表，客户端把整份 profile 回传时带着也没关系
                         raise ProfileError(f"不认识的设置项：watch.{k}", "watch")
+            elif key == "persona":
+                if val not in personas.ids():
+                    raise ProfileError(f"persona 要是 {'/'.join(personas.ids())} 之一", "persona")
+                p["persona"] = val
             elif key == "weather":
                 pass   # 天气设置已移除：旧客户端发来也忽略，不报错
             elif key == "today":
@@ -229,6 +240,9 @@ class ModeEngine(SceneEngine):
         self._save()
         await self.log("info", "PROFILE_SET", "设置已更新：" + ", ".join(k for k in part if k in new)[:100])
         await self.bc({"t": "profile", "profile": self.public_profile()})
+        if new["persona"] != old["persona"]:   # 换人格：阈值马上生效，不用从头滚
+            self.alerts.set_persona(personas.load(new["persona"]))
+            await self.log("info", "PERSONA_SET", f"人格 → {new['persona']}（{self.alerts.persona['name']}）")
         if new["display"] != old["display"]:
             if self.display_hook:   # 显示模式也可以通过 profile.set 改：同步给 {"t":"display"} 的订阅者
                 await self.display_hook(new["display"])
@@ -439,6 +453,34 @@ class ModeEngine(SceneEngine):
                 await self.log("warn", "REPLAY_INTERP", "5 分钟线不够，这几只用日线插值：" + ",".join(day["interp"]))
         return day
 
+    # ----- 主动提醒（T15）-----
+    async def _alerts(self, day: dict, i: int, n: int, nbars: int) -> bool:
+        """查这一格的提醒。1 级 = 屏幕上瞥一眼；≥2 级 = 异动卡 + 转头（3 级再加提示音和点头 / 摇头）。演了 ≥2 级就返回 True。"""
+        from watch import TIMES, mover_card, stock_state
+
+        ticks, idx = [], {}
+        for k in range(n):
+            st = stock_state(day, k, i)
+            idx[st["code"]] = k
+            ticks.append(Tick(st["code"], st["name"], st["pct"], st["price"], st["_series"],
+                              st.get("vol_ratio"), st.get("limit_up"), st.get("limit_down")))
+        pid = self.alerts.persona["id"]
+        for a in self.alerts.check(ticks):
+            await self.bc(a.message(clock=TIMES[i], persona=pid))
+            await self.log("info", "ALERT", f"L{a.level} {a.kind} · {a.say} · {TIMES[i]} · {pid}")
+            if a.level < 2:
+                await self.bc({"t": "gesture", "name": "glance", "code": a.code})
+                continue
+            k = idx[a.code]
+            card = {**mover_card(day, k, i), "say": a.say, "level": a.level}
+            await self._push("mkt", card, k + 1, n, a.name, clock=TIMES[i], sub=i + 1, subof=nbars)
+            await self.bc({"t": "gesture", "name": "look", "hold": 3})
+            if a.level >= 3:
+                await self.bc({"t": "chime"})
+                await self.bc({"t": "gesture", "name": "nod" if a.pct >= 0 else "shake", "times": 1, "amp": 8})
+            return True   # check() 每格最多一个 ≥2 级，后面只剩 1 级
+        return False
+
     # ----- 盯盘 -----
     def rows_per_page(self) -> int:
         """自选列表一页画几行：和真机一致（专业 5 行，紧凑 4 行，简洁 3 行）。"""
@@ -461,7 +503,8 @@ class ModeEngine(SceneEngine):
         nbars = len(TIMES)
         i: int | None = 0 if R["enabled"] else None
         acc = since_push = since_item = 0.0
-        item, seen, last_item = 0, set(), -1
+        item, last_item = 0, -1
+        self.alerts.reset()
         open_until, open_k = 0.0, None
         while True:
             await self._unpaused()
@@ -479,23 +522,10 @@ class ModeEngine(SceneEngine):
                 open_k, since_item, last_item = None, 0.0, -1
                 day = await self._day_for(P["codes"])
                 n = len(day["stocks"])
-            # 回放里的异动：第一次触及 ±2% / ±3%
+            # 回放里的异动：提醒阶梯（brain/alerts.py，阈值由人格决定）
             if i is not None and open_k is None:
-                alert = None
-                for k in range(n):
-                    pct = stock_state(day, k, i)["pct"]
-                    for lvl in (2, 3):
-                        key = (day["stocks"][k]["code"], pct > 0, lvl)
-                        if abs(pct) >= lvl and key not in seen:
-                            seen.add(key)
-                            alert = (k, pct, lvl)
-                if alert:
-                    k, pct, lvl = alert
-                    s = day["stocks"][k]
-                    text = f"{s['name']} {pct:+.2f}% · 触及 ±{lvl}% · {TIMES[i]}"
-                    await self.log("info", "SCENE_ALERT", text)
-                    await self.bc({"t": "notice", "level": "info", "text": text})
-                    await self._push("mkt", mover_card(day, k, i), k + 1, n, s["name"], clock=TIMES[i], sub=i + 1, subof=nbars)
+                big = await self._alerts(day, i, n, nbars)
+                if big:
                     await self._wait(self.opts["alert_hold"])
                     since_push, since_item, last_item = 1e9, 0.0, -1
             # 推卡
@@ -537,7 +567,8 @@ class ModeEngine(SceneEngine):
                     since_push = max(since_push, 0)
                     if i >= nbars:
                         if R["loop"]:
-                            i, seen = 0, set()
+                            i = 0
+                            self.alerts.reset()
                         else:
                             i = None   # 回放结束：停在收盘数据
                         break

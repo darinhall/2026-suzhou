@@ -78,7 +78,7 @@ AUTH = True
 
 engine = None   # 场景引擎（main() 里创建）
 
-ROUTE = {"face": "face", "audio": "face", "pose": "body", "gesture": "body", "torque": "body"}
+ROUTE = {"face": "face", "audio": "face", "pose": "body", "torque": "body"}   # gesture 发给所有人：整机只有一块板（role=face），点头 / 摇头 / 转头都由它做
 
 DEMO = [
     {"t": "pose", "yaw": 35, "pitch": 5, "ms": 600},
