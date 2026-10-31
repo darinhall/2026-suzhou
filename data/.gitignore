@@ -1,3 +1,4 @@
 .env
 __pycache__/
 *.parquet
+mcp_token.json
