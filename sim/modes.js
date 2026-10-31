@@ -16,16 +16,8 @@ export function stockOf(code, name) {
   return { name: name || known?.name || code, code, prev, p: +(prev * (1 + pct / 100)).toFixed(2), vr: +(0.6 + rnd(h, 3) * 1.8).toFixed(1), amt: +(5 + rnd(h, 4) * 120).toFixed(1) };
 }
 
-export function skyOf(city) {
-  const h = hash(city), t = Math.round(8 + rnd(h, 1) * 18), texts = ['晴', '多云', '阴', '小雨', '雾'];
-  const text = texts[Math.floor(rnd(h, 2) * texts.length)];
-  const hourly = Array.from({ length: 24 }, (_, i) => Math.round(t - 4 + 6 * Math.sin(((i - 8) / 24) * Math.PI * 2)));
-  return { ...SAMPLES.sky, city: city.name ?? city, temp: t, text, feels: t - 1, humidity: Math.round(45 + rnd(h, 3) * 45), hi: t + 5, lo: t - 4,
-    tmr_text: texts[Math.floor(rnd(h, 5) * texts.length)], tmr_hi: t + 6, tmr_lo: t - 3, hourly, advice: /雨/.test(text) ? '有雨，记得带伞' : '天气不错，出门走走', mode: 'sample' };
-}
-
 function itemsOf(name, P) {
-  const w = P.watch, wx = P.weather;
+  const w = P.watch;
   const listItems = () => {
     const stocks = w.codes.map((c) => stockOf(c, P.watch.names?.[c]));
     if (!stocks.length) return [{ label: '自选为空', state: 'watch', card: SAMPLES.watch, sec: w.interval }];
@@ -39,14 +31,11 @@ function itemsOf(name, P) {
     if (w.view === 'list') return listItems();   // 设置里选了「列表」：盯盘也按列表轮播
     return stocks.map((s) => ({ label: s.name, state: 'mkt', card: { ...mktCard(s), asof: '示例数据', mode: 'sample' }, sec: w.interval }));
   };
-  const skyItems = () => (wx.cities.length ? wx.cities : [{ name: '苏州' }]).map((c) => ({ label: c.name, state: 'sky', card: skyOf(c), sec: wx.interval }));
   const todayItem = () => [{ label: P.today.city, state: 'today', card: { ...SAMPLES.today, city: P.today.city }, sec: 15 }];
   switch (name) {
     case 'watch': return watchItems();
     case 'list': return listItems();
-    case 'weather': return skyItems();
     case 'today': return todayItem();
-    case 'clock': return [{ label: '时钟', state: 'decoy', card: undefined, sec: 0 }];
     case 'idle': return [{ label: '待机', state: 'idle', card: undefined, sec: 0 }];
     case 'booth': return [...watchItems().slice(0, 3), ...listItems(), ...todayItem()].map((it) => ({ ...it, sec: P.booth.dwell }));
     default: return [];

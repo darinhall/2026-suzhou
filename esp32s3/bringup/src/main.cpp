@@ -141,7 +141,7 @@ static void offlineDemo(uint32_t now) {
   static int idx = 0;
   static bool running = false;
   if (net::connected()) { lastHub = now; running = false; return; }
-  if (now - lastHub < 25000 || (lastTouchAt && now - lastTouchAt < 20000)) return;
+  if (now - lastHub < 12000 || (lastTouchAt && now - lastTouchAt < 20000)) return;
   if (running && now - lastCard < 9000) return;
   running = true;
   lastCard = now;

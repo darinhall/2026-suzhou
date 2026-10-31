@@ -56,7 +56,7 @@ export function mountModes({ root, sync, runnerState }) {
 
 // ---------- 设置面板（右栏） ----------
 export function mountSettings({ root, sync, density, device, onResend }) {
-  const ui = { tab: 'display', results: [], addQ: '', cityQ: '', drag: -1 };
+  const ui = { tab: 'display', results: [], addQ: '', drag: -1 };
   root.innerHTML = '<div class="st-status" id="st-status"></div><div class="seg st-tabs" id="st-tabs"></div><div class="st-pane" id="st-pane"></div>';
   const $ = (s) => root.querySelector(s);
 
@@ -86,24 +86,10 @@ export function mountSettings({ root, sync, density, device, onResend }) {
           <div class="seg" id="wv"><button data-view="single" class="${w.view === 'single' ? 'on' : ''}">单股轮播</button><button data-view="list" class="${w.view === 'list' ? 'on' : ''}">列表</button></div>
           ${slider('st-wi', '每页停留', w.interval, LIMITS.watchInterval, 1, ' 秒')}</div>`;
     },
-    weather() {
-      const wx = sync.profile.weather;
-      const chips = wx.cities.map((c, i) => `
-        <span class="pchip" data-i="${i}" title="${c.lat != null ? `${c.lat}, ${c.lon}` : '中枢解析中…'}"><b>${esc(c.name)}</b><i>${c.lat != null ? `${(+c.lat).toFixed(2)}, ${(+c.lon).toFixed(2)}` : '解析中…'}</i>
-          <button data-cdel="${i}" aria-label="移除 ${esc(c.name)}">×</button></span>`).join('');
-      return `<div class="st-group"><h4>天气城市 <small>${wx.cities.length}/${LIMITS.cityMax} · 天气模式回来后在这些城市间轮播</small></h4>
-        <div class="chips2">${chips || '<span class="note">还没有城市</span>'}</div>
-        <div class="st-add inline"><input id="st-city" placeholder="输入城市名，如 上海" value="${esc(ui.cityQ)}" autocomplete="off" spellcheck="false"><button id="btn-city" class="primary">添加</button></div>
-        ${fieldErr('weather')}</div>
-        <div class="st-group"><h4>怎么轮播</h4>${slider('st-ci', '每城停留', wx.interval, LIMITS.weatherInterval, 1, ' 秒')}</div>`;
-    },
     other() {
-      return panes.weather() + panes.other2();
-    },
-    other2() {
-      const P = sync.profile, names = [...new Set([...P.weather.cities.map((c) => c.name), P.today.city])];
+      const P = sync.profile;
       return `<div class="st-group"><h4>今天</h4>
-          <label class="st-row"><span>天气城市</span><select id="st-tc">${names.map((n) => `<option ${n === P.today.city ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label></div>
+          <label class="st-row"><span>所在城市</span><input id="st-tc" value="${esc(P.today.city)}" spellcheck="false" autocomplete="off"></label></div>
         <div class="st-group"><h4>展台</h4>
           <label class="st-row sw"><span>展台模式可用</span><input type="checkbox" id="st-be" ${P.booth.enabled ? 'checked' : ''}></label>
           ${slider('st-bd', '每页停留', P.booth.dwell, LIMITS.boothDwell, 1, ' 秒')}${fieldErr('booth')}</div>
@@ -126,7 +112,7 @@ export function mountSettings({ root, sync, density, device, onResend }) {
     $('#st-tabs').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.tab === ui.tab));
     $('#st-pane').innerHTML = panes[ui.tab]();
     paintStatus();
-    if (active && /^(st-add|st-city)$/.test(active)) { const el = $(`#${active}`); el?.focus(); try { el.setSelectionRange(caret, caret); } catch {} }
+    if (active && /^(st-add)$/.test(active)) { const el = $(`#${active}`); el?.focus(); try { el.setSelectionRange(caret, caret); } catch {} }
   }
 
   // ---- 事件 ----
@@ -145,9 +131,7 @@ export function mountSettings({ root, sync, density, device, onResend }) {
       const code = t.dataset.code;
       return sync.set({ watch: { codes: [...w.codes, code], names: { ...w.names, [code]: t.dataset.name } } }) || render();
     }
-    if (t.dataset.cdel !== undefined) return sync.set({ weather: { cities: sync.profile.weather.cities.filter((_, i) => i !== +t.dataset.cdel) } });
-    if (t.id === 'btn-city') { const ok = sync.addCity(ui.cityQ); if (ok) ui.cityQ = ''; return render(); }
-    if (t.id === 'st-reset') { sync.set({ watch: { codes: ['300750', '688981', '600519', '002594', '600036'], names: {}, view: 'single', interval: 8 }, weather: { cities: [{ name: '苏州', lat: 31.3, lon: 120.62 }], interval: 10 }, today: { city: '苏州' }, booth: { enabled: true, dwell: 15 }, replay: { speed: 1 } }); }
+    if (t.id === 'st-reset') { sync.set({ watch: { codes: ['300750', '688981', '600519', '002594', '600036'], names: {}, view: 'single', interval: 8 }, today: { city: '苏州' }, booth: { enabled: true, dwell: 15 }, replay: { speed: 1 } }); }
   });
   pane.addEventListener('input', (e) => {
     const el = e.target;
@@ -157,19 +141,16 @@ export function mountSettings({ root, sync, density, device, onResend }) {
       clearTimeout(ui.t);
       ui.t = setTimeout(async () => { ui.results = (await sync.search(ui.addQ)).filter((r) => !sync.profile.watch.codes.includes(r.code)); render(); }, 180);
     }
-    if (el.id === 'st-city') ui.cityQ = el.value;
   });
   pane.addEventListener('change', (e) => {
     const el = e.target, v = +el.value;
     if (el.id === 'st-wi') sync.set({ watch: { interval: v } });
-    else if (el.id === 'st-ci') sync.set({ weather: { interval: v } });
     else if (el.id === 'st-bd') sync.set({ booth: { dwell: v } });
     else if (el.id === 'st-rs') sync.set({ replay: { speed: v } });
     else if (el.id === 'st-be') sync.set({ booth: { enabled: el.checked } });
-    else if (el.id === 'st-tc') sync.set({ today: { city: el.value } });
+    else if (el.id === 'st-tc' && el.value.trim()) sync.set({ today: { city: el.value.trim() } });
   });
   pane.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && e.target.id === 'st-city') { e.preventDefault(); if (sync.addCity(ui.cityQ)) ui.cityQ = ''; render(); }
     if (e.key === 'Enter' && e.target.id === 'st-add' && ui.results[0]) { e.preventDefault(); pane.querySelector('.dd li')?.click(); }
     if (e.key === 'Escape' && e.target.id === 'st-add') { ui.results = []; ui.addQ = ''; render(); }
   });
@@ -201,10 +182,9 @@ export function mountDevice({ root, getInfo, onResend }) {
     <div class="line"><button id="btn-resend">重发当前到真机</button></div>
     <details class="cheat"><summary>真机手势</summary>
       <dl>
-        <dt>单击</dt><dd>下一项（盯盘 / 天气里翻到下一个）</dd>
+        <dt>单击</dt><dd>下一项（盯盘 / 自选里翻到下一个）</dd>
+        <dt>点自选里的一行</dt><dd>打开这只股票的详情</dd>
         <dt>长按右上角 0.7 秒</dt><dd>切换 简洁 ↔ 专业</dd>
-        <dt>长按左上角 1.2 秒</dt><dd>老板键：时钟</dd>
-        <dt>时钟里长按 1 秒</dt><dd>退出时钟</dd>
       </dl>
     </details>`;
   root.querySelector('#btn-resend').onclick = onResend;
