@@ -7,4 +7,6 @@ namespace servotest {
 void run();
 // 只让一个舵机在当前位置附近来回摆 times 次（±10°），方便肉眼确认是哪一个在动
 void wiggle(uint8_t id, int times);
+// 点一下头：俯仰舵机（ID2）往下 ~8° 再回来，约 0.6 秒；30% 扭矩，点完放松
+void nod();
 }
