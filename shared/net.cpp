@@ -138,6 +138,67 @@ static bool discoverOnce() {
   return false;
 }
 
+// 现场同一个 SSID 有很多 AP，板子天线又弱：自己扫一遍（每个信道多停一会儿，不漏 beacon），
+// 挑信号最强的那个，按信道 + BSSID 去连，比让系统"边扫边连"快得多也稳得多。
+static void joinBest() {
+  const int n = WiFi.scanNetworks(false, true, false, 350);
+  int best = -1;
+  for (int i = 0; i < n; i++)
+    if (WiFi.SSID(i) == DB_WIFI_SSID && (best < 0 || WiFi.RSSI(i) > WiFi.RSSI(best))) best = i;
+  if (best >= 0) {
+    char m[80];
+    snprintf(m, sizeof m, "扫到 %d 个 AP，选信道 %d 信号 %d dBm 的", n, (int)WiFi.channel(best), (int)WiFi.RSSI(best));
+    Serial.printf("[wifi] %s\n", m);
+    WiFi.begin(DB_WIFI_SSID, DB_WIFI_PASS, WiFi.channel(best), WiFi.BSSID(best));
+  } else {
+    const char *fbSsid[2] = {
+#ifdef DB_WIFI_FB1_SSID
+      DB_WIFI_FB1_SSID,
+#else
+      nullptr,
+#endif
+#ifdef DB_WIFI_FB2_SSID
+      DB_WIFI_FB2_SSID,
+#else
+      nullptr,
+#endif
+    };
+    const char *fbPass[2] = {
+#ifdef DB_WIFI_FB1_PASS
+      DB_WIFI_FB1_PASS,
+#else
+      "",
+#endif
+#ifdef DB_WIFI_FB2_PASS
+      DB_WIFI_FB2_PASS,
+#else
+      "",
+#endif
+    };
+    for (int k = 0; k < 2; k++) {   // 主 WiFi 扫不到：试备用热点
+      if (!fbSsid[k]) continue;
+      for (int i = 0; i < n; i++)
+        if (WiFi.SSID(i) == fbSsid[k]) {
+          char m[80];
+          snprintf(m, sizeof m, "主 WiFi 扫不到，改连备用热点 %s（%d dBm）", fbSsid[k], (int)WiFi.RSSI(i));
+          log("warn", "WIFI_FALLBACK", m);
+          WiFi.begin(fbSsid[k], fbPass[k], WiFi.channel(i), WiFi.BSSID(i));
+          WiFi.scanDelete();
+          return;
+        }
+    }
+    Serial.printf("[wifi] 扫到 %d 个 AP，没有 %s：\n", n, DB_WIFI_SSID);
+    for (int i = 0; i < n && i < 10; i++) Serial.printf("  %-24s ch%-2d %d dBm\n", WiFi.SSID(i).c_str(), (int)WiFi.channel(i), (int)WiFi.RSSI(i));
+    static uint32_t lastWarn = 0;
+    if (!lastWarn || millis() - lastWarn > 60000) {
+      lastWarn = millis();
+      log("warn", "WIFI_NOT_FOUND", "扫描不到 " DB_WIFI_SSID "（只支持 2.4 GHz，离路由近一点）");
+    }
+    WiFi.begin(DB_WIFI_SSID, DB_WIFI_PASS);
+  }
+  WiFi.scanDelete();
+}
+
 void begin(MessageCb cb) {
   onMsg = cb;
   prefs.begin("deskbot", false);
@@ -146,8 +207,8 @@ void begin(MessageCb cb) {
   WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);          // 现场同一个 SSID 有很多个 AP：扫完所有信道，挑信号最强的，
   WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);      // 而不是连上第一个扫到的（可能是远处那个，连得慢甚至连不上）
   WiFi.setAutoReconnect(true);
-  WiFi.begin(DB_WIFI_SSID, DB_WIFI_PASS);
   Serial.printf("[wifi] 连接 %s …\n", DB_WIFI_SSID);
+  joinBest();
 }
 
 void loop() {
@@ -164,19 +225,11 @@ void loop() {
     if (now - lastLog > 5000) {
       lastLog = now;
       Serial.printf("[wifi] 状态 %d（1=没找到 4=连接失败 6=断开）\n", (int)WiFi.status());
-      static bool scanned = false;
-      if (!scanned && now > 12000) {   // 一直找不到：扫一遍，看板子到底看见了什么
-        scanned = true;
-        const int n = WiFi.scanNetworks();
-        Serial.printf("[wifi] 扫到 %d 个：\n", n);
-        if (n >= 0) { bool seen = false; for (int i = 0; i < n; i++) seen |= WiFi.SSID(i) == DB_WIFI_SSID; if (!seen) log("error", "WIFI_NOT_FOUND", "扫描不到 " DB_WIFI_SSID "（只支持 2.4 GHz，离路由近一点）"); }
-        for (int i = 0; i < n && i < 12; i++) Serial.printf("  %-24s ch%-2d %d dBm\n", WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i));
-      }
     }
     if (now - lastTry > 12000) {   // 12 秒还没连上就重来一次
       lastTry = now;
       WiFi.disconnect();
-      WiFi.begin(DB_WIFI_SSID, DB_WIFI_PASS);
+      joinBest();
     }
     return;
   }
