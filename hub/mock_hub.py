@@ -285,7 +285,7 @@ async def handler(ws):
             if t == "mode":                                             # 切模式：watch / weather / today / clock / idle / booth
                 name = str(msg.get("name", ""))
                 if not await engine.set_mode(name):
-                    text = "天气 / 时钟功能已移除，可用：" + " / ".join(modes.MODES) if name in modes.REMOVED else "不认识的模式：" + name[:20]
+                    text = "天气 / 时钟 / 今天功能已移除，可用：" + " / ".join(modes.MODES) if name in modes.REMOVED else "不认识的模式：" + name[:20]
                     await ws.send(json.dumps({"t": "notice", "level": "error", "text": text}, ensure_ascii=False))
                 continue
             if t == "shown":                                            # 板子画完一张卡：记下来、转给网页，不打印
@@ -613,7 +613,7 @@ async def main(port: int):
         print(f"mock hub  ws://{lan_ip()}:{port}/robot   （本机 ws://localhost:{port}/robot）")
         print(f"令牌：{TOKEN}（也在 hub/.token；本机连接不用）" if AUTH
               else "⚠️ 令牌检查已关闭（--no-auth）：同一个 WiFi 里的任何人都能连上来控制机器人")
-        print("输入 JSON、demo、weather、today、market、mode <watch|list|today|idle|booth>、profile、scene <…>、logs 或 token")
+        print("输入 JSON、demo、weather、today、market、mode <watch|list|idle|booth>、profile、scene <…>、logs 或 token")
         await hub_log("info", "HUB_START", f"中枢启动 ws://{lan_ip()}:{port}/robot" + ("" if AUTH else "（无令牌）"))
         await stdin_loop()
 
