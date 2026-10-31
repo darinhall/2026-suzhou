@@ -102,7 +102,7 @@ async function handle(msg) {
 }
 
 // 实时数据按钮：从点下去到答案回来之间一直显示「抓取中」（联网抓一次要几秒），失败 / 超时也会恢复
-const LIVE_STATE = { today: 'today', market: 'mkt' };
+const LIVE_STATE = { market: 'mkt' };
 let pending = null;
 function endPending() {
   if (!pending) return;
@@ -206,12 +206,12 @@ setInterval(() => {
   $('#card-json').textContent = face.card ? JSON.stringify(face.card, null, 1) : '（这个状态没有卡片数据）';
 }, 400);
 
-// ---------- 模式（盯盘 / 天气 / 今天 / 时钟 / 待机 / 展台）和组合场景（起床后 / 收盘） ----------
+// ---------- 模式（盯盘 / 自选 / 待机 / 展台）和组合场景（起床后 / 收盘） ----------
 // 连着中枢：由中枢调度（它联网拿真数据，也推给真机）；没连：模拟器按设置用示例数据自己轮播（modes.js / scenes.js）
 const sceneRunner = createSceneRunner({ handle: act, onState: (m) => showScene(m), caption: (t) => bot.caption(t) });
 const modeRunner = createModeRunner({ handle: act, onState: (m) => showScene(m), getProfile: () => sync.profile });
 const modesUi = mountModes({ root: $('#modes-root'), sync });
-const secOf = (name, P) => ({ watch: P.watch.interval, weather: P.weather.interval, today: 15, booth: P.booth.dwell })[name] ?? 0;
+const secOf = (name, P) => ({ watch: P.watch.interval, list: P.watch.interval, booth: P.booth.dwell })[name] ?? 0;
 let modeShown = false;
 function showScene(m) {
   const on = !!m.name && m.name !== 'stop';
@@ -263,7 +263,7 @@ document.addEventListener('click', (e) => {
 // 设置变了：离线时正在轮播的模式马上按新设置重排（连着中枢时是中枢自己重排）
 let lastSig = '';
 sync.onChange(() => {
-  const P = sync.profile, sig = JSON.stringify([P.watch, P.weather, P.today, P.booth]);
+  const P = sync.profile, sig = JSON.stringify([P.watch, P.booth]);
   if (sig !== lastSig) { lastSig = sig; if (!link.connected && modeRunner.name) modeRunner.refresh(); }
 });
 
@@ -410,11 +410,10 @@ const settingsUi = mountSettings({
   density: { get: getDensity, set: chooseDensity },
 });
 // 控制台期望真机现在显示什么：模式 → 屏幕状态；null = 不做要求（展台 / 没选模式）
-const DENSE_STATES = ['watch', 'mkt', 'today'];
+const DENSE_STATES = ['watch', 'mkt'];
 function expectedStates() {
   switch (curMode) {
     case 'watch': case 'list': return ['watch', 'mkt'];   // 回放里异动会弹单股卡，两种都算对
-    case 'today': return ['today'];
     case 'idle': return ['idle', 'blink', 'happy', 'play', 'sleep', 'listening', 'thinking', 'ok', 'stealth'];
     default: return null;
   }
@@ -472,14 +471,14 @@ $('#help-close').onclick = () => setHelp(false);
 helpEl.onclick = (e) => { if (e.target === helpEl) setHelp(false); };
 // 鼠标点完按钮就让它失焦，不然接着按空格会再点一次那个按钮（键盘操作产生的 click，detail 是 0，不受影响）
 document.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b && e.detail > 0) b.blur(); });
-const FACE_KEYS = { i: 'idle', p: 'play', z: 'sleep', h: 'happy', t: 'today', w: 'watch', m: 'mkt' };
+const FACE_KEYS = { i: 'idle', p: 'play', z: 'sleep', h: 'happy', w: 'watch', m: 'mkt' };
 window.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
   if (e.key === 'Escape') { setSheet(false); return setHelp(false); }
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (k === '?') return setHelp(helpEl.hidden);
-  if (/^[1-5]$/.test(k)) return chooseMode(MODES[k - 1].id);
+  if (/^[1-4]$/.test(k)) return chooseMode(MODES[k - 1].id);
   if (k === 'ArrowLeft' || k === 'ArrowRight' || k === '.') return document.querySelector(`[data-ctl="${k === 'ArrowLeft' ? 'prev' : k === 'ArrowRight' ? 'next' : 'pause'}"]`).click();
   if (k === ',') { if (matchMedia('(max-width: 820px)').matches) return setSheet(!document.body.classList.contains('sheet')); return setRTab(rtab === 'settings' ? 'demos' : 'settings'); }
   if (k === '[' || k === ']') {

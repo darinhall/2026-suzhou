@@ -2,7 +2,7 @@
 //
 // 客户端 → 中枢
 //   {"t":"profile","set":{…部分字段…}}        改设置（深度合并）
-//   {"t":"mode","name":"watch|list|today|idle|booth"}
+//   {"t":"mode","name":"watch|list|idle|booth"}
 //   {"t":"mode_ctl","op":"prev|next|pause|resume"}   （假设：翻页 / 暂停；中枢没实现就忽略）
 //   {"t":"symbols","q":"宁德"}                  搜股票
 // 中枢 → 客户端
@@ -17,9 +17,8 @@
 export const MODES = [
   { id: 'watch', label: '盯盘', desc: '自选逐只轮播（单股大图）' },
   { id: 'list', label: '自选', desc: '自选总览：多行列表，一屏看全' },
-  { id: 'today', label: '今天', desc: '日期 · 天气 · 日程' },
   { id: 'idle', label: '待机', desc: '眼睛 · 玩球 · 睡觉' },
-  { id: 'booth', label: '展台', desc: '盯盘 → 自选 → 今天 循环' },
+  { id: 'booth', label: '展台', desc: '盯盘 → 自选 循环' },
 ];
 
 export const LIMITS = {
@@ -30,7 +29,6 @@ export const DEFAULTS = {
   mode: 'idle',
   display: 'pro',
   watch: { codes: ['300750', '688981', '600519', '002594', '600036'], names: {}, view: 'single', interval: 8 },
-  today: { city: '苏州' },
   booth: { enabled: true, dwell: 15 },
   replay: { speed: 1 },
 };

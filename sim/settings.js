@@ -88,9 +88,7 @@ export function mountSettings({ root, sync, density, device, onResend }) {
     },
     other() {
       const P = sync.profile;
-      return `<div class="st-group"><h4>今天</h4>
-          <label class="st-row"><span>所在城市</span><input id="st-tc" value="${esc(P.today.city)}" spellcheck="false" autocomplete="off"></label></div>
-        <div class="st-group"><h4>展台</h4>
+      return `<div class="st-group"><h4>展台</h4>
           <label class="st-row sw"><span>展台模式可用</span><input type="checkbox" id="st-be" ${P.booth.enabled ? 'checked' : ''}></label>
           ${slider('st-bd', '每页停留', P.booth.dwell, LIMITS.boothDwell, 1, ' 秒')}${fieldErr('booth')}</div>
         <div class="st-group"><h4>回放 <small>休市时用上个交易日的 5 分钟线</small></h4>${slider('st-rs', '速度', P.replay.speed, LIMITS.replay, 0.5, '×')}${fieldErr('replay')}</div>
@@ -131,7 +129,7 @@ export function mountSettings({ root, sync, density, device, onResend }) {
       const code = t.dataset.code;
       return sync.set({ watch: { codes: [...w.codes, code], names: { ...w.names, [code]: t.dataset.name } } }) || render();
     }
-    if (t.id === 'st-reset') { sync.set({ watch: { codes: ['300750', '688981', '600519', '002594', '600036'], names: {}, view: 'single', interval: 8 }, today: { city: '苏州' }, booth: { enabled: true, dwell: 15 }, replay: { speed: 1 } }); }
+    if (t.id === 'st-reset') { sync.set({ watch: { codes: ['300750', '688981', '600519', '002594', '600036'], names: {}, view: 'single', interval: 8 }, booth: { enabled: true, dwell: 15 }, replay: { speed: 1 } }); }
   });
   pane.addEventListener('input', (e) => {
     const el = e.target;
@@ -148,7 +146,6 @@ export function mountSettings({ root, sync, density, device, onResend }) {
     else if (el.id === 'st-bd') sync.set({ booth: { dwell: v } });
     else if (el.id === 'st-rs') sync.set({ replay: { speed: v } });
     else if (el.id === 'st-be') sync.set({ booth: { enabled: el.checked } });
-    else if (el.id === 'st-tc' && el.value.trim()) sync.set({ today: { city: el.value.trim() } });
   });
   pane.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.id === 'st-add' && ui.results[0]) { e.preventDefault(); pane.querySelector('.dd li')?.click(); }
