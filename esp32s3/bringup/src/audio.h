@@ -8,7 +8,7 @@ namespace audio {
 bool begin();
 // 播放一个正弦音；vol 0–1（相对满幅）。默认 0.08 ≈ 十几毫瓦，对 1 W 喇叭很安全
 void tone(float freq, int ms, float vol = 0.08f);
-// 播一段 16 kHz 单声道 16 位 PCM（vol 0–0.3）
+// 播一段 16 kHz 单声道 16 位 PCM（vol 0–0.5）
 void playPcm(const int16_t *pcm, int n, float vol = 0.15f);
 // 开机小旋律（拨弦音）
 void chime(float vol = 0.08f);
@@ -24,11 +24,16 @@ void selfTest();
 float calibrate(int ms = 3000);
 float background();
 // 在 loop() 里一直调：不阻塞，读麦克风里已经有的数据；说话开始 / 结束时打日志（以后接语音识别 / 动作）
-// 返回 0 = 没事，1 = 确认有人在说一句话（有声 ≥ 0.6 秒），2 = 一句话录完了（用 utterance() 取）。
+// 返回 0 = 没事，1 = 确认有人在说一句话（有声 ≥ 0.6 秒，开始边说边传），2 = 这句说完了。
 // 短促的噪音（敲桌子、咳嗽、一声"嗯"）只录不报，什么都不返回
 int listenTick();
-const int16_t *utterance(int &n);   // 最近录好的一句：16 kHz 单声道 16 位，已去直流、归一化
-bool busyPlaying();
+// 边说边传：返回 1 之后，每次 loop 调 takeUlaw 取出新录到的样本（μ-law，每字节一个样本），返回 2 时再取一次剩下的
+int takeUlaw(uint8_t *out, int max);
+int16_t ulawDec(uint8_t u);
+// 边收边放：streamBegin → 每次 loop streamWrite（返回写进去的样本数，DMA 满了就少写）→ streamEnd。放音时不录音
+void streamBegin();
+int streamWrite(const int16_t *pcm, int n, float vol);
+void streamEnd();
 float level();          // 最近 50 ms 的麦克风 RMS（调试显示用）
 bool speaking();
 

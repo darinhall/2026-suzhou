@@ -1,8 +1,9 @@
 """语音问答 + 行情异动模拟（中枢这一侧）。协议见 plan/protocol.md「语音：上行 / 下行」「问答」。
 
-板子：一句话录完 → {"t":"mic_start"} + 二进制 PCM（16 kHz s16le）+ {"t":"mic_end"}
+板子：确认是一句话就 {"t":"mic_start","fmt":"ulaw"}，边说边传二进制（16 kHz μ-law，每帧 0.25 秒），说完 {"t":"mic_end"}
 中枢：火山语音识别 → brain/router 意图 → brain/qa 取 PandaAI 数据 → 卡片 + 点头 / 摇头 + 火山语音合成 → 板子喇叭
-       {"t":"spk_start","sr":16000,"ms":…} + 二进制 PCM（每帧 ≤ 4 KB）+ {"t":"spk_end"}
+       {"t":"spk_start","sr":16000,"fmt":"ulaw","ms":…} + 二进制 μ-law（每帧 4 KB）+ {"t":"spk_end"}，板子边收边放
+μ-law（G.711）把数据量减半：板子走 SSL 上下行只有约 20 KB/s，16 位 PCM 比说话还慢。
 模拟器 / 脚本也可以直接发 {"t":"ask","text":"…"}（打字）。
 
 没听清、不是对机器人说的话（现场背景闲聊）：什么都不做，不动、不说话（只记日志）。
@@ -15,8 +16,26 @@ import json
 import time
 import uuid
 
+import numpy as np
+
 SPK_CHUNK = 4000
 MIC_MAX = 16000 * 2 * 10   # 10 秒
+
+
+def ulaw_decode(b: bytes) -> bytes:
+    u = ~np.frombuffer(b, np.uint8).astype(np.int32) & 0xFF
+    exp, mant = (u >> 4) & 7, u & 0x0F
+    v = (((mant << 3) + 0x84) << exp) - 0x84
+    return np.where(u & 0x80, -v, v).astype("<i2").tobytes()
+
+
+def ulaw_encode(pcm: bytes) -> bytes:
+    s = np.frombuffer(pcm, "<i2").astype(np.int32)
+    sign = np.where(s < 0, 0x80, 0)
+    v = np.minimum(np.abs(s), 32635) + 0x84
+    exp = np.clip(np.floor(np.log2(v)).astype(np.int32) - 7, 0, 7)
+    mant = (v >> (exp + 3)) & 0x0F
+    return (~(sign | (exp << 4) | mant) & 0xFF).astype(np.uint8).tobytes()
 
 
 class Assistant:
@@ -36,6 +55,8 @@ class Assistant:
     # ---------- 上行：板子的麦克风 ----------
     def mic_start(self, ws, msg: dict) -> None:
         self.mic[ws] = bytearray()
+        self.mic_fmt = str(msg.get("fmt", "s16le"))
+        self.engine.hold(25)   # 有人在跟它说话：自选滚动别把"在听 / 想一想"的表情盖掉
 
     def mic_data(self, ws, data: bytes) -> None:
         buf = self.mic.get(ws)
@@ -44,7 +65,10 @@ class Assistant:
 
     async def mic_end(self, ws, msg: dict) -> None:
         pcm = bytes(self.mic.pop(ws, b""))
+        if getattr(self, "mic_fmt", "") == "ulaw":
+            pcm = ulaw_decode(pcm)
         if len(pcm) < 16000:   # 不到 0.5 秒
+            await self._idle(ws)
             return
         from brain import volc
         t0 = time.monotonic()
@@ -61,7 +85,9 @@ class Assistant:
         await self.ask(text, src="voice", ws=ws)
 
     async def _idle(self, ws) -> None:
-        """没听清：让板子把"在听"的表情收回去，不说话、不动。"""
+        """没听清：让板子把"在听"的表情收回去，不说话、不动；自选滚动继续。"""
+        if not (self.sim_task and not self.sim_task.done()):
+            self.engine.hold(0)
         try:
             await ws.send(json.dumps({"t": "listen_done"}))
         except Exception:
@@ -101,7 +127,8 @@ class Assistant:
                 await self.start_sim()
 
     async def perform(self, say: str, face: dict | None, gesture: dict | None, hold: float = 20) -> None:
-        """一次"表态"：换卡片 → 动作 → 说话。hold 秒内模式循环不覆盖这张卡。"""
+        """一次"表态"：先合成语音（板子这时一直是"想一想"），再同时发 卡片 + 动作 + 语音。hold 秒内模式循环不覆盖这张卡。"""
+        pcm = await self._tts(say) if say else b""
         if face:
             self.engine.hold(hold)
             msg = {"t": "face", "state": face["state"], "card": face["card"]}
@@ -109,30 +136,43 @@ class Assistant:
             await self.bc(msg)
         if gesture:
             await self.bc({"t": "gesture", "name": gesture["name"], "times": gesture.get("times", 1), **({"hold": gesture["hold"]} if "hold" in gesture else {})})
-        if say:
-            await self.speak(say)
+        if pcm:
+            await self._send_audio(pcm, say)
 
     # ---------- 下行：说话 ----------
     async def speak(self, text: str) -> None:
+        pcm = await self._tts(text)
+        if pcm:
+            await self._send_audio(pcm, text)
+
+    async def _tts(self, text: str) -> bytes:
         from brain import volc
+        t0 = time.monotonic()
         try:
             pcm = await self._thread(volc.tts, text)
         except Exception as e:
             await self.log("error", "TTS_FAIL", f"语音合成失败：{type(e).__name__}: {e}"[:300])
-            return
+            return b""
+        await self.log("info", "TTS", f"合成 {len(pcm) / 32000:.1f} 秒语音，用时 {time.monotonic() - t0:.1f}s")
+        return pcm
+
+    async def _send_audio(self, pcm: bytes, text: str) -> None:
         faces = self._faces()
-        if not faces or not pcm:
+        if not faces:
             return
-        head = json.dumps({"t": "spk_start", "sr": 16000, "fmt": "s16le", "ms": len(pcm) // 32, "text": text[:80]}, ensure_ascii=False)
-        for w in faces:
+        ul = ulaw_encode(pcm)
+        head = json.dumps({"t": "spk_start", "sr": 16000, "fmt": "ulaw", "ms": len(ul) // 16, "text": text[:80]}, ensure_ascii=False)
+
+        async def one(w):
             try:
                 await w.send(head)
-                for i in range(0, len(pcm), SPK_CHUNK):
-                    await w.send(pcm[i:i + SPK_CHUNK])
+                for i in range(0, len(ul), SPK_CHUNK):
+                    await w.send(ul[i:i + SPK_CHUNK])
                 await w.send(json.dumps({"t": "spk_end"}))
             except Exception:
                 pass
-        await asyncio.sleep(len(pcm) / 32000)   # 等它念完再做下一件事
+        await asyncio.gather(*(one(w) for w in faces))
+        await asyncio.sleep(len(ul) / 16000)   # 等它念完再做下一件事
 
     # ---------- 行情异动模拟 ----------
     async def start_sim(self) -> None:
@@ -152,7 +192,7 @@ class Assistant:
         from watch import load_day
         try:
             day = await self._thread(load_day, 600, tuple(self.engine.profile["watch"]["codes"]))
-            steps = anomaly_sim.steps(day, persona.load(self.engine.profile.get("persona")))
+            steps = anomaly_sim.steps(day, persona.load("standard"))   # 演示用标准人格：完整的提醒阶梯（瞥一眼 → 转头 → 叫你）
             await self.log("info", "SIM_START", f"行情异动模拟：{len(steps)} 个事件（基准 {day['date']} 收盘，数据 {day['source']}）")
             for st in steps:
                 self.engine.hold(st.delay + 25)
