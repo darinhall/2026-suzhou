@@ -1,4 +1,4 @@
-// 大模式（盯盘 / 天气 / 今天 / 时钟 / 待机 / 展台）的离线版：没连中枢时，模拟器按设置自己轮播，用示例数据。
+// 大模式（盯盘 / 自选 / 待机 / 展台）的离线版：没连中枢时，模拟器按设置自己轮播，用示例数据。
 // 连着中枢时由中枢调度（{"t":"mode"}），这里不参与。item 的页数、标签和中枢的 scene_state 字段一致。
 
 import { SAMPLES } from './dense-samples.js';
@@ -31,13 +31,11 @@ function itemsOf(name, P) {
     if (w.view === 'list') return listItems();   // 设置里选了「列表」：盯盘也按列表轮播
     return stocks.map((s) => ({ label: s.name, state: 'mkt', card: { ...mktCard(s), asof: '示例数据', mode: 'sample' }, sec: w.interval }));
   };
-  const todayItem = () => [{ label: P.today.city, state: 'today', card: { ...SAMPLES.today, city: P.today.city }, sec: 15 }];
   switch (name) {
     case 'watch': return watchItems();
     case 'list': return listItems();
-    case 'today': return todayItem();
     case 'idle': return [{ label: '待机', state: 'idle', card: undefined, sec: 0 }];
-    case 'booth': return [...watchItems().slice(0, 3), ...listItems(), ...todayItem()].map((it) => ({ ...it, sec: P.booth.dwell }));
+    case 'booth': return [...watchItems().slice(0, 3), ...listItems()].map((it) => ({ ...it, sec: P.booth.dwell }));
     default: return [];
   }
 }
