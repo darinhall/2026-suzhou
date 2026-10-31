@@ -58,6 +58,7 @@
           <button data-face="stealth">stealth</button>
           <button data-face="decoy">decoy</button>
           <button data-face="meeting">meeting</button>
+          <button data-face="sky">sky</button>
           <button data-face="weather">weather</button>
         </div>
       </div>
@@ -71,8 +72,11 @@
         <div class="group">
           <h3>连接中枢</h3>
           <div class="row">
-            <input id="ws-url" spellcheck="false">
+            <input id="ws-url" spellcheck="false" aria-label="中枢地址">
             <button id="btn-connect">连接</button>
+          </div>
+          <div class="row" style="margin-top:6px">
+            <input id="ws-token" type="password" autocomplete="off" spellcheck="false" placeholder="令牌（本机连接不用填）" aria-label="令牌">
           </div>
         </div>
         <div class="group">

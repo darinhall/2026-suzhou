@@ -1,6 +1,6 @@
 import { Body } from './body.js';
 import { Face } from './face.js';
-import { Link, defaultUrl } from './link.js';
+import { Link, defaultUrl, defaultToken } from './link.js';
 import { demos } from './demo.js';
 import { follow } from './design.js';
 import { USECASES } from './usecases.js';
@@ -105,7 +105,9 @@ function onStatus(kind, text) {
 }
 
 $('#ws-url').value = defaultUrl();
-$('#btn-connect').onclick = () => link.connect($('#ws-url').value.trim());
+link.token = defaultToken();
+$('#ws-token').value = link.token;
+$('#btn-connect').onclick = () => link.connect($('#ws-url').value.trim(), $('#ws-token').value.trim());
 // https 页面（比如部署出去的 H5）连不了 ws:// 的笔记本，默认只在本地打开时自动连
 if (location.protocol !== 'https:' || new URLSearchParams(location.search).has('ws')) link.connect($('#ws-url').value);
 

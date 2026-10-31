@@ -1,24 +1,49 @@
 """假的笔记本中枢：用来联调模拟器或真机。
 
     pip install websockets
-    python hub/mock_hub.py
+    python hub/mock_hub.py              # 启动时会打印局域网地址和令牌（token）
+    python hub/mock_hub.py --no-auth    # 关掉令牌检查（只在自己电脑上调试时用）
 
 机器人连上 ws://<本机IP>:8765/robot 后：
 - 打印所有上行消息（hello / head_press / touch；state 太多，默认不打印）
 - 在终端里输入一行 JSON 回车，就发给机器人
-- 输入 demo 回车，跑一遍"飞书 @我"的小剧本
+- 输入 demo 回车，跑一遍"飞书 @我"的小剧本；输入 weather 回车，抓一次实时天气发到屏幕；输入 token 回车，再显示一次令牌
 
 双板（见 双板方案.md）：hello 里带 role=face（T5）或 role=body（ESP32），
 face/audio 只发给 face，pose/gesture/torque 只发给 body；没报 role 的（如 sim/）收全部。
+
+令牌：
+- 现场 WiFi 里有几百人，中枢没有密码的话谁都能连上来让机器人乱动，所以第一条消息必须是 hello，并带上令牌：
+  {"t": "hello", "role": "face", "fw": "0.1.0", "token": "<令牌>"}
+- 令牌来源：环境变量 DESKBOT_TOKEN，否则读 hub/.token，都没有就随机生成一个存进 hub/.token（已 gitignore）。
+  重启中枢令牌不变，所以固件不用重新烧。
+- 本机（127.0.0.1）的连接不用令牌，所以电脑上的模拟器照常能用；手机 / 板子 / 别的电脑要带。
+- 同一个地址连续 5 次令牌错误，锁 30 秒。首条消息不是 hello、5 秒没发，或超过 64 KB，直接断开。
 """
 
+import argparse
 import asyncio
+import hmac
 import json
+import os
+import secrets
+import socket
 import sys
+import time
+from pathlib import Path
 
 from websockets.asyncio.server import serve
 
-robots = {}  # ws -> role ("face" / "body" / None = 全部)
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent / "data"))   # data/weather.py
+
+LOCAL = {"127.0.0.1", "::1"}
+MAX_FAILS, LOCK_SECONDS = 5, 30
+
+robots = {}   # ws -> role ("face" / "body" / None = 全部)
+fails = {}    # ip -> (失败次数, 解锁时间)
+TOKEN = ""
+AUTH = True
 
 ROUTE = {"face": "face", "audio": "face", "pose": "body", "gesture": "body", "torque": "body"}
 
@@ -31,26 +56,83 @@ DEMO = [
 ]
 
 
+def load_token() -> str:
+    env = os.environ.get("DESKBOT_TOKEN", "").strip()
+    if env:
+        return env
+    f = HERE / ".token"
+    if f.exists() and f.read_text().strip():
+        return f.read_text().strip()
+    token = secrets.token_hex(6)   # 12 位十六进制，好输入，也够防住随手乱试
+    f.write_text(token + "\n")
+    f.chmod(0o600)
+    return token
+
+
+def lan_ip() -> str:
+    """本机在局域网里的地址（UDP connect 不会真的发包）。"""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("10.255.255.255", 1))
+        return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+    finally:
+        s.close()
+
+
+def is_locked(ip: str) -> bool:
+    n, until = fails.get(ip, (0, 0.0))
+    return n >= MAX_FAILS and time.time() < until
+
+
+def note_fail(ip: str) -> int:
+    n, _ = fails.get(ip, (0, 0.0))
+    fails[ip] = (n + 1, time.time() + LOCK_SECONDS)
+    return n + 1
+
+
 async def handler(ws):
+    ip = ws.remote_address[0]
+    trusted = (not AUTH) or ip in LOCAL
     if ws.request.path != "/robot":
         await ws.close(code=1008, reason="path must be /robot")
         return
-    robots[ws] = None
-    print(f"[+] robot connected {ws.remote_address}")
+    if not trusted and is_locked(ip):
+        await ws.close(code=1008, reason="locked, try later")
+        return
+
+    # 第一条必须是 hello，5 秒内
+    try:
+        hello = json.loads(await asyncio.wait_for(ws.recv(), 5))
+        assert isinstance(hello, dict) and hello.get("t") == "hello"
+    except Exception:
+        await ws.close(code=1008, reason="first message must be hello")
+        print(f"[x] {ip} 第一条不是 hello，已断开")
+        return
+    if not trusted and not hmac.compare_digest(str(hello.get("token", "")).encode(), TOKEN.encode()):
+        n = note_fail(ip)
+        await ws.close(code=1008, reason="bad token")
+        print(f"[x] {ip} 令牌错误（第 {n} 次）" + ("，锁 30 秒" if n >= MAX_FAILS else ""))
+        return
+    fails.pop(ip, None)
+
+    robots[ws] = hello.get("role")
+    print(f"[+] robot connected {ip}  role = {robots[ws] or '全部'}  fw = {hello.get('fw', '?')}")
     try:
         async for raw in ws:
-            msg = json.loads(raw)
-            if msg.get("t") == "state":
+            try:
+                msg = json.loads(raw)
+            except json.JSONDecodeError:
                 continue
-            if msg.get("t") == "hello":
-                robots[ws] = msg.get("role")
-                print(f"    role = {robots[ws] or '全部'}")
+            if not isinstance(msg, dict) or msg.get("t") in ("state", "hello"):
+                continue
             print(f"↑ {raw}")
             if msg.get("t") == "head_press":
                 await broadcast({"t": "face", "state": "happy"})
     finally:
         robots.pop(ws, None)
-        print("[-] robot disconnected")
+        print(f"[-] robot disconnected {ip}")
 
 
 async def broadcast(msg):
@@ -60,6 +142,16 @@ async def broadcast(msg):
     for ws, role in list(robots.items()):
         if target is None or role is None or role == target:
             await ws.send(raw)
+
+
+async def send_weather(loop):
+    from weather import get_weather, to_card   # 懒加载：没联网时中枢照样能启动
+    try:
+        card = to_card(await loop.run_in_executor(None, get_weather))
+    except Exception as e:
+        print(f"天气获取失败：{type(e).__name__}: {e}")
+        return
+    await broadcast({"t": "face", "state": "sky", "card": card})
 
 
 async def stdin_loop():
@@ -79,17 +171,33 @@ async def stdin_loop():
                 await broadcast(msg)
                 await asyncio.sleep(0.8)
             continue
+        if line == "weather":
+            await send_weather(loop)
+            continue
+        if line == "token":
+            print(f"令牌：{TOKEN}" if AUTH else "（令牌检查已关闭）")
+            continue
         try:
             await broadcast(json.loads(line))
         except json.JSONDecodeError as e:
             print(f"JSON 解析失败: {e}")
 
 
-async def main():
-    async with serve(handler, "0.0.0.0", 8765):
-        print("mock hub on ws://0.0.0.0:8765/robot — 输入 JSON 或 demo")
+async def main(port: int):
+    async with serve(handler, "0.0.0.0", port, max_size=64 * 1024):
+        print(f"mock hub  ws://{lan_ip()}:{port}/robot   （本机 ws://localhost:{port}/robot）")
+        print(f"令牌：{TOKEN}（也在 hub/.token；本机连接不用）" if AUTH
+              else "⚠️ 令牌检查已关闭（--no-auth）：同一个 WiFi 里的任何人都能连上来控制机器人")
+        print("输入 JSON、demo、weather 或 token")
         await stdin_loop()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--no-auth", action="store_true", help="不检查令牌（只在自己电脑上调试时用）")
+    ap.add_argument("--port", type=int, default=8765)
+    a = ap.parse_args()
+    sys.stdout.reconfigure(line_buffering=True)   # 重定向到文件 / nohup 时日志也要立刻写出来
+    AUTH = not a.no_auth
+    TOKEN = load_token() if AUTH else ""
+    asyncio.run(main(a.port))
