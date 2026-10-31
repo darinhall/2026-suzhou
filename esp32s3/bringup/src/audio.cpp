@@ -235,8 +235,8 @@ float calibrate(int ms) {
   std::sort(v, v + n);
   bg = max(1.0f, v[n / 2]);   // 中位数
   char m[120];
-  snprintf(m, sizeof m, "背景音量 RMS %.0f（%d 个 50 ms 窗口的中位数，最小 %.0f / 最大 %.0f）· 说话阈值 = %.0f（%.0f 倍）",
-           bg, n, v[0], v[n - 1], bg * VOICE_RATIO, VOICE_RATIO);
+  snprintf(m, sizeof m, "背景音量 RMS %ld（%d 个 50 ms 窗口的中位数，最小 %ld / 最大 %ld）· 说话阈值 = %ld（%d 倍）",
+           (long)bg, n, (long)v[0], (long)v[n - 1], (long)(bg * VOICE_RATIO), (int)VOICE_RATIO);
   free(v);
   Serial.printf("[voice] %s\n", m);
   net::log("info", "VOICE_BG", m);
@@ -261,7 +261,7 @@ void listenTick() {
     above = ratio >= VOICE_RATIO ? above + 1 : 0;
     if (above >= START_WINS) {
       talking = true; below = 0; talkStart = millis() - START_WINS * 50; talkPeak = ratio;
-      Serial.printf("[voice] 有人说话（音量 %.1f 倍背景）\n", ratio);
+      Serial.printf("[voice] 有人说话（音量 %d.%d 倍背景）\n", (int)ratio, (int)(ratio * 10) % 10);
     }
   } else {
     talkPeak = max(talkPeak, ratio);
@@ -270,7 +270,8 @@ void listenTick() {
       talking = false; above = 0;
       const uint32_t dur = millis() - talkStart - END_WINS * 50;
       char m[96];
-      snprintf(m, sizeof m, "说完了：时长 %.1f 秒，最大音量 %.1f 倍背景", dur / 1000.0f, talkPeak);
+      // 这里只用整数格式化：开机时用 %f 打印后再画卡片会触发 newlib dtoa 的崩溃（10-31 实测），原因还没查清
+      snprintf(m, sizeof m, "说完了：时长 %lu.%lu 秒，最大音量 %d.%d 倍背景", (unsigned long)(dur / 1000), (unsigned long)(dur % 1000 / 100), (int)talkPeak, (int)(talkPeak * 10) % 10);
       Serial.printf("[voice] %s\n", m);
       net::log("info", "VOICE_SEGMENT", m);
     }
