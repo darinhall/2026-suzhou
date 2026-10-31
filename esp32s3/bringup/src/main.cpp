@@ -44,6 +44,7 @@ static void mapTouch(int rx, int ry, int &x, int &y) {
 static void onMessage(JsonDocument &d) {
   const char *t = d["t"] | "";
   if (!strcmp(t, "servo_test")) { servotest::run(); return; }
+  if (!strcmp(t, "servo_wiggle")) { servotest::wiggle(d["id"] | 1, d["times"] | 3); return; }
   if (!strcmp(t, "audio_test")) { audio::selfTest(); return; }   // 中枢 / 网页可以再跑一次音频自检
   if (!strcmp(t, "hello")) { audio::hello(d["vol"] | 0.15f); return; }
   if (!strcmp(t, "chime")) { audio::chime(d["vol"] | 0.08f); return; }
@@ -99,7 +100,10 @@ void setup() {
   digitalWrite(TFT_BL, LOW);   // 背光低电平点亮
   ui::begin(&tft);
   screens::begin(&tft);
-  if (audio::begin()) audio::chime(0.08f);   // 开机低音量弹一小段旋律（语音 + 麦克风自检：长按左上角）
+  if (audio::begin()) audio::chime(0.08f);
+  delay(1500);
+  servotest::wiggle(1, 1);   // 开机：两个舵机轮流在原位附近来回摆一下（±10°，30% 扭矩，摆完放松）
+  servotest::wiggle(2, 1);   // 开机低音量弹一小段旋律（语音 + 麦克风自检：长按左上角）
 
   tp.begin();
   tp.setRotation(ROTATION_NORMAL);

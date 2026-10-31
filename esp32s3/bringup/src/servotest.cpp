@@ -36,6 +36,20 @@ static int goAndRead(uint8_t id, int target) {
   return p;
 }
 
+void wiggle(uint8_t id, int times) {
+  servo::begin(RX, TX, -1);
+  delay(100);
+  int p0 = -1;
+  if (!pingRetry(id) || !readPosRetry(id, p0)) { report("error", "SERVO_TIMEOUT", "ID%d 没应答", id); return; }
+  const int c0 = constrain(p0, STEPS_10DEG + 10, 4095 - STEPS_10DEG - 10);
+  servo::setTorqueLimit(id, 300);
+  servo::setTorqueEnable(id, true);
+  for (int i = 0; i < times; i++) { goAndRead(id, c0 - STEPS_10DEG); goAndRead(id, c0 + STEPS_10DEG); }
+  const int end = goAndRead(id, p0);
+  servo::setTorqueEnable(id, false);
+  report("info", "SERVO_WIGGLE", "ID%d 来回摆了 %d 次（±10°），回到 %d（原位 %d）", id, times, end, p0);
+}
+
 void run() {
   servo::begin(RX, TX, -1);   // 没有方向脚：TX、RX 都经电阻接 DATA，发出的字节会回显，驱动里会丢掉
   delay(200);
