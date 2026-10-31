@@ -150,10 +150,15 @@ static void startScan() {
 }
 
 static void joinBest(int n) {
+  // 配了备用热点（你自己的手机）且扫得到，就优先连它：现场 NAMI-guest 在 2.4 GHz 上又弱又不稳
+  bool fbAvailable = false;
+#ifdef DB_WIFI_FB1_SSID
+  for (int i = 0; i < n; i++) fbAvailable |= WiFi.SSID(i) == DB_WIFI_FB1_SSID;
+#endif
   int best = -1;
   for (int i = 0; i < n; i++)
     if (WiFi.SSID(i) == DB_WIFI_SSID && (best < 0 || WiFi.RSSI(i) > WiFi.RSSI(best))) best = i;
-  if (best >= 0) {
+  if (best >= 0 && !fbAvailable) {
     char m[80];
     snprintf(m, sizeof m, "扫到 %d 个 AP，选信道 %d 信号 %d dBm 的", n, (int)WiFi.channel(best), (int)WiFi.RSSI(best));
     Serial.printf("[wifi] %s\n", m);
@@ -188,7 +193,7 @@ static void joinBest(int n) {
       for (int i = 0; i < n; i++)
         if (WiFi.SSID(i) == fbSsid[k]) {
           char m[80];
-          snprintf(m, sizeof m, "主 WiFi 扫不到，改连备用热点 %s（%d dBm）", fbSsid[k], (int)WiFi.RSSI(i));
+          snprintf(m, sizeof m, "连备用热点 %s（%d dBm）", fbSsid[k], (int)WiFi.RSSI(i));
           log("warn", "WIFI_FALLBACK", m);
           WiFi.begin(fbSsid[k], fbPass[k], WiFi.channel(i), WiFi.BSSID(i));
           WiFi.scanDelete();
