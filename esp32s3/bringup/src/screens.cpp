@@ -3,6 +3,8 @@
 #include <esp_partition.h>
 #include <time.h>
 
+#include <Preferences.h>
+
 #include "deskbot_tokens.h"
 
 namespace screens {
@@ -11,8 +13,8 @@ static TFT_eSPI *T;
 static TFT_eSprite *fb = nullptr;
 
 // ---------- 字体：fonts 分区 mmap 成数组 ----------
-enum Fnt { CJK12, CJK15, CJK17, M12, M15, M17, M44, MB15, NFONT };
-static const char *FONT_NAME[NFONT] = {"cjk12", "cjk15", "cjk17", "mono12", "mono15", "mono17", "mono44", "monob15"};
+enum Fnt { CJK12, CJK15, CJK17, M12, M15, M17, M44, MB15, CJK14, CJK18, CJK26, M14, M18, M26, M56, NFONT };
+static const char *FONT_NAME[NFONT] = {"cjk12", "cjk15", "cjk17", "mono12", "mono15", "mono17", "mono44", "monob15", "cjk14", "cjk18", "cjk26", "mono14", "mono18", "mono26", "mono56"};
 static const uint8_t *fontPtr[NFONT] = {};
 struct FontEntry { char name[16]; uint32_t off, size; };
 
@@ -102,10 +104,10 @@ static void tri(int x, int y, bool up, uint32_t color) {   // 8×7 的 ▲ / ▼
   else fb->fillTriangle(x, y, x + 8, y, x + 4, y + 7, C(color));
 }
 
-static void chip(int x, int y, const char *s, int w, bool accent = false) {   // 圆角描边标签
-  fb->drawRoundRect(x, y, w, 16, 8, C(accent ? ACCENT : RULE));
-  if (accent) fb->fillRoundRect(x, y, w, 16, 8, C(ACCENT));
-  txt(CJK12, x + w / 2, y + 2, TC_DATUM, accent ? DB_LIGHT_ON_ACCENT : INK, accent ? ACCENT : GROUND, s);
+static void chip(int x, int y, const char *s, int w, bool accent = false, Fnt f = CJK12, int h = 16) {   // 圆角描边标签
+  fb->drawRoundRect(x, y, w, h, h / 2, C(accent ? ACCENT : RULE));
+  if (accent) fb->fillRoundRect(x, y, w, h, h / 2, C(ACCENT));
+  txt(f, x + w / 2, y + (h - (f == CJK14 ? 14 : 12)) / 2 - 1, TC_DATUM, accent ? DB_LIGHT_ON_ACCENT : INK, accent ? ACCENT : GROUND, s);
 }
 
 static void sampleTag(int x, int y) {   // 虚线框的「示例」：没有真实数据源的字段
@@ -434,13 +436,137 @@ static void drawToday(JsonVariantConst c) {
   }
 }
 
+
+// ================= 简洁模式（密度 A：大字，一屏一件事）=================
+static void bigTri(int x, int y, bool up, uint32_t color, int w = 16, int h = 13) {
+  if (up) fb->fillTriangle(x, y + h, x + w, y + h, x + w / 2, y, C(color));
+  else fb->fillTriangle(x, y, x + w, y, x + w / 2, y + h, C(color));
+}
+
+static void pageDots(int y) {   // 右下角的页码点（简洁模式没有状态条）
+  for (int i = 0, n = min(sceneOf, 8), x = 466 - (n - 1) * 9; i < n; i++, x += 9)
+    if (i + 1 == scenePage) fb->fillRoundRect(x - 5, y, 12, 5, 2, C(INK)); else fb->drawCircle(x, y + 2, 2, C(RULE));
+}
+
+static void drawWatchSimple(JsonVariantConst c) {
+  const char *mode = c["mode"] | "close";
+  JsonArrayConst rows = c["rows"];
+  const int n = min((int)rows.size(), 3);
+  // 顶部：标题 + 第一个指数 + 模式 chip
+  txtf(CJK14, 14, 15, TL_DATUM, MUTED, GROUND, "自选 · %s", (const char *)(c["asof"] | ""));
+  JsonVariantConst ix = c["indices"][0].isNull() ? c["index"] : c["indices"][0];
+  if (!ix.isNull()) {
+    const float p = ix["pct"] | 0.0f;
+    txt(CJK14, 214, 15, TL_DATUM, MUTED, GROUND, ix["name"] | "");
+    tri(262 + (int)strlen(ix["name"] | "") / 3 * 14 - 30, 19, p >= 0, dirColor(p));
+    txtf(M14, 290, 15, TL_DATUM, dirColor(p), GROUND, "%+.2f%%", p);
+  }
+  chip(466 - 62, 10, modeText(mode), 62, false, CJK14, 24);
+  // 最强的一行（|pct| 最大）反白
+  int loud = 0;
+  for (int i = 1; i < n; i++) if (fabsf(rows[i]["pct"] | 0.0f) > fabsf(rows[loud]["pct"] | 0.0f)) loud = i;
+  for (int i = 0; i < n; i++) {
+    JsonVariantConst r = rows[i];
+    const int y = 44 + i * 82, h = 76;
+    const float pct = r["pct"] | 0.0f;
+    const bool L = i == loud;
+    const uint32_t bg = L ? CARD : SURFACE, fg = L ? ON_CARD : INK, mu = L ? ON_CARD_MUTED : MUTED, dc = dirColor(pct, L);
+    fb->fillRoundRect(14, y, 452, h, 14, C(bg));
+    txt(CJK26, 28, y + 10, TL_DATUM, fg, bg, r["name"] | "");
+    txt(M14, 28, y + 48, TL_DATUM, mu, bg, r["code"] | "");
+    spark(r["spark"], 196, y + 26, 60, 28, dc, r["prev_close"] | 0.0f, !r["prev_close"].isNull());
+    if (!r["price"].isNull()) txtf(M18, 338, y + 26, TR_DATUM, fg, bg, "%.2f", r["price"].as<float>());
+    bigTri(350, y + 30, pct >= 0, dc, 12, 10);
+    txtf(M26, 458, y + 22, TR_DATUM, dc, bg, "%+.2f%%", pct);
+  }
+  txt(CJK14, 14, 301, TL_DATUM, MUTED, GROUND, !strcmp(mode, "sample") ? "示例数据 · 不构成投资建议" : "行情数据仅供参考 · 不构成投资建议");
+  pageDots(306);
+}
+
+static void drawMktSimple(JsonVariantConst c) {
+  const char *mode = c["mode"] | "close";
+  const float pct = c["pct"] | 0.0f, price = c["price"] | 0.0f, prev = c["prev_close"] | 0.0f;
+  const bool alert = c["alert"] | false;
+  txt(CJK26, 14, 12, TL_DATUM, INK, GROUND, c["name"] | "");
+  txt(M14, 14 + 26 * 5 + 8, 22, TL_DATUM, MUTED, GROUND, c["code"] | "");
+  if (alert) chip(466 - 70, 12, "异动", 70, true, CJK14, 26);
+  else chip(466 - 70, 12, modeText(mode), 70, false, CJK14, 26);
+  bigTri(14, 76, pct >= 0, dirColor(pct), 24, 20);
+  txtf(M56, 46, 56, TL_DATUM, dirColor(pct), GROUND, "%+.2f%%", pct);
+  JsonArrayConst sp = c["spark"];
+  if (sp.size() >= 2) {
+    const int cx = 14, cyy = 132, cw = 452, ch = 110;
+    float lo = 1e9f, hi = -1e9f;
+    for (JsonVariantConst v : sp) { lo = min(lo, v.as<float>()); hi = max(hi, v.as<float>()); }
+    if (prev > 0) { lo = min(lo, prev); hi = max(hi, prev); }
+    const float span = hi - lo > 1e-6f ? hi - lo : 1;
+    const int n = sp.size();
+    auto yOf = [&](float v) { return cyy + ch - 1 - (int)((v - lo) / span * (ch - 2)); };
+    int px = cx, py = yOf(sp[0].as<float>());
+    if (prev > 0) for (int x = 0; x < cw; x += 6) fb->drawPixel(cx + x, yOf(prev), C(FAINT));
+    for (int i = 1; i < n; i++) {
+      const int x = cx + (int)((long)i * (cw - 1) / (n - 1)), y = yOf(sp[i].as<float>());
+      fb->drawLine(px, py, x, y, C(dirColor(pct))); fb->drawLine(px, py + 1, x, y + 1, C(dirColor(pct)));
+      px = x; py = y;
+    }
+  }
+  if (price > 0) {
+    char b[48];
+    snprintf(b, sizeof b, "¥%.2f · 昨收 %.2f · %s", price, prev, (const char *)(c["asof"] | ""));
+    txt(CJK14, 14, 262, TL_DATUM, MUTED, GROUND, b);
+  }
+  txt(CJK18, 14, 280, TL_DATUM, INK, GROUND, c["hint"] | "");
+  txt(CJK14, 14, 301, TL_DATUM, MUTED, GROUND, !strcmp(mode, "sample") ? "示例数据 · 不构成投资建议" : "行情数据仅供参考 · 不构成投资建议");
+  pageDots(306);
+}
+
+static void drawTodaySimple(JsonVariantConst c) {
+  txtf(CJK14, 14, 15, TL_DATUM, MUTED, GROUND, "%d 月 · 周%s", (int)(c["month"] | 0), (const char *)(c["weekday"] | ""));
+  chip(466 - 62, 10, c["market"] | "", 62, false, CJK14, 24);
+  txtf(M56, 14, 38, TL_DATUM, INK, GROUND, "%d", (int)(c["day"] | 0));
+  JsonVariantConst w = c["wx"];
+  const float temp = !w.isNull() ? (w["temp"] | 0.0f) : (c["temp"] | 0.0f);
+  const char *wtxt = !w.isNull() ? (w["text"] | "") : (c["text"] | "");
+  char b[64];
+  snprintf(b, sizeof b, "%s %d° %s", (const char *)(c["city"] | ""), (int)lroundf(temp), wtxt);
+  txt(CJK18, 168, 54, TL_DATUM, INK, GROUND, b);
+  const char *tt = !w.isNull() ? (w["tmr_text"] | "") : (c["tmr_text"] | "");
+  const int tlo = !w.isNull() ? (int)(w["tmr_lo"] | 0) : (int)(c["tmr_lo"] | 0), thi = !w.isNull() ? (int)(w["tmr_hi"] | 0) : (int)(c["tmr_hi"] | 0);
+  snprintf(b, sizeof b, "明天 %s %d-%d°", tt, tlo, thi);
+  txt(CJK14, 168, 82, TL_DATUM, MUTED, GROUND, b);
+  if (!c["next_open"].isNull()) { snprintf(b, sizeof b, "下次开盘 %s", (const char *)c["next_open"]); txt(CJK14, 14, 112, TL_DATUM, MUTED, GROUND, b); }
+  // 唯一的反白卡：下一个日程
+  JsonArrayConst ev = c["events"];
+  const char *et = nullptr, *tm = nullptr;
+  if (ev.size()) { et = ev[0]["title"]; tm = ev[0]["time"]; }
+  else if (!c["next_title"].isNull()) { et = c["next_title"]; tm = c["next_time"]; }
+  fb->fillRoundRect(14, 160, 452, 130, 16, C(CARD));
+  if (et) {
+    snprintf(b, sizeof b, "下一个 · %s%s%s", tm ? tm : "", c["next_in"].isNull() ? "" : " · ", (const char *)(c["next_in"] | ""));
+    txt(CJK14, 30, 176, TL_DATUM, ON_CARD_MUTED, CARD, b);
+    txt(CJK26, 30, 206, TL_DATUM, ON_CARD, CARD, et);
+    if (!c["next_where"].isNull()) txt(CJK14, 30, 252, TL_DATUM, ON_CARD_MUTED, CARD, c["next_where"]);
+  } else {
+    txt(CJK14, 30, 176, TL_DATUM, ON_CARD_MUTED, CARD, "日程");
+    txt(CJK26, 30, 206, TL_DATUM, ON_CARD, CARD, "今天没有会议了");
+  }
+  const JsonVariantConst smp = c["sample"];
+  if (!smp["events"].isNull() && (bool)smp["events"]) txt(CJK14, 450, 176, TR_DATUM, ON_CARD_MUTED, CARD, "示例");
+  pageDots(301);
+}
+
 // ---------- 入口 ----------
 static JsonDocument lastCard;
+static uint8_t dispMode = 2;   // 0 简洁 · 1 紧凑（真机暂时按专业画）· 2 专业
 static char lastState[12] = "";
 
 bool begin(TFT_eSPI *tft) {
   T = tft;
   mapFonts();
+  Preferences pr;
+  pr.begin("deskbot", true);
+  dispMode = pr.getUChar("disp", 2);
+  pr.end();
   fb = new TFT_eSprite(T);
   fb->setColorDepth(16);
   if (!fb->createSprite(T->width(), T->height())) { Serial.println("[screens] 整屏 sprite 分配失败（PSRAM？）"); delete fb; fb = nullptr; return false; }
@@ -455,9 +581,10 @@ static void paint() {
   nops = 0;
   fb->fillSprite(C(GROUND));
   JsonVariantConst c = lastCard.as<JsonVariantConst>();
-  if (!strcmp(lastState, "watch")) drawWatch(c);
-  else if (!strcmp(lastState, "mkt")) drawMkt(c);
-  else if (!strcmp(lastState, "today")) drawToday(c);
+  const bool simple = dispMode == 0;
+  if (!strcmp(lastState, "watch")) simple ? drawWatchSimple(c) : drawWatch(c);
+  else if (!strcmp(lastState, "mkt")) simple ? drawMktSimple(c) : drawMkt(c);
+  else if (!strcmp(lastState, "today")) simple ? drawTodaySimple(c) : drawToday(c);
   flush();
   fb->pushSprite(0, 0);
 }
@@ -469,6 +596,16 @@ bool show(const char *state, JsonVariantConst card) {
   paint();
   return true;
 }
+
+void setMode(const char *mode, bool save) {
+  const uint8_t m = !strcmp(mode, "simple") ? 0 : !strcmp(mode, "compact") ? 1 : 2;
+  if (m == dispMode) return;
+  dispMode = m;
+  if (save) { Preferences pr; pr.begin("deskbot", false); pr.putUChar("disp", m); pr.end(); }
+  if (lastState[0]) paint();
+}
+
+const char *mode() { return dispMode == 0 ? "simple" : dispMode == 1 ? "compact" : "pro"; }
 
 void redraw() { if (lastState[0]) paint(); }
 

@@ -10,6 +10,8 @@ namespace screens {
 bool begin(TFT_eSPI *tft);                              // 映射 fonts 分区 + 分配整屏 sprite
 bool handles(const char *state);                        // watch / mkt / today
 bool show(const char *state, JsonVariantConst card);    // 画并推上屏；不认识的状态返回 false
+void setMode(const char *mode, bool save = true);   // simple / compact / pro，存进 NVS，重画当前卡片
+const char *mode();
 void redraw();                                          // 上一张卡片重画（老板键退出后用）
 void setScene(const char *name, int page, int of, const char *clock);   // 状态条右边的页码点、回放时钟
 

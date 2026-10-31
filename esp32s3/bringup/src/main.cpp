@@ -41,6 +41,10 @@ static void mapTouch(int rx, int ry, int &x, int &y) {
 // 中枢发来的消息：这块板只管脸，pose / gesture / torque 之类给身体的直接忽略
 static void onMessage(JsonDocument &d) {
   const char *t = d["t"] | "";
+  if (!strcmp(t, "display")) {   // 显示模式：简洁 / 紧凑 / 专业（中枢存着，新连上也会收到一条）
+    screens::setMode(d["mode"] | "pro");
+    return;
+  }
   if (!strcmp(t, "scene_state")) {   // 状态条右边的页码点和回放时钟
     screens::setScene(d["name"] | "", d["page"] | 0, d["of"] | 0, d["clock"] | "");
     return;
@@ -154,6 +158,13 @@ void loop() {
       ui::setBoss(!ui::boss());
       net::sendBoss(ui::boss());
       Serial.printf("[boss] %s\n", ui::boss() ? "开" : "关");
+    } else if (x > 380 && y < 44 && ui::isText()) {   // 点右上角：简洁 ↔ 专业
+      const char *next = !strcmp(screens::mode(), "simple") ? "pro" : "simple";
+      screens::setMode(next);
+      JsonDocument dd;
+      dd["t"] = "display";
+      dd["mode"] = next;
+      net::send(dd);
     } else {
       net::sendTouch(x, y);
     }
