@@ -10,6 +10,8 @@ dependencies = [
     "numpy",
     "openai>=1.40",     # 方舟（豆包）和 Ollama 都走 OpenAI 兼容接口
     "pypinyin",         # 股票名拼音纠错
+    "python-dotenv",    # 读 data/.env
+    "requests",         # 火山引擎语音 HTTP 接口
 ]
 
 [dependency-groups]

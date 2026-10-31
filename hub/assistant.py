@@ -98,6 +98,13 @@ class Assistant:
         from brain import qa
         from brain.router import Router
         if self.router is None:
+            import names
+            if names.known_count() < 1000:   # 新环境还没有全市场名单缓存：先从 PandaAI 拉一次（2–3 秒），不然「工商银行」认不出来
+                try:
+                    n = await self._thread(names.refresh)
+                    await self.log("info", "NAMES_REFRESH", f"股票名单已更新：{n} 只")
+                except Exception as e:
+                    await self.log("warn", "NAMES_FAIL", f"股票名单更新失败，只认内置的常见股票：{type(e).__name__}: {e}"[:200])
             self.router = await self._thread(Router)
         async with self.busy:
             aid = uuid.uuid4().hex[:6]

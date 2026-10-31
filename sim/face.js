@@ -221,6 +221,33 @@ const VIEWS = {
       <div class="foot"><span class="hint">${esc(c.hint ?? '')}</span>${c.legal === false ? '' : LEGAL}</div>
     </div>`,
 
+  // 答案卡（语音 / 打字问答，brain/qa.py 的 _ans）：head 结论 · big 大数字 · series 走势（第一条跟 tone 着色，其余灰）· stats 最多 4 个指标 · pts 要点 · src 来源。
+  // tone：up / down / flat，warn = 不荐股（橙框）。和板子 screens.cpp 的 drawAnswer 同一套字段。
+  answer: (c = {}) => {
+    const tone = c.tone ?? 'flat';
+    const lines = (c.series ?? []).filter((s) => s.pts?.length);
+    let chart = '';
+    if (lines.length) {
+      const all = lines.flatMap((s) => s.pts), min = Math.min(0, ...all), max = Math.max(0, ...all), span = max - min || 1;
+      const w = 220, h = 80, y = (v) => h - ((v - min) / span) * (h - 8) - 4;
+      const poly = (s, i) => `<polyline points="${s.pts.map((v, k) => `${(k / Math.max(1, s.pts.length - 1)) * w},${y(v)}`).join(' ')}" fill="none" stroke="${i ? 'var(--ink-muted)' : tone === 'down' ? 'var(--down)' : 'var(--up)'}" stroke-width="${i ? 1.5 : 2.5}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
+      chart = `<div class="a-chart"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><line x1="0" x2="${w}" y1="${y(0)}" y2="${y(0)}" stroke="var(--rule)" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>${lines.slice(0, 2).map(poly).join('')}</svg>
+        <div class="caption">${lines.slice(0, 2).map((s, i) => `<span class="${i ? '' : tone === 'down' ? 'down' : 'up'}">━ ${esc(s.name)}</span>`).join('　')}</div></div>`;
+    }
+    const stats = (c.stats ?? []).slice(0, 4).map(([k, v]) => `<div><div class="label">${esc(k)}</div><div class="a-v ${/^\+/.test(v) ? 'up' : /^[-−]/.test(v) ? 'down' : ''}">${esc(v)}</div></div>`).join('');
+    return `
+    <div class="pane answer tone-${esc(tone)}">
+      <div class="a-top"><div class="a-left">
+          <div class="headline a-head">${esc(c.head)}</div>
+          ${c.big ? `<div class="a-big ${tone === 'up' ? 'up' : tone === 'down' ? 'down' : ''}">${esc(c.big)}</div>` : ''}
+          <div class="label">${esc(c.sub ?? '')}</div>
+          ${c.pts?.length ? `<ul class="a-pts">${c.pts.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
+        </div>${chart}</div>
+      ${stats ? `<div class="a-stats">${stats}</div>` : ''}
+      <div class="caption">${esc(c.src ?? 'PandaAI')} · 不构成投资建议</div>
+    </div>`;
+  },
+
   // 护栏：冲动前问一句
   ask: (c = {}) => `
     <div class="pane">

@@ -259,3 +259,17 @@
 .wpct .n { font: var(--numeral-weight) calc(var(--t-md) * .72 * var(--fs))/1 var(--numeral); letter-spacing: -1px; }
 .screen { --w-spark: 60px; --w-price: 78px; --w-pct: 124px; --w-spark-h: 26px; }
 .screen[data-size="s"] { --w-spark: 36px; --w-price: 52px; --w-pct: 86px; --w-spark-h: 18px; }
+
+/* ---------- 答案卡（问答）：结论 + 大数字 + 走势 / 指标 / 来源；warn = 不荐股（橙框） ---------- */
+.answer { height: 100%; gap: var(--s2); }
+.answer.tone-warn { box-shadow: inset 0 0 0 3px var(--accent); border-radius: var(--r-lg); }
+.a-top { flex: 1; min-height: 0; display: flex; gap: var(--s3); }
+.a-left { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s1); }
+.a-head { font-size: calc(var(--t-head) * 1.25 * var(--fs)); }
+.a-big { font: 500 calc(var(--t-title) * 1.25 * var(--fs))/1.05 var(--sans); font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+.tone-warn .a-big { color: var(--up); }
+.a-pts { margin: 0; padding-left: 1.1em; font: 400 calc(var(--t-body) * var(--fs))/1.35 var(--sans); }
+.a-chart { width: 46%; display: flex; flex-direction: column; gap: var(--s1); }
+.a-chart svg { flex: 1; width: 100%; min-height: 0; }
+.a-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s2); }
+.a-v { font: 500 calc(var(--t-body) * var(--fs))/1.2 var(--sans); font-variant-numeric: tabular-nums; }

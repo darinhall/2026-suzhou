@@ -412,3 +412,4 @@ body.big3d .s-tabs #rp-3d .stage3d { display: none; }
 .modes-root.preview .modes button { border-style: dashed; }
 .modes-root.preview .modes::after { content: "仅预览 · 真机不会跟着变"; grid-column: 1 / -1; font-size: 12px; color: #f2b84b; padding: 2px 2px 0; }
 .modes-root.preview .now-top b::after { content: " · 仅预览"; color: #f2b84b; font-weight: 400; }
+.ask-reply { margin: 6px 0 0; font-size: 13px; line-height: 1.45; color: var(--muted); min-height: 1.45em; }
