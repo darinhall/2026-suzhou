@@ -26,15 +26,10 @@ const heroScreen = document.createElement('div');
 heroScreen.className = 'screen flat-screen';
 flatEl.querySelector('.flat-inner').appendChild(heroScreen);
 
-// 双击屏幕 = 老板键。在机器人本地处理，不等笔记本，保证瞬间切换
-let lastTap = 0;
 // ?idle=秒数：安静多久开始玩球（默认 25，之后再玩 12 秒就睡）；?idle=0 关掉
 const idleParam = params.get('idle');
 const face = new Face(heroScreen, (x, y) => {
-  const now = performance.now();
-  if (now - lastTap < 350) toggleBoss();
-  lastTap = now;
-  up({ t: 'touch', x, y });
+  up({ t: 'touch', x, y });   // 点屏幕 = 上报中枢（盯盘 / 自选里 = 下一项；点自选里的一行 = 打开个股）
 }, { idleAfter: idleParam === null ? 25 : Number(idleParam), dense: true });
 const mirror = new Face(body.screen, () => {}, { dense: true });   // 不自己导演（没有 idleAfter），完全跟主屏
 const showHero = face._show.bind(face);
@@ -99,7 +94,6 @@ async function handle(msg) {
       return body.moveTo(msg.yaw, msg.pitch, msg.ms ?? 500);
     case 'gesture': return body.gesture(msg.name, msg.times ?? 1);
     case 'face':
-      if (boss) { boss = { state: msg.state, card: msg.card }; return; }
       return face.set(msg.state, msg.card);
     case 'audio': return new Audio(msg.url).play().catch((e) => log('sys', `音频播放失败：${e.message}`));
     case 'torque': body.torque = Math.max(0, Math.min(100, msg.pct)); return;
@@ -108,7 +102,7 @@ async function handle(msg) {
 }
 
 // 实时数据按钮：从点下去到答案回来之间一直显示「抓取中」（联网抓一次要几秒），失败 / 超时也会恢复
-const LIVE_STATE = { today: 'today', sky: 'sky', market: 'mkt' };
+const LIVE_STATE = { today: 'today', market: 'mkt' };
 let pending = null;
 function endPending() {
   if (!pending) return;
@@ -179,23 +173,6 @@ async function pressHead() {
   up({ t: 'head_press' });
   pressWaiters.forEach((r) => r(true));
   pressWaiters = [];
-}
-
-// 老板键：切到伪装的办公助手界面，再按一次恢复原来的画面
-let boss = null;
-function toggleBoss() {
-  if (boss) {
-    const { state, card } = boss;
-    boss = null;
-    face.set(state, card);
-    body.moveTo(body.yaw, 0, 300);
-  } else {
-    boss = { state: face.state, card: face.card };
-    face.set('decoy');
-    body.moveTo(0, 0, 250);   // 立刻回正，装作什么都没发生
-  }
-  $('#btn-boss').classList.toggle('accent', !!boss);
-  up({ t: 'boss', on: !!boss });
 }
 
 const bot = {
@@ -361,7 +338,6 @@ $('#ctl').onchange = (e) => {
   log('sys', control ? '已打开「同步到真机」：网页上的动作会同时发给真机' : '已关闭「同步到真机」');
 };
 $('#btn-press').onclick = pressHead;
-$('#btn-boss').onclick = toggleBoss;
 $('#btn-inject').onclick = () => {
   try {
     const parsed = JSON.parse($('#inject').value);
@@ -434,12 +410,11 @@ const settingsUi = mountSettings({
   density: { get: getDensity, set: chooseDensity },
 });
 // 控制台期望真机现在显示什么：模式 → 屏幕状态；null = 不做要求（展台 / 没选模式）
-const DENSE_STATES = ['watch', 'mkt', 'today', 'sky', 'weather'];
+const DENSE_STATES = ['watch', 'mkt', 'today'];
 function expectedStates() {
   switch (curMode) {
     case 'watch': case 'list': return ['watch', 'mkt'];   // 回放里异动会弹单股卡，两种都算对
     case 'today': return ['today'];
-    case 'clock': return ['decoy', 'clock'];
     case 'idle': return ['idle', 'blink', 'happy', 'play', 'sleep', 'listening', 'thinking', 'ok', 'stealth'];
     default: return null;
   }
@@ -497,14 +472,14 @@ $('#help-close').onclick = () => setHelp(false);
 helpEl.onclick = (e) => { if (e.target === helpEl) setHelp(false); };
 // 鼠标点完按钮就让它失焦，不然接着按空格会再点一次那个按钮（键盘操作产生的 click，detail 是 0，不受影响）
 document.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b && e.detail > 0) b.blur(); });
-const FACE_KEYS = { i: 'idle', p: 'play', z: 'sleep', h: 'happy', t: 'today', s: 'sky', w: 'watch', m: 'mkt' };
+const FACE_KEYS = { i: 'idle', p: 'play', z: 'sleep', h: 'happy', t: 'today', w: 'watch', m: 'mkt' };
 window.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
   if (e.key === 'Escape') { setSheet(false); return setHelp(false); }
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (k === '?') return setHelp(helpEl.hidden);
-  if (/^[1-6]$/.test(k)) return chooseMode(MODES[k - 1].id);
+  if (/^[1-5]$/.test(k)) return chooseMode(MODES[k - 1].id);
   if (k === 'ArrowLeft' || k === 'ArrowRight' || k === '.') return document.querySelector(`[data-ctl="${k === 'ArrowLeft' ? 'prev' : k === 'ArrowRight' ? 'next' : 'pause'}"]`).click();
   if (k === ',') { if (matchMedia('(max-width: 820px)').matches) return setSheet(!document.body.classList.contains('sheet')); return setRTab(rtab === 'settings' ? 'demos' : 'settings'); }
   if (k === '[' || k === ']') {
@@ -514,7 +489,6 @@ window.addEventListener('keydown', (e) => {
   }
   if (FACE_KEYS[k]) return act({ t: 'face', state: FACE_KEYS[k] });
   if (k === ' ') { e.preventDefault(); return pressHead(); }
-  if (k === 'b') return toggleBoss();
   if (k === 'v') return chooseDensity(DENSITIES[(DENSITIES.indexOf(getDensity()) + 1) % DENSITIES.length]);
   if (k === 'f') return cycleScale();
   if (k === 'd') return setRTab(rtab === '3d' ? 'settings' : '3d');

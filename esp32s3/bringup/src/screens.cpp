@@ -627,15 +627,21 @@ static void drawBrief(JsonVariantConst c) {
 
 // 色板测试：这块屏的白点偏冷，设计系统的米黄在上面会发蓝。画一组更暖的候选色，拍照对比着挑
 static void drawColorTest() {
-  static const uint32_t SW[8] = {0xF1E8D2, 0xF6E6B8, 0xF7E2A8, 0xF3E4C0, 0xF8ECC8, 0xFBEFD0, 0xF5E9CF, 0xFFFFFF};
-  for (int i = 0; i < 8; i++) {
-    const int x = 10 + (i % 4) * 116, y = 14 + (i / 4) * 150;
-    fb->fillRect(x, y, 108, 140, C(SW[i]));
-    fb->drawRect(x, y, 108, 140, C(INK));
-    char b[12];
-    snprintf(b, sizeof b, "%d  %06X", i + 1, (unsigned)SW[i]);
-    txt(M12, x + 54, y + 60, TC_DATUM, INK, SW[i], b);
+  auto raw = [&](uint32_t h) { return T->color565((h >> 16) & 255, (h >> 8) & 255, h & 255); };   // 不经过校正
+  const uint32_t base = DB_LIGHT_GROUND, picked = 0xF7E2A8, dev = devColor(base);
+  struct Blk { uint16_t col; uint32_t hex; const char *label; } B[3] = {
+      {raw(base), base, "1 uncorrected"}, {C(base), dev, "2 corrected"}, {raw(picked), picked, "3 your pick"}};
+  fb->fillSprite(C(0xFFFFFF));
+  for (int i = 0; i < 3; i++) {
+    const int x = 10 + i * 155;
+    fb->fillRect(x, 10, 145, 250, B[i].col);
+    fb->drawRect(x, 10, 145, 250, C(INK));
+    char b[32];
+    snprintf(b, sizeof b, "%06X", (unsigned)B[i].hex);
+    txt(M15, x + 72, 120, TC_DATUM, 0x000000, B[i].hex, b);
+    txt(M12, x + 72, 150, TC_DATUM, 0x000000, B[i].hex, B[i].label);
   }
+  txt(M12, 240, 280, TC_DATUM, 0x000000, 0xFFFFFF, "2 should look like 3");
 }
 
 // ---------- 入口 ----------

@@ -3,7 +3,7 @@
 // 页数、页序和中枢的场景引擎（hub）一致：n / of 就是 scene_state 里的 page / of。
 
 export const SCENES = [
-  { id: 'morning', label: '起床后', desc: '今天 → 天气 → 早安简报 → 自选（上个交易日收盘）' },
+  { id: 'morning', label: '起床后', desc: '今天 → 早安简报 → 自选（上个交易日收盘）' },
   { id: 'watch', label: '盯盘', desc: '自选回放：数字实时跳动，异动时弹出行情卡' },
   { id: 'close', label: '收盘', desc: '自选收盘 → 收盘小结 → 睡觉' },
   { id: 'booth', label: '展台', desc: '全部串起来，循环播放，没人碰就玩球 / 睡觉' },
@@ -42,7 +42,6 @@ function pagesOf(name) {
   const pages = {
     morning: [
       { face: () => ({ state: 'today', card: {} }), ms: 4000 },
-      { face: () => ({ state: 'sky', card: {} }), ms: 4000 },
       { face: () => ({ state: 'brief', card: BRIEF_MORNING }), ms: 4500 },
       { face: () => ({ state: 'watch', card: close() }), ms: 5000 },
     ],
