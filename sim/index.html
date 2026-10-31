@@ -25,6 +25,7 @@
         <span id="pr-view"><i></i>网页 <b>0</b></span>
       </div>
       <div class="conn" id="conn"><i></i><span>离线</span></div>
+      <button id="btn-settings" class="bar-settings" aria-label="设置">设置</button>
       <button class="icon" id="btn-help" aria-label="快捷键" title="快捷键（?）">?</button>
     </div>
   </header>
@@ -32,19 +33,23 @@
   <main class="grid">
     <!-- 左：控制 -->
     <aside class="col ctl">
-      <section class="sec s-scenes">
-        <h3>一天的场景 <small id="scene-src"></small></h3>
-        <div class="grid5" id="day-scenes">
-          <button data-scene="morning"><kbd>1</kbd>起床后</button>
-          <button data-scene="watch"><kbd>2</kbd>盯盘</button>
-          <button data-scene="close"><kbd>3</kbd>收盘</button>
-          <button data-scene="booth"><kbd>4</kbd>展台</button>
-          <button data-scene="stop"><kbd>5</kbd>停止</button>
+      <section class="sec s-modes">
+        <h3>模式 <small id="scene-src"></small></h3>
+        <div id="modes-root"></div>
+        <div class="combo"><span>组合</span>
+          <button data-scene="morning">起床后</button><button data-scene="close">收盘</button><button data-scene="stop" title="停止当前场景">停止</button>
         </div>
         <div class="scene-state" id="scene-state" hidden><b></b><span class="pg"></span></div>
         <p class="note" id="scene-desc" hidden></p>
       </section>
 
+      <section class="sec s-device">
+        <h3>设备 <small>小机器人</small></h3>
+        <div id="device-root"></div>
+      </section>
+
+      <details class="sec dbg" id="dbg">
+        <summary>调试 · 屏幕状态 · 实时数据 · 身体</summary>
       <section class="sec s-faces">
         <h3>屏幕状态 <small>点一下直接换屏</small></h3>
         <div class="grp"><span>表情</span>
@@ -91,6 +96,7 @@
         <h3>当前屏幕数据 <small id="card-state"></small></h3>
         <pre id="card-json" aria-label="当前卡片 JSON">—</pre>
       </section>
+      </details>
     </aside>
 
     <!-- 中：屏幕 + 日志 -->
@@ -139,7 +145,18 @@
         </div>
       </section>
 
-      <section class="sec s-3d" id="sec-3d">
+      <section class="sec s-tabs" id="s-tabs">
+        <div class="tabs-head">
+          <div class="seg" id="rtabs" role="tablist"><button data-rtab="settings" role="tab">设置</button><button data-rtab="demos" role="tab">演示</button><button data-rtab="3d" role="tab">3D 机身</button></div>
+          <button id="btn-sheet-close" class="icon sheet-x" aria-label="关闭设置">×</button>
+        </div>
+        <div class="rpane" id="rp-settings"><div id="settings-root"></div></div>
+        <div class="rpane" id="rp-demos" hidden>
+          <h3>场景演示 <small>带身体动作</small></h3>
+          <div class="scenes" id="scenes"></div>
+        </div>
+        <div class="rpane" id="rp-3d" hidden>
+      <section class="s-3d" id="sec-3d">
         <h3>3D 机身 <small>预览</small>
           <span class="h-actions"><button id="btn-cam">视角</button><button id="btn-big">放大</button></span>
         </h3>
@@ -148,9 +165,7 @@
         </div>
       </section>
 
-      <section class="sec s-demos">
-        <h3>场景演示 <small>带身体动作</small></h3>
-        <div class="scenes" id="scenes"></div>
+        </div>
       </section>
 
       <details class="sec dev">
@@ -165,7 +180,9 @@
     <div class="help-card">
       <h3>快捷键 <button class="icon" id="help-close" aria-label="关闭">×</button></h3>
       <dl>
-        <dt><kbd>1</kbd>–<kbd>5</kbd></dt><dd>场景：起床后 · 盯盘 · 收盘 · 展台 · 停止</dd>
+        <dt><kbd>1</kbd>–<kbd>6</kbd></dt><dd>模式：盯盘 · 天气 · 今天 · 时钟 · 待机 · 展台</dd>
+        <dt><kbd>←</kbd> <kbd>→</kbd> <kbd>.</kbd></dt><dd>上一项 / 下一项 / 暂停继续（盯盘、天气轮播里）</dd>
+        <dt><kbd>,</kbd></dt><dd>打开 / 收起设置（右栏）</dd>
         <dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>上一个 / 下一个屏幕状态</dd>
         <dt><kbd>I</kbd> <kbd>P</kbd> <kbd>Z</kbd> <kbd>H</kbd></dt><dd>idle · play · sleep · happy</dd>
         <dt><kbd>T</kbd> <kbd>S</kbd> <kbd>W</kbd> <kbd>M</kbd></dt><dd>today · sky · watch · mkt</dd>
@@ -173,7 +190,7 @@
         <dt><kbd>B</kbd></dt><dd>老板键（再按一次恢复）</dd>
         <dt><kbd>V</kbd></dt><dd>切换显示模式：简洁 → 紧凑 → 专业（同步到真机）</dd>
         <dt><kbd>F</kbd></dt><dd>切换屏幕缩放：自适应 → 1× → 1.5× → 2×</dd>
-        <dt><kbd>D</kbd></dt><dd>显示 / 隐藏 3D 机身预览</dd>
+        <dt><kbd>D</kbd></dt><dd>切到 3D 机身预览（再按回到设置）</dd>
         <dt><kbd>L</kbd></dt><dd>打开日志页</dd>
         <dt><kbd>?</kbd></dt><dd>显示 / 关闭这个面板</dd>
       </dl>

@@ -275,3 +275,122 @@ details.dev textarea { width: calc(100% - 28px); }
   box-shadow: inset 0 0 0 5px #e8e6e1, 0 6px 14px rgba(0,0,0,.18);
 }
 
+
+
+/* ================= 模式切换条 / 设备 / 设置面板 ================= */
+.s-modes { padding-bottom: 10px; }
+.modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.modes button { display: flex; align-items: center; justify-content: center; gap: 6px; border-radius: 10px; padding: 8px 6px; font-size: 14px; font-weight: 600; }
+.modes button.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+.modes button.on kbd { color: var(--bg); border-color: color-mix(in srgb, var(--bg) 40%, transparent); }
+.now { margin-top: 8px; padding: 8px 10px; background: var(--raise); border: 1px solid var(--line); border-radius: 10px; }
+.now[hidden] { display: none; }
+.now-top { display: flex; align-items: baseline; gap: 8px; }
+.now-top b { font-size: 13px; }
+.now-top span { flex: 1; min-width: 0; color: var(--text); font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.now-top em { font: normal 500 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.now-bar { height: 3px; border-radius: 2px; background: var(--sunk); margin: 7px 0 8px; overflow: hidden; }
+.now-bar i { display: block; height: 100%; width: 0; background: var(--accent); }
+.now-ctl { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; }
+.now-ctl button { padding: 4px 4px; font-size: 12px; border-radius: 8px; }
+.combo { display: flex; align-items: center; gap: 4px; margin-top: 8px; }
+.combo span { font-size: 12px; color: var(--faint); margin-right: 2px; }
+.combo button { border-radius: 8px; font-size: 12px; padding: 3px 9px; }
+.combo button[data-scene="stop"] { color: var(--muted); margin-left: auto; }
+.s-modes .note { min-height: 17px; }
+
+.s-device .dev-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 12.5px; padding: 2px 0; color: var(--muted); }
+.s-device .dev-row b { font: 500 12px var(--mono); color: var(--text); text-align: right; }
+.s-device .line { margin-top: 7px; }
+.s-device .line button { flex: 1; border-radius: 8px; }
+.s-device button:disabled, .chips2 button:disabled { opacity: .35; cursor: default; }
+.cheat { margin-top: 8px; font-size: 12px; }
+.cheat summary { cursor: pointer; color: var(--muted); list-style: none; }
+.cheat summary::before { content: "▸ "; }
+.cheat[open] summary::before { content: "▾ "; }
+.cheat dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 6px 0 0; }
+.cheat dt { color: var(--text); white-space: nowrap; }
+.cheat dd { margin: 0; color: var(--faint); }
+
+details.dbg { padding: 0; border-bottom: 0; flex: 1 1 auto; min-height: 0; }
+details.dbg > summary { padding: 9px 14px; cursor: pointer; font: 500 11px/1.2 var(--mono); letter-spacing: .6px; text-transform: uppercase; color: var(--muted); list-style: none; }
+details.dbg > summary::after { content: " +"; }
+details.dbg[open] > summary::after { content: " −"; }
+details.dbg > .sec { border-bottom: 0; border-top: 1px solid var(--line); }
+details.dbg .s-card pre { max-height: 220px; }
+
+/* 右栏：设置 / 演示 / 3D 三个标签页，设置是默认 */
+.side > .s-tabs { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 0; border-bottom: 1px solid var(--line); }
+.tabs-head { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--line); flex: none; }
+.tabs-head .seg { flex: 1; }
+.tabs-head .seg button { flex: 1; }
+.tabs-head .sheet-x { display: none; }
+.rpane { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 14px 14px; scrollbar-width: thin; }
+.rpane[hidden] { display: none; }
+.rpane h3 { margin: 0 0 7px; font: 500 11px/1.2 var(--mono); letter-spacing: .6px; text-transform: uppercase; color: var(--muted); display: flex; align-items: baseline; gap: 6px; }
+.rpane h3 small { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--faint); font-family: Geist, "PingFang SC", sans-serif; font-size: 12px; }
+#rp-3d { padding: 0; display: flex; flex-direction: column; }
+#rp-3d[hidden] { display: none; }
+#rp-3d .s-3d { flex: 1; display: flex; flex-direction: column; padding: 10px 14px 12px; min-height: 0; }
+#rp-3d .s-3d h3 { margin: 0 0 7px; font: 500 11px/1.2 var(--mono); letter-spacing: .6px; text-transform: uppercase; color: var(--muted); display: flex; align-items: baseline; gap: 6px; }
+#rp-3d .s-3d h3 small { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--faint); font-family: Geist, "PingFang SC", sans-serif; font-size: 12px; }
+#rp-3d .stage3d { flex: 1; height: auto; min-height: 180px; }
+body.big3d .s-tabs #rp-3d .stage3d { display: none; }
+
+.st-status { font-size: 12px; color: var(--faint); min-height: 18px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.st-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--sunk); flex: none; }
+.st-status.ok { color: var(--muted); } .st-status.ok::before { background: var(--ok); }
+.st-status.pend { color: var(--text); } .st-status.pend::before { background: var(--accent); animation: blinkdot 1s steps(1) infinite; }
+.st-status.warn { color: var(--text); } .st-status.warn::before { background: var(--accent); }
+.st-status.err { color: var(--up); } .st-status.err::before { background: var(--up); }
+.st-tabs { display: flex; margin-bottom: 10px; }
+.st-tabs button { flex: 1; }
+.st-group { padding: 0 0 12px; margin: 0 0 12px; border-bottom: 1px dashed var(--line); }
+.st-group:last-child { border-bottom: 0; margin-bottom: 0; }
+.st-group h4 { margin: 0 0 7px; font: 600 12.5px/1.2 Geist, "PingFang SC", sans-serif; color: var(--text); display: flex; align-items: baseline; gap: 6px; }
+.st-group h4 small { font-weight: 400; color: var(--faint); font-size: 12px; }
+.opt { display: grid; grid-template-columns: 54px 1fr; gap: 8px; align-items: baseline; width: 100%; text-align: left; border-radius: 10px; padding: 7px 11px; margin-bottom: 4px; }
+.opt b { font-size: 13px; }
+.opt span { font-size: 12px; color: var(--faint); }
+.opt.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+.opt.on span { color: color-mix(in srgb, var(--bg) 65%, transparent); }
+.chips2 { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.pchip { display: inline-flex; align-items: center; gap: 5px; background: var(--raise); border: 1px solid var(--line); border-radius: 999px; padding: 2px 4px 2px 10px; font-size: 12.5px; cursor: grab; }
+.pchip b { font-weight: 600; }
+.pchip i { font: normal 11px var(--mono); color: var(--faint); }
+.pchip button { border: 0; background: none; padding: 0 5px; min-width: 18px; font-size: 14px; line-height: 1.3; color: var(--faint); border-radius: 50%; }
+.pchip button:hover { color: var(--text); background: var(--sunk); }
+.st-add { position: relative; }
+.st-add input { width: 100%; }
+.st-add.inline { display: flex; gap: 4px; }
+.st-add.inline input { flex: 1; }
+.dd { position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% + 3px); margin: 0; padding: 4px; list-style: none; background: var(--raise); border: 1px solid var(--faint); border-radius: 10px; box-shadow: 0 10px 24px rgba(0,0,0,.5); }
+.dd li { display: flex; justify-content: space-between; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.dd li:hover { background: var(--sunk); }
+.dd li i { font: normal 11.5px var(--mono); color: var(--faint); }
+.st-row { display: grid; grid-template-columns: 70px 1fr 54px; gap: 8px; align-items: center; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+.st-row input[type=range] { accent-color: var(--accent); width: 100%; margin: 0; padding: 0; }
+.st-row output { font: 500 12px var(--mono); color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+.st-row.sw { grid-template-columns: 1fr auto; }
+.st-row select { grid-column: 2 / 4; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font: 12.5px Geist, "PingFang SC", sans-serif; color: var(--text); }
+.st-row input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+.st-err { margin: 6px 0 0; font-size: 12px; color: var(--up); }
+#st-reset { border-radius: 8px; font-size: 12px; color: var(--muted); }
+
+.bar-settings { display: none; }
+
+/* 窄屏：设置变成一整张从下往上的面板 */
+@media (max-width: 820px) {
+  .bar-settings { display: inline-block; }
+  .modes { grid-template-columns: repeat(3, 1fr); }
+  .modes button { min-height: 44px; }
+  .s-modes { order: 2; } .s-device { order: 3; } details.dbg { order: 6; }
+  .side > .s-tabs { display: none; }
+  body.sheet .side > .s-tabs { display: flex; position: fixed; inset: 0; z-index: 60; background: var(--panel); border: 0; }
+  body.sheet .tabs-head .sheet-x { display: grid; }
+  .rpane { padding: 14px 16px calc(24px + env(safe-area-inset-bottom)); }
+  .st-row { grid-template-columns: 76px 1fr 56px; }
+  .pchip { padding: 5px 6px 5px 12px; }
+  .pchip button { min-height: 28px; min-width: 28px; }
+  .opt { min-height: 48px; }
+}
