@@ -5,6 +5,9 @@ import { demos } from './demo.js';
 import { follow } from './design.js';
 import { USECASES } from './usecases.js';
 import { SCENES, createSceneRunner } from './scenes.js';
+import { MODES, ProfileSync } from './profile.js';
+import { createModeRunner } from './modes.js';
+import { mountModes, mountSettings, mountDevice } from './settings.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -77,6 +80,11 @@ function up(msg) {
   link.send(msg);
 }
 
+// ---------- 设置（profile）和大模式 ----------
+// 协议层在 profile.js：连着中枢就发 {"t":"profile"} / {"t":"mode"}，没连就存在 localStorage、用示例数据本地轮播
+const sync = new ProfileSync({ connected: () => link.connected, send: (m) => up(m) });
+let boardDisplay = null;   // 真机（经中枢）当前的显示模式
+
 // ---------- 下行消息分发（真机固件里是同一张表） ----------
 let pressWaiters = [];
 
@@ -123,7 +131,17 @@ function onHub(m) {
   }
   if (m.t === 'log') return hubLog(m);
   if (m.t === 'logs') { if (Array.isArray(m.items)) m.items.slice(-12).forEach((e) => hubLog(e)); return; }   // 刚连上：补最近几条
+  if (m.t === 'profile') {   // 中枢广播的完整设置：以它为准（连上 hello 之后也会收到一份）
+    sync.applyRemote(m.profile);
+    const d = sync.profile.display;
+    if (d && DENSITIES.includes(d) && setDensity(d)) log('down', `profile.display → ${d}`);
+    if (sync.profile.mode && !modeShown) showScene({ name: sync.profile.mode, page: 1, of: 1 });
+    return;
+  }
+  if (m.t === 'profile_result') return sync.result(m);
+  if (m.t === 'symbols_result') return sync.symbolsResult(m);
   if (m.t === 'display') {   // 别的客户端（或刚连上时中枢）告诉我们当前显示模式：直接应用，不回发，免得回环
+    boardDisplay = m.mode;
     if (setDensity(m.mode)) log('down', JSON.stringify(m));
     return;
   }
@@ -208,30 +226,65 @@ setInterval(() => {
   $('#card-json').textContent = face.card ? JSON.stringify(face.card, null, 1) : '（这个状态没有卡片数据）';
 }, 400);
 
-// ---------- 一天的场景 ----------
-// 连着中枢：场景由中枢调度（它联网拿真数据，也会推给真机）；没连：模拟器用 scenes.js 的示例数据自己播
+// ---------- 模式（盯盘 / 天气 / 今天 / 时钟 / 待机 / 展台）和组合场景（起床后 / 收盘） ----------
+// 连着中枢：由中枢调度（它联网拿真数据，也推给真机）；没连：模拟器按设置用示例数据自己轮播（modes.js / scenes.js）
 const sceneRunner = createSceneRunner({ handle: act, onState: (m) => showScene(m), caption: (t) => bot.caption(t) });
+const modeRunner = createModeRunner({ handle: act, onState: (m) => showScene(m), getProfile: () => sync.profile });
+const modesUi = mountModes({ root: $('#modes-root'), sync });
+const secOf = (name, P) => ({ watch: P.watch.interval, weather: P.weather.interval, today: 15, booth: P.booth.dwell })[name] ?? 0;
+let modeShown = false;
 function showScene(m) {
-  const on = m.name && m.name !== 'stop';
+  const on = !!m.name && m.name !== 'stop';
+  modeShown = on;
   for (const f of [face, mirror]) f.setScene(on ? m : null);   // 专业 / 紧凑屏状态栏的页码点和回放时钟
-  const sc = SCENES.find((x) => x.id === m.name);
-  const label = sc?.label ?? m.name;
+  const mode = MODES.find((x) => x.id === m.name), sc = SCENES.find((x) => x.id === m.name);
+  const label = mode?.label ?? m.label ?? sc?.label ?? m.name;
+  const combo = on && !mode;   // 起床后 / 收盘 这类组合场景：用下面那行小进度；模式用上面的大卡片
   const box = $('#scene-state'), chip = $('#scene-chip');
-  box.hidden = chip.hidden = !on;
-  document.querySelectorAll('[data-scene]').forEach((b) => b.classList.toggle('running', on && b.dataset.scene === m.name));
-  $('#scene-desc').textContent = on ? (sc?.desc ?? '') : '';
-  $('#scene-desc').hidden = !on;
+  box.hidden = !combo;
+  chip.hidden = !on;
+  document.querySelectorAll('[data-scene]').forEach((b) => b.classList.toggle('running', combo && b.dataset.scene === m.name));
+  $('#scene-desc').hidden = true;
+  modesUi.paint(on ? { ...m, label, sec: secOf(m.name, sync.profile) } : null);
   if (!on) return;
-  box.querySelector('b').textContent = `${label} · ${m.page}/${m.of}`;
-  box.querySelector('.pg').innerHTML = Array.from({ length: m.of }, (_, i) => `<i class="${i + 1 === m.page ? 'on' : ''}"></i>`).join('');
-  chip.textContent = `${label} ${m.page}/${m.of}`;
+  chip.textContent = `${label}${m.item ? ` · ${m.item}` : ''}${m.of > 1 ? ` ${m.page}/${m.of}` : ''}`;
+  if (combo) {
+    box.querySelector('b').textContent = `${label} · ${m.page}/${m.of}`;
+    box.querySelector('.pg').innerHTML = Array.from({ length: m.of }, (_, i) => `<i class="${i + 1 === m.page ? 'on' : ''}"></i>`).join('');
+  }
 }
-document.querySelectorAll('[data-scene]').forEach((b) => (b.onclick = () => {
+function chooseMode(name) {
+  sceneRunner.stop();
+  if (link.connected) {
+    modeRunner.stop();
+    sync.switchMode(name);
+    showScene({ name, page: 1, of: 1 });   // 先乐观显示，中枢的 scene_state 回来再更新
+  } else {
+    modeRunner.start(name);
+  }
+}
+document.querySelectorAll('[data-scene]').forEach((b) => (b.onclick = () => {   // 组合场景（旧的场景引擎）
   const name = b.dataset.scene;
+  modeRunner.stop();
   if (link.connected) { sceneRunner.stop(); up({ t: 'scene', name }); }
-  else if (name === 'stop') sceneRunner.stop();
+  else if (name === 'stop') { sceneRunner.stop(); showScene({ name: 'stop' }); }
   else sceneRunner.start(name);
 }));
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-mode]');
+  if (b) return chooseMode(b.dataset.mode);
+  const c = e.target.closest('[data-ctl]');
+  if (!c) return;
+  const op = c.dataset.ctl;
+  if (link.connected) return sync.ctl(op === 'pause' ? (modeRunner.paused ? 'resume' : 'pause') : op);
+  if (op === 'prev') modeRunner.prev(); else if (op === 'next') modeRunner.next(); else modeRunner.togglePause();
+});
+// 设置变了：离线时正在轮播的模式马上按新设置重排（连着中枢时是中枢自己重排）
+let lastSig = '';
+sync.onChange(() => {
+  const P = sync.profile, sig = JSON.stringify([P.watch, P.weather, P.today, P.booth]);
+  if (sig !== lastSig) { lastSig = sig; if (!link.connected && modeRunner.name) modeRunner.refresh(); }
+});
 
 // ---------- 显示模式：简洁 / 紧凑 / 专业 ----------
 // 点按钮 / 按 V：本机立刻切换；连着中枢就发 {"t":"display","mode":…}，中枢存下来并转给真机和别的网页
@@ -244,6 +297,7 @@ function chooseDensity(mode) {
     bot.caption(`显示模式：${DENSITY_NAME[mode]}`);
     setTimeout(() => bot.caption(''), 2500);
   }
+  sync.set({ display: mode });
   if (link.connected) up({ t: 'display', mode });   // 已经是这个模式也发一次：让真机对齐
 }
 document.querySelectorAll('#density-seg [data-density]').forEach((b) => (b.onclick = () => chooseDensity(b.dataset.density)));
@@ -254,6 +308,8 @@ function onStatus(kind, text) {
   $('#conn span').textContent = kind === 'on' ? '已连接' : kind === 'wait' ? '连接中' : '离线（单机模式）';
   $('#scene-src').textContent = kind === 'on' ? '中枢调度 · 真数据' : '示例数据';
   $('#hub-note').textContent = kind === 'on' ? '已连接' : kind === 'wait' ? '连接中…' : '离线';
+  if (kind === 'on') sync.setState('applied'); else if (kind === 'off') sync.setState('offline');
+  if (kind === 'off') boardDisplay = null;
   if (kind === 'off') for (const id of ['face', 'body', 'view']) { $(`#pr-${id}`).classList.remove('on'); $(`#pr-${id} b`).textContent = 0; }
   if (kind === 'off' && /拒绝|令牌/.test(text)) setTokenPop(true);   // 令牌不对：把令牌框弹出来
   log('sys', text);
@@ -365,14 +421,36 @@ function setBig(on) {
   if (!on) fitHero();
 }
 $('#btn-big').onclick = () => setBig(!body_big());
-function setPreview(on) {   // 右栏 3D 预览整块显示 / 隐藏（身体已停用，默认显示，可收起腾出空间给演示列表）
-  $('#sec-3d').classList.toggle('off', !on);
-  store.set('3d', on ? '1' : '0');
-  if (on) fit();
-}
-setPreview(store.get('3d', '1') === '1');
 if (params.get('view') === '3d') setBig(true);
 setScale(scaleMode);
+
+// ---------- 右栏标签页 + 设置面板 + 设备盒子 ----------
+const settingsUi = mountSettings({
+  root: $('#settings-root'), sync,
+  density: { get: getDensity, set: chooseDensity },
+});
+const deviceUi = mountDevice({
+  root: $('#device-root'),
+  getInfo: () => ({ connected: link.connected, peers, board: boardDisplay ? DENSITY_NAME[boardDisplay] ?? boardDisplay : null, face: face.state }),
+  onResend: () => up({ t: 'relay', msg: { t: 'face', state: face.state, ...(face.card ? { card: face.card } : {}) } }),
+});
+setInterval(() => deviceUi.paint(), 500);
+deviceUi.paint();
+let rtab = store.get('rtab', 'settings');
+function setRTab(id) {
+  if (!['settings', 'demos', '3d'].includes(id)) id = 'settings';
+  rtab = id;
+  store.set('rtab', id);
+  document.querySelectorAll('[data-rtab]').forEach((b) => b.classList.toggle('on', b.dataset.rtab === id));
+  for (const k of ['settings', 'demos', '3d']) $(`#rp-${k}`).hidden = k !== id;
+  if (id === '3d') requestAnimationFrame(fit);
+}
+$('#rtabs').onclick = (e) => { const b = e.target.closest('[data-rtab]'); if (b) setRTab(b.dataset.rtab); };
+setRTab(rtab);
+// 手机：设置是一整张从下往上的面板
+const setSheet = (on) => { document.body.classList.toggle('sheet', on); if (on) setRTab('settings'); };
+$('#btn-settings').onclick = () => setSheet(!document.body.classList.contains('sheet'));
+$('#btn-sheet-close').onclick = () => setSheet(false);
 
 // ---------- 快捷键 ----------
 const helpEl = $('#help');
@@ -383,14 +461,15 @@ helpEl.onclick = (e) => { if (e.target === helpEl) setHelp(false); };
 // 鼠标点完按钮就让它失焦，不然接着按空格会再点一次那个按钮（键盘操作产生的 click，detail 是 0，不受影响）
 document.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b && e.detail > 0) b.blur(); });
 const FACE_KEYS = { i: 'idle', p: 'play', z: 'sleep', h: 'happy', t: 'today', s: 'sky', w: 'watch', m: 'mkt' };
-const SCENE_KEYS = ['morning', 'watch', 'close', 'booth', 'stop'];
 window.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
-  if (e.key === 'Escape') return setHelp(false);
+  if (e.key === 'Escape') { setSheet(false); return setHelp(false); }
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (k === '?') return setHelp(helpEl.hidden);
-  if (/^[1-5]$/.test(k)) return document.querySelector(`[data-scene="${SCENE_KEYS[k - 1]}"]`).click();
+  if (/^[1-6]$/.test(k)) return chooseMode(MODES[k - 1].id);
+  if (k === 'ArrowLeft' || k === 'ArrowRight' || k === '.') return document.querySelector(`[data-ctl="${k === 'ArrowLeft' ? 'prev' : k === 'ArrowRight' ? 'next' : 'pause'}"]`).click();
+  if (k === ',') { if (matchMedia('(max-width: 820px)').matches) return setSheet(!document.body.classList.contains('sheet')); return setRTab(rtab === 'settings' ? 'demos' : 'settings'); }
   if (k === '[' || k === ']') {
     const states = [...document.querySelectorAll('[data-face]')].map((b) => b.dataset.face);
     const i = states.indexOf(face.state);
@@ -401,7 +480,7 @@ window.addEventListener('keydown', (e) => {
   if (k === 'b') return toggleBoss();
   if (k === 'v') return chooseDensity(DENSITIES[(DENSITIES.indexOf(getDensity()) + 1) % DENSITIES.length]);
   if (k === 'f') return cycleScale();
-  if (k === 'd') return setPreview($('#sec-3d').classList.contains('off'));
+  if (k === 'd') return setRTab(rtab === '3d' ? 'settings' : '3d');
   if (k === 'l') return window.open('logs.html', '_blank');
 });
 

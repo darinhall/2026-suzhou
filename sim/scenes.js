@@ -20,10 +20,10 @@ const BASE = [
   { name: '贵州茅台', code: '600519', prev: 1441.1, p: 1432.5, vr: 0.8, amt: 31.9 },
   { name: '比亚迪', code: '002594', prev: 265.2, p: 268.4, vr: 1.0, amt: 17.1 },
 ];
-const sparkOf = (prev, p, n = 20) => Array.from({ length: n }, (_, i) => +(prev + ((p - prev) * i) / (n - 1) + Math.sin(i * 1.3 + p) * prev * 0.004).toFixed(2));
+export const sparkOf = (prev, p, n = 20) => Array.from({ length: n }, (_, i) => +(prev + ((p - prev) * i) / (n - 1) + Math.sin(i * 1.3 + p) * prev * 0.004).toFixed(2));
 const pctOf = (r) => +(((r.p - r.prev) / r.prev) * 100).toFixed(2);
 // 离线示例卡片也带上"专业 / 紧凑"屏要的字段（开高低、振幅、量比、成交额），并标 sample:true，屏幕上显示「示例」
-const rowOf = (r) => {
+export const rowOf = (r) => {
   const sp = r.spark ?? sparkOf(r.prev, r.p), hi = Math.max(...sp, r.p), lo = Math.min(...sp, r.p);
   return { name: r.name, code: r.code, pct: pctOf(r), price: +r.p.toFixed(2), prev_close: r.prev, open: sp[1] ?? r.prev, high: +hi.toFixed(2), low: +lo.toFixed(2),
     amp: +(((hi - lo) / r.prev) * 100).toFixed(2), vol_ratio: r.vr ?? 1, amount: r.amt ?? 20, spark: sp };
@@ -31,7 +31,7 @@ const rowOf = (r) => {
 const INDICES = [{ name: '上证', value: 3296.5, pct: 0.42 }, { name: '深证', value: 10512.3, pct: 0.61 }, { name: '创业板', value: 2105.8, pct: 1.12 }, { name: '沪深300', value: 3891.2, pct: 0.38 }];
 
 export const watchCard = (rows, mode, asof) => ({ title: '自选', asof, mode, sample: true, index: { name: '上证指数', pct: 0.42 }, indices: INDICES, rows: rows.map(rowOf) });
-const mktCard = (r, extra = {}) => ({ ...rowOf(r), code: `${r.code}.${r.code[0] === '6' ? 'SH' : 'SZ'}`, sample: true, ...extra });
+export const mktCard = (r, extra = {}) => ({ ...rowOf(r), code: `${r.code}.${r.code[0] === '6' ? 'SH' : 'SZ'}`, sample: true, ...extra });
 
 const BRIEF_MORNING = { title: '早安简报', items: ['昨晚美股科技走弱，半导体承压', '今天 15:00 产品评审会，别迟到', '自选里宁德时代上个交易日 +4.8%'], hint: '', legal: false };
 const BRIEF_CLOSE = { title: '收盘小结', items: ['自选 3 只：2 涨 1 跌，平均 +1.8%', '最大异动：宁德时代 ▲ +4.8%，量比 2.3', '明天 09:30 开盘，我会提前叫你'], hint: '', legal: false };
