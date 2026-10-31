@@ -8,7 +8,7 @@ import { USECASES } from './usecases.js';
 const $ = (s) => document.querySelector(s);
 
 const body = new Body($('#robot'));
-const link = new Link({ onMessage: (m) => handle(m), onStatus });
+const link = new Link({ onMessage: (m) => onHub(m), onStatus });
 // 双击屏幕 = 老板键。在机器人本地处理，不等笔记本，保证瞬间切换
 let lastTap = 0;
 const face = new Face(body.screen, (x, y) => {
@@ -56,6 +56,47 @@ async function handle(msg) {
   }
 }
 
+// 实时数据按钮：从点下去到答案回来之间一直显示「抓取中」（联网抓一次要几秒），失败 / 超时也会恢复
+const LIVE_STATE = { today: 'today', sky: 'sky', market: 'mkt' };
+let pending = null;
+function endPending() {
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  pending.btn.classList.remove('running');
+  bot.caption('');
+  pending = null;
+}
+
+// 中枢发来的东西：人数、提示、别的客户端上行的事件，其余都是给机器人的指令
+let peers = { face: 0, body: 0, view: 0 };
+function onHub(m) {
+  if (m.t === 'peers') {
+    peers = m;
+    $('#peers').textContent = `真机：脸 ${m.face} · 身体 ${m.body}`;
+    return;
+  }
+  if (m.t === 'notice') {
+    endPending();
+    log('sys', m.text);
+    bot.caption(m.text);
+    setTimeout(() => bot.caption(''), 5000);
+    return;
+  }
+  if (m.t === 'head_press') {   // 真机被按了头：等按头的演示脚本继续往下走
+    if (flatOn) { flatEl.classList.add('pressed'); setTimeout(() => flatEl.classList.remove('pressed'), 260); }
+    pressWaiters.forEach((r) => r(true));
+    pressWaiters = [];
+    return;
+  }
+  if (m.t === 'touch' || m.t === 'boss') return log('down', JSON.stringify(m));
+  if (pending && m.t === 'face' && m.state === LIVE_STATE[pending.what]) endPending();
+  return handle(m);
+}
+
+// 网页上做的动作：打开「同步到真机」时，同一条指令也转给真机（经中枢）。中枢不会把它再发回给我们，不会回环
+let control = false;
+const act = (msg) => { if (control) up({ t: 'relay', msg }); return handle(msg); };
+
 async function pressHead() {
   if (!(await body.press())) return log('sys', `扭矩 ${body.torque}% 太大，按不动（需 ≤ 60%）`);
   if (flatOn) { flatEl.classList.add('pressed'); setTimeout(() => flatEl.classList.remove('pressed'), 260); }   // 屏幕视图里没有头，让整块屏幕往下压一下
@@ -82,7 +123,7 @@ function toggleBoss() {
 }
 
 const bot = {
-  handle,
+  handle: act,   // 演示脚本发的每条指令都走 act，这样能同步到真机
   caption: (text) => ($('#caption').textContent = text),
   waitPress: (ms) => new Promise((resolve) => {
     pressWaiters.push(resolve);
@@ -124,14 +165,30 @@ document.querySelectorAll('[data-demo]').forEach((b) => (b.onclick = async () =>
   b.classList.add('running');
   try { await demos[b.dataset.demo](bot); } finally { running = false; b.classList.remove('running'); }
 }));
-document.querySelectorAll('[data-gesture]').forEach((b) => (b.onclick = () => handle({ t: 'gesture', name: b.dataset.gesture, times: 2 })));
-document.querySelectorAll('[data-face]').forEach((b) => (b.onclick = () => handle({ t: 'face', state: b.dataset.face })));
+document.querySelectorAll('[data-gesture]').forEach((b) => (b.onclick = () => act({ t: 'gesture', name: b.dataset.gesture, times: 2 })));
+document.querySelectorAll('[data-face]').forEach((b) => (b.onclick = () => act({ t: 'face', state: b.dataset.face })));
+// 实时数据：让中枢联网抓一份，推给所有人（包括我们自己，所以不用本地再画一遍）
+document.querySelectorAll('[data-live]').forEach((b) => (b.onclick = () => {
+  if (!link.connected) {
+    bot.caption('没连上中枢：在电脑上运行 ./hub/run.sh，实时数据要它联网去抓');
+    return setTimeout(() => bot.caption(''), 5000);
+  }
+  endPending();
+  b.classList.add('running');
+  bot.caption('正在联网抓取…');
+  pending = { what: b.dataset.live, btn: b, timer: setTimeout(endPending, 25000) };
+  up({ t: 'req', what: b.dataset.live });
+}));
+$('#ctl').onchange = (e) => {
+  control = e.target.checked;
+  log('sys', control ? '已打开「同步到真机」：网页上的动作会同时发给真机' : '已关闭「同步到真机」');
+};
 $('#btn-press').onclick = pressHead;
 $('#btn-boss').onclick = toggleBoss;
 $('#btn-inject').onclick = () => {
   try {
     const parsed = JSON.parse($('#inject').value);
-    (Array.isArray(parsed) ? parsed : [parsed]).reduce((p, m) => p.then(() => handle(m)), Promise.resolve());
+    (Array.isArray(parsed) ? parsed : [parsed]).reduce((p, m) => p.then(() => act(m)), Promise.resolve());
   } catch (e) { log('sys', `JSON 解析失败：${e.message}`); }
 };
 

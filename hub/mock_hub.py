@@ -7,7 +7,7 @@
 机器人连上 ws://<本机IP>:8765/robot 后：
 - 打印所有上行消息（hello / head_press / touch；state 太多，默认不打印）
 - 在终端里输入一行 JSON 回车，就发给机器人
-- 输入 demo 回车，跑一遍"飞书 @我"的小剧本；输入 weather 回车，抓一次实时天气发到屏幕；输入 today 回车，发「今天」一屏（日期、交易状态、天气、下一个日程）；输入 token 回车，再显示一次令牌
+- 输入 demo 回车，跑一遍"飞书 @我"的小剧本；输入 weather / today / market 回车，抓一次实时数据推到屏幕（行情要 PandaAI：用 hub/run.sh 启动）；输入 token 回车，再显示一次令牌
 
 双板（见 双板方案.md）：hello 里带 role=face（T5）或 role=body（ESP32），
 face/audio 只发给 face，pose/gesture/torque 只发给 body；没报 role 的（如 sim/）收全部。
@@ -16,6 +16,13 @@ face/audio 只发给 face，pose/gesture/torque 只发给 body；没报 role 的
 - 机器人广播 {"t":"deskbot?","v":1}，中枢单播回复 {"t":"hub","v":1,"name":…,"ws_port":8765,"path":"/robot","auth":true}，
   机器人用**回复包的源 IP** 拼出 ws://<IP>:8765/robot。中枢还每 2 秒广播一次同样的消息（beacon），机器人也可以只听不问。
 - 用 python3 hub/discover.py 在另一台电脑上测试（广播能不能穿过 WiFi）。discover.py --to <IP> 是单播，排查广播被拦时用。
+
+控制台 / 镜像（模拟器网页就是控制台，也是镜像）：
+- 任何已通过认证的客户端发 {"t":"relay","msg":{…}}，中枢把 msg 转给**其他**所有客户端（真机 + 别的网页）。
+  模拟器打开「同步到真机」后，它自己要执行的每条指令（演示场景、动作、表情）都会这样转给真机。
+- {"t":"req","what":"today"|"sky"|"market"[,"code":"300750"]}：中枢联网抓一份实时数据，作为 face 消息推给所有人。
+- 真机 / 网页上行的 head_press、touch、boss 会转给其他客户端，所以网页上的演示脚本能等到真机的"按头"。
+- 每次有人连上 / 断开，中枢给所有人发 {"t":"peers","face":n,"body":n,"view":n}。
 
 令牌：
 - 现场 WiFi 里有几百人，中枢没有密码的话谁都能连上来让机器人乱动，所以第一条消息必须是 hello，并带上令牌：
@@ -31,6 +38,7 @@ import asyncio
 import hmac
 import json
 import os
+import re
 import secrets
 import socket
 import sys
@@ -127,6 +135,7 @@ async def handler(ws):
 
     robots[ws] = hello.get("role")
     print(f"[+] robot connected {ip}  role = {robots[ws] or '全部'}  fw = {hello.get('fw', '?')}")
+    await announce_peers()
     try:
         async for raw in ws:
             try:
@@ -135,21 +144,86 @@ async def handler(ws):
                 continue
             if not isinstance(msg, dict) or msg.get("t") in ("state", "hello"):
                 continue
-            print(f"↑ {raw}")
-            if msg.get("t") == "head_press":
+            t = msg.get("t")
+            if t == "relay" and isinstance(msg.get("msg"), dict):      # 控制台 → 其他所有人（真机 + 镜像）
+                await broadcast(msg["msg"], exclude=ws)
+                continue
+            if t == "req":                                              # 联网抓数据很慢，不要堵住这个连接的消息循环
+                asyncio.create_task(serve_request(ws, msg))
+                continue
+            print(f"↑ {raw[:160]}")
+            if t in UPSTREAM:
+                await broadcast(msg, exclude=ws)
+            if t == "head_press":
                 await broadcast({"t": "face", "state": "happy"})
     finally:
         robots.pop(ws, None)
         print(f"[-] robot disconnected {ip}")
+        await announce_peers()
 
 
-async def broadcast(msg):
+async def broadcast(msg, exclude=None):
     raw = json.dumps(msg, ensure_ascii=False)
     target = ROUTE.get(msg.get("t"))
-    print(f"↓ {raw}" + (f"  → {target}" if target else ""))
+    print(f"↓ {raw[:160]}" + (f"  → {target}" if target else ""))
     for ws, role in list(robots.items()):
-        if target is None or role is None or role == target:
+        if ws is exclude or not (target is None or role is None or role == target):
+            continue
+        try:
             await ws.send(raw)
+        except Exception:   # 这个连接正好断了，别让它拖垮别人
+            pass
+
+
+def peer_counts() -> dict:
+    c = {"face": 0, "body": 0, "view": 0}
+    for role in robots.values():
+        c[role if role in ("face", "body") else "view"] += 1
+    return c
+
+
+async def announce_peers():
+    await broadcast({"t": "peers", **peer_counts()})
+
+
+UPSTREAM = ("head_press", "touch", "boss")   # 真机 / 网页上行的事件，转给其他客户端（让网页上的脚本能等到真机的按头）
+
+
+async def live_message(what: str, req: dict | None = None) -> dict:
+    """联网抓一份实时数据，返回可以直接广播的 face 消息。慢（要联网），放进线程里跑。"""
+    loop = asyncio.get_running_loop()
+    if what == "today":
+        from today import get_today
+        out = await loop.run_in_executor(None, get_today)
+        print(f"  交易日来源：{out['market_source']}")
+        return {"t": "face", "state": "today", "card": out["card"]}
+    if what == "sky":
+        from weather import get_weather, to_card
+        return {"t": "face", "state": "sky", "card": to_card(await loop.run_in_executor(None, get_weather))}
+    if what == "market":
+        code = str((req or {}).get("code", "300750"))
+        if not re.fullmatch(r"\d{6}", code):
+            raise ValueError(f"股票代码要 6 位数字：{code!r}")
+        try:
+            from market import get_card
+            return {"t": "face", "state": "mkt", "card": await loop.run_in_executor(None, get_card, code)}
+        except ImportError:
+            raise RuntimeError("行情要 PandaAI：用 hub/run.sh 启动中枢（需要 panda-data 和 data/.env 里的账号）") from None
+    raise ValueError(f"不认识的 req：{what!r}")
+
+
+async def serve_request(ws, req: dict):
+    """处理 req：成功就推给所有人，失败只告诉发请求的那一个。"""
+    what = str(req.get("what"))
+    try:
+        await broadcast(await live_message(what, req))
+    except Exception as e:
+        text = f"{what} 获取失败：{e}" if isinstance(e, (ValueError, RuntimeError)) else f"{what} 获取失败：{type(e).__name__}: {e}"
+        print(text)
+        try:
+            await ws.send(json.dumps({"t": "notice", "level": "error", "text": text}, ensure_ascii=False))
+        except Exception:
+            pass
 
 
 class Discovery(asyncio.DatagramProtocol):
@@ -204,25 +278,11 @@ async def start_discovery(port: int):
     print(f"自动发现：UDP {NET['discovery_port']}，每 {NET['beacon_seconds']} 秒广播到 {', '.join(netutil.broadcast_addrs())}")
 
 
-async def send_weather(loop):
-    from weather import get_weather, to_card   # 懒加载：没联网时中枢照样能启动
+async def push_live(what: str):
     try:
-        card = to_card(await loop.run_in_executor(None, get_weather))
+        await broadcast(await live_message(what))
     except Exception as e:
-        print(f"天气获取失败：{type(e).__name__}: {e}")
-        return
-    await broadcast({"t": "face", "state": "sky", "card": card})
-
-
-async def send_today(loop):
-    from today import get_today
-    try:
-        out = await loop.run_in_executor(None, get_today)
-    except Exception as e:
-        print(f"今天获取失败：{type(e).__name__}: {e}")
-        return
-    print(f"  交易日来源：{out['market_source']}")
-    await broadcast({"t": "face", "state": "today", "card": out["card"]})
+        print(f"{what} 获取失败：{type(e).__name__}: {e}")
 
 
 async def stdin_loop():
@@ -242,11 +302,8 @@ async def stdin_loop():
                 await broadcast(msg)
                 await asyncio.sleep(0.8)
             continue
-        if line == "weather":
-            await send_weather(loop)
-            continue
-        if line == "today":
-            await send_today(loop)
+        if line in ("weather", "today", "market"):
+            await push_live("sky" if line == "weather" else line)
             continue
         if line == "token":
             print(f"令牌：{TOKEN}" if AUTH else "（令牌检查已关闭）")
@@ -263,7 +320,7 @@ async def main(port: int):
         print(f"mock hub  ws://{lan_ip()}:{port}/robot   （本机 ws://localhost:{port}/robot）")
         print(f"令牌：{TOKEN}（也在 hub/.token；本机连接不用）" if AUTH
               else "⚠️ 令牌检查已关闭（--no-auth）：同一个 WiFi 里的任何人都能连上来控制机器人")
-        print("输入 JSON、demo、weather、today 或 token")
+        print("输入 JSON、demo、weather、today、market 或 token")
         await stdin_loop()
 
 
