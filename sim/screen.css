@@ -74,7 +74,9 @@
 .screen[data-card="quiet"] .loud { background: var(--surface); color: var(--ink); }
 .screen[data-card="quiet"] .loud .label, .screen[data-card="quiet"] .loud .meta { color: var(--ink-muted); }
 
-.screen > * { position: absolute; inset: 0; }
+/* 换屏：160 ms ease-out 淡入 + 上移一点（设计系统 Motion），和身体动作同时落地 */
+.screen > * { position: absolute; inset: 0; animation: screen-enter .16s ease-out; }
+@keyframes screen-enter { from { opacity: 0; transform: translateY(4px); } }
 
 /* ---------- 字体样式（对应 tokens 里的 type 组） ---------- */
 .numeral-xl { font: var(--numeral-weight) calc(var(--t-xl) * var(--fs))/0.85 var(--numeral); letter-spacing: -2px; }
@@ -114,7 +116,8 @@
 .screen[data-size="s"] .ruler { gap: 2px; }
 
 /* ---------- 表情 ---------- */
-.eyes { display: flex; justify-content: center; align-items: center; gap: var(--eye-gap); transition: transform .16s ease-out; }
+.eyes { display: flex; justify-content: center; align-items: center; gap: var(--eye-gap); transform: translate(var(--gx, 0px), var(--gy, 0px)); transition: transform .16s ease-out; }
+.stealth .eyes { transform: none; }   /* 摸鱼模式不乱看，免得被同事注意到 */
 .eye { width: var(--eye-w); height: var(--eye-h); border-radius: calc(var(--eye-w) / 2); background: var(--ink); transition: height .08s, background .3s; }
 .eyes.shut .eye { height: var(--shut); }
 .eyes.happy .eye { height: var(--arc-h); background: transparent; border: var(--eye-line) solid var(--ink); border-bottom: 0; border-radius: var(--arc-h) var(--arc-h) 0 0; }
@@ -176,3 +179,6 @@
    2.8″ 屏物理宽约 57.6 mm，3.5″ 约 73.4 mm。头盒里 480 px ≈ 73.4 mm，
    所以 320×240 的屏放大 1.175 倍（= 376×282）居中，看到的是真实比例的边框。 */
 .screen[data-size="s"].in-head { left: 72px; top: 39px; transform: scale(1.175); transform-origin: 0 0; }
+
+/* 装在头里时：像真机一样有一圈黑色边框（TFT 模组的黑边），屏幕和外壳才分得开 */
+.screen.in-head { box-shadow: 0 0 0 8px #141414, 0 0 0 9px rgba(0,0,0,.35); }

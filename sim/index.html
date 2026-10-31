@@ -10,7 +10,11 @@
 <body>
   <header class="bar">
     <div class="brand">DeskBot <span>模拟器 · 3.5″ 480×320</span></div>
-    <div class="bar-right"><a href="lab.html" target="_blank">设计实验室 ↗</a><div class="conn" id="conn"><i></i><span>离线</span></div></div>
+    <div class="bar-right">
+      <a href="lab.html" target="_blank">设计实验室 ↗</a>
+      <a href="game.html" target="_blank">交易人格游戏 ↗</a>
+      <div class="conn" id="conn"><i></i><span>离线</span></div>
+    </div>
   </header>
 
   <main class="layout">
@@ -18,27 +22,22 @@
       <div class="fit" id="fit">
         <div class="robot" id="robot"></div>
       </div>
+      <div class="caption-bar" id="caption"></div>
+      <div class="telemetry" id="telemetry"></div>
       <div class="stage-tools">
         <button id="btn-cam">视角</button>
-        <button id="btn-press" class="accent">按头</button>
+        <button id="btn-press" class="primary">按头</button>
         <button id="btn-boss">老板来了</button>
       </div>
-      <div class="telemetry" id="telemetry"></div>
-      <div class="caption-bar" id="caption"></div>
     </section>
 
     <aside class="panel">
       <div class="group">
-        <h3>演示（单机模式）</h3>
-        <div class="row">
-          <button data-demo="moyu">▶ 盘中摸鱼看盘</button>
-          <button data-demo="feishu">▶ 飞书会议助手</button>
-          <button data-demo="a2a">▶ A2A 盘前简报</button>
-          <button data-demo="all">▶ 三个连播</button>
-        </div>
+        <h3>场景演示</h3>
+        <div class="scenes" id="scenes"></div>
       </div>
       <div class="group">
-        <h3>动作</h3>
+        <h3>身体</h3>
         <div class="row">
           <button data-gesture="nod">点头</button>
           <button data-gesture="shake">扭两下</button>
@@ -48,7 +47,7 @@
         </div>
       </div>
       <div class="group">
-        <h3>表情</h3>
+        <h3>屏幕</h3>
         <div class="row">
           <button data-face="idle">idle</button>
           <button data-face="blink">blink</button>
@@ -62,22 +61,25 @@
           <button data-face="weather">weather</button>
         </div>
       </div>
-      <div class="group">
-        <h3>注入下行 JSON <small>（模拟笔记本发来的消息）</small></h3>
-        <textarea id="inject" spellcheck="false">{"t": "pose", "yaw": 30, "pitch": -10, "ms": 600}</textarea>
-        <div class="row"><button id="btn-inject">发送到机器人</button></div>
-      </div>
-      <div class="group">
-        <h3>连接</h3>
-        <div class="row">
-          <input id="ws-url" spellcheck="false">
-          <button id="btn-connect">连接</button>
+      <details class="dev">
+        <summary>开发者</summary>
+        <div class="group">
+          <h3>注入下行 JSON <small>（模拟笔记本发来的消息）</small></h3>
+          <textarea id="inject" spellcheck="false">{"t": "pose", "yaw": 30, "pitch": -10, "ms": 600}</textarea>
+          <div class="row"><button id="btn-inject">发送到机器人</button></div>
         </div>
-      </div>
-      <div class="group grow">
-        <h3>消息日志 <small>↓ 下行 ↑ 上行</small></h3>
-        <ol class="log" id="log"></ol>
-      </div>
+        <div class="group">
+          <h3>连接中枢</h3>
+          <div class="row">
+            <input id="ws-url" spellcheck="false">
+            <button id="btn-connect">连接</button>
+          </div>
+        </div>
+        <div class="group">
+          <h3>消息日志 <small>↓ 下行 ↑ 上行</small></h3>
+          <ol class="log" id="log"></ol>
+        </div>
+      </details>
     </aside>
   </main>
 

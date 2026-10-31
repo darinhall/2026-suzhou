@@ -159,6 +159,35 @@ export class Face {
       e.stopPropagation();
     });
     this.blinkLoop();
+    this.lookLoop();
+  }
+
+  // 眼睛看向 (dx, dy) 像素，ms 后回中。身体转动前调用，眼睛先到、头后到
+  glance(dx, dy, ms = 500) {
+    if (!dx && !dy) return;
+    this.el.style.setProperty('--gx', `${dx}px`);
+    this.el.style.setProperty('--gy', `${dy}px`);
+    clearTimeout(this.gazeReset);
+    this.gazeReset = setTimeout(() => this.glance0(), ms + 250);
+  }
+
+  glance0() {
+    this.gazeReset = null;
+    this.el.style.setProperty('--gx', '0px');
+    this.el.style.setProperty('--gy', '0px');
+  }
+
+  // 空闲时偶尔瞟一眼别处，再看回来：不动的脸看起来像死机
+  lookLoop() {
+    setTimeout(() => {
+      if (!this.el.isConnected) return;
+      if (['idle', 'blink', 'happy', 'listening'].includes(this.state) && !this.gazeReset) {
+        const away = Math.random() < 0.55;
+        this.el.style.setProperty('--gx', away ? `${Math.round((Math.random() - 0.5) * 20)}px` : '0px');
+        this.el.style.setProperty('--gy', away ? `${Math.round((Math.random() - 0.5) * 10)}px` : '0px');
+      }
+      this.lookLoop();
+    }, 2200 + Math.random() * 3500);
   }
 
   set(state, card) {
