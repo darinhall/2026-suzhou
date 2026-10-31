@@ -77,3 +77,15 @@ uvx --python 3.12 --from platformio pio run -d esp32s3/bringup -t upload --uploa
 状态：`idle blink happy listening thinking ok stealth play sleep`；安静 25 秒玩球，玩 12 秒后睡觉，摸一下就醒；连点两下 = 老板键。文字屏（今天 / 天气 / 行情）还要 CJK 字体，目前显示待机脸。
 
 串口会打印 `[wifi]`、`[hub]`、`[ws]`。找不到 SSID（状态 1）时 12 秒后会扫描并列出板子看到的网络；信号 -70 dBm 偏弱，展台上把板子放在靠近路由的一侧。
+
+## 外设接线（10-31 晚）
+
+| 外设 | 信号 | GPIO |
+|---|---|---|
+| MAX98357A 喇叭功放 | BCLK / LRC / DIN | 12 / 13 / 11（和麦克风共用 BCLK、WS） |
+| INMP441 麦克风 | SCK / WS / SD | 12 / 13 / 38（L/R 接地，VDD 3.3 V） |
+| 飞特 STS3215-12V × 2（串联） | TX / RX | 21 / 47（经 ~3.3 kΩ / ~5 kΩ 接 DATA；**115200 波特**；ID1 偏航、ID2 俯仰） |
+
+分区：`partitions.csv`（4 MB 程序，没有 OTA；`fonts` 分区 0x410000 起约 11.9 MB 放中文字体，固件 mmap 成数组读）。屏幕颜色有一层校正（`src/palette.h`）。
+
+完整说明（接线、排针位置、舵机基准、语音、网络）见仓库根目录 [《开发交接》](../开发交接.md)。
