@@ -1,9 +1,36 @@
 #include "ui.h"
+#include <esp_partition.h>
 #include <time.h>
 
 namespace ui {
 
 static TFT_eSPI *T;
+
+// ---------- 中文字体：fonts 分区 mmap 成数组 ----------
+struct FontEntry { char name[16]; uint32_t off, size; };
+static const uint8_t *fontBase = nullptr;
+static int fontCount = 0;
+
+static void mapFonts() {
+  const esp_partition_t *part = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "fonts");
+  if (!part) { Serial.println("[font] 没有 fonts 分区"); return; }
+  const void *ptr;
+  spi_flash_mmap_handle_t h;
+  if (esp_partition_mmap(part, 0, part->size, SPI_FLASH_MMAP_DATA, &ptr, &h) != ESP_OK) { Serial.println("[font] mmap 失败"); return; }
+  if (memcmp(ptr, "DBF1", 4)) { Serial.println("[font] fonts 分区是空的：烧 fonts.bin（见 esp32s3/tools/pack_fonts.py）"); return; }
+  fontBase = (const uint8_t *)ptr;
+  fontCount = *(const uint32_t *)(fontBase + 4);
+  Serial.printf("[font] %d 个字体已映射\n", fontCount);
+}
+
+// 切换到某个中文字体（没有就返回 false，调用方退回内置字体）
+static bool useFont(const char *name) {
+  for (int i = 0; i < fontCount; i++) {
+    const FontEntry *e = (const FontEntry *)(fontBase + 8) + i;
+    if (!strncmp(e->name, name, 16)) { T->loadFont(fontBase + e->off); return true; }
+  }
+  return false;
+}
 
 // 设计系统 light 色板
 static const uint32_t GROUND = 0xE9E9E6, INK = 0x121212, MUTED = 0x5F5F5C, ACCENT = 0xFF5B14, LILAC = 0x9B7EF0, UPC = 0xC8281E, ON_INK = 0xF5F5F3;
@@ -323,14 +350,22 @@ static void render() {
     case State::Sleep: sleepStart(); break;
     case State::Unsupported:
       eyesPill(INK, EYE_H); mouth();
-      T->setTextColor(C(MUTED), C(GROUND));
-      T->drawCentreString(String("[") + label + "]  text screens: next step", W() / 2, H() - 22, 2);
+      {   // 字体测试：中文 + 数字
+        const uint32_t t0 = millis();
+        const bool fok = useFont("cjk22");
+        Serial.printf("[font] cjk22 切换 %u ms (%d)\n", millis() - t0, fok);
+        T->setTextColor(C(MUTED), C(GROUND));
+        T->setTextDatum(TC_DATUM);
+        T->drawString(String("[") + label + "] 文字屏：今天 · 天气 · 行情", W() / 2, H() - 40);
+        T->unloadFont();
+      }
       break;
   }
 }
 
 void begin(TFT_eSPI *tft) {
   T = tft;
+  mapFonts();
   lastActive = stateSince = millis();
   render();
 }
