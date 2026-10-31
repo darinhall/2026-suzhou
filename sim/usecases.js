@@ -84,5 +84,59 @@ export const USECASES = [
   },
 ];
 
+
+// ---- 一天的场景（单板：只有屏幕 + 数据；身体动作等以后接上舵机再加）----
+const wl = (mode, asof, rows) => ({ title: '自选', asof, mode, index: { name: '上证指数', pct: 0.42 }, rows });
+const NING = { name: '宁德时代', code: '300750', pct: 4.8, price: 215.3, spark };
+const MAO = { name: '贵州茅台', code: '600519', pct: -0.6, price: 1432.5, spark: [20, 21, 20, 22, 21, 20, 19, 20, 19, 19, 18] };
+const BYD = { name: '比亚迪', code: '002594', pct: 1.2, price: 268.4, spark: [14, 13, 14, 15, 14, 15, 16, 15, 16, 17] };
+
+USECASES.push(
+  {
+    id: 'morning',
+    name: '起床后 · 三十秒看完今天',
+    who: '上班族 · 主赛道三 AI+生活办公',
+    pain: '早上手忙脚乱：要查天气、查日程、看昨天自选涨跌，要开四个 App。',
+    panda: 'Open-Meteo 天气 · 日历 · PandaAI 日线（上个交易日收盘）',
+    steps: [
+      { time: '07:30', say: '今天：日期、天气、下一个日程', body: '不动', msgs: [{ t: 'face', state: 'today' }] },
+      { time: '07:30', say: '天气：一句话建议（要不要带伞）', body: '不动', msgs: [{ t: 'face', state: 'sky' }] },
+      { time: '07:31', say: '早安简报：三条要点', body: '不动',
+        msgs: [{ t: 'face', state: 'brief', card: { title: '早安简报', items: ['昨晚美股科技走弱，半导体承压', '今天 15:00 产品评审会，别迟到', '自选里宁德时代上个交易日 +4.8%'], legal: false } }] },
+      { time: '07:31', say: '自选：上个交易日收盘，涨幅最大的一行最醒目', body: '不动',
+        msgs: [{ t: 'face', state: 'watch', card: wl('close', '10-30 收盘', [NING, MAO, BYD]) }] },
+    ],
+  },
+  {
+    id: 'watching',
+    name: '盯盘 · 数字在跳',
+    who: '上班族散户 · 交易人格：冲浪手',
+    pain: '要盯三只票，又不想一直开着交易软件。',
+    panda: 'PandaAI 分钟线回放 / 盘中行情',
+    steps: [
+      { time: '13:15', say: '自选回放：数字每秒在动，涨幅最大的一行是深色药丸', body: '不动',
+        msgs: [{ t: 'face', state: 'watch', card: wl('replay', '回放 13:15', [{ ...NING, pct: 2.1, price: 209.8 }, MAO, BYD]) }] },
+      { time: '13:21', say: '宁德时代放量异动：行情卡，右上角只有一个橙色「异动」', body: '不动',
+        msgs: [{ t: 'face', state: 'mkt', card: { name: '宁德时代', code: '300750.SZ', pct: 4.8, vol_ratio: 2.3, spark, price: 215.3, prev_close: 205.45, asof: '回放 13:21', mode: 'replay', alert: true, hint: '按头 = 记入模拟单' } }] },
+      { time: '13:30', say: '老板来了！双击屏幕', body: '不动',
+        msgs: [{ t: 'face', state: 'decoy', card: { time: '13:30', date: '10月31日 星期六', meeting: '15:00 · 产品评审会', todo: 3 } }] },
+    ],
+  },
+  {
+    id: 'close',
+    name: '收盘 · 今天怎么样',
+    who: '上班族 · 下班前',
+    pain: '收盘后想知道今天赚亏多少、有没有异动，又不想翻账户。',
+    panda: 'PandaAI 日线 · 模拟盘',
+    steps: [
+      { time: '15:05', say: '自选收盘：三只一眼看完', body: '不动',
+        msgs: [{ t: 'face', state: 'watch', card: wl('close', '10-30 收盘', [NING, MAO, BYD]) }] },
+      { time: '15:06', say: '收盘小结：三条要点', body: '不动',
+        msgs: [{ t: 'face', state: 'brief', card: { title: '收盘小结', items: ['自选 3 只：2 涨 1 跌，平均 +1.8%', '最大异动：宁德时代 ▲ +4.8%，量比 2.3', '明天 09:30 开盘，我会提前叫你'], legal: false } }] },
+      { time: '15:10', say: '没事了：安静下来，睡觉', body: '不动', msgs: [{ t: 'face', state: 'sleep' }] },
+    ],
+  },
+);
+
 // 一步里最后一个 face 消息：故事板上画它
 export const faceOf = (step) => [...step.msgs].reverse().find((m) => m.t === 'face');

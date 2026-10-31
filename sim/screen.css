@@ -16,6 +16,7 @@
   --ink: #121212; --on-ink: #f5f5f3; --ink-muted: #5f5f5c; --ink-faint: #9a9a96;
   --rule: #c9c9c4; --accent: #ff5b14; --on-accent: #121212; --lilac: #9b7ef0;
   --up: #c8281e; --down: #137044;
+  --up-on-card: #ff5a4e; --down-on-card: #3ec27a;   /* 深色卡片上的涨跌色（= dark 主题的 up / down） */
   /* type families */
   --sans: Geist, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
   --mono: "Geist Mono", ui-monospace, Menlo, monospace;
@@ -63,6 +64,7 @@
   --card: #efefec; --on-card: #121212; --on-card-muted: #5f5f5c;
   --ink: #efefec; --on-ink: #121212; --ink-muted: #a6a6a1; --ink-faint: #6e6e6a;
   --rule: #333331; --accent: #ff6a26; --lilac: #b39cff; --up: #ff5a4e; --down: #3ec27a;
+  --up-on-card: #c8281e; --down-on-card: #137044;   /* dark 主题的 card 是浅色，换回 light 的涨跌色 */
 }
 /* 实验室旋钮 */
 .screen[data-accent="amber"] { --accent: #ffb000; }
@@ -93,7 +95,7 @@
 .label { font: 400 var(--t-label)/1.35 var(--mono); letter-spacing: 0.2px; color: var(--ink-muted); }
 
 /* 大数字里的小数点：一个方点，贴着基线 */
-.numeral-xl .pt { display: inline-block; width: 0.12em; height: 0.12em; margin: 0 0.06em; background: currentColor; vertical-align: baseline; }
+.numeral-xl .pt, .wpct .n .pt { display: inline-block; width: 0.12em; height: 0.12em; margin: 0 0.06em; background: currentColor; vertical-align: baseline; }
 
 /* ---------- 版式 ---------- */
 .pane { display: flex; flex-direction: column; gap: var(--s3); padding: var(--s4); }
@@ -146,6 +148,9 @@
 .mkt .hero { display: flex; align-items: flex-end; gap: var(--s2); }
 .mkt .sign { font: 500 calc(var(--t-sign) * var(--fs))/1 var(--sans); padding-bottom: calc(var(--t-sign) * .2); }
 .mkt svg { width: 100%; height: var(--spark-h); display: block; }
+.mkt .grow { overflow: hidden; display: flex; align-items: flex-end; }
+.mkt .grow svg { height: 100%; max-height: var(--spark-h); }
+.caption { white-space: nowrap; }
 
 /* ---------- 摸鱼模式 ---------- */
 .stealth { --lid: 0; --blush: 0; --breath: 4s; animation: breath var(--breath) ease-in-out infinite; }
@@ -221,3 +226,36 @@
 /* 被吵醒：眼睛一下睁大 */
 .screen.waking .eye { animation: startle .3s ease-out; }
 @keyframes startle { 0% { transform: scaleY(.12); } 55% { transform: scaleY(1.15); } 100% { transform: none; } }
+
+/* ---------- 行情卡：右上角 chip / 价格行 ---------- */
+.mkt-right { margin-left: auto; display: flex; align-items: center; gap: var(--s2); }
+.mkt-price { white-space: nowrap; }
+.foot-l { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mkt .foot { align-items: flex-end; }
+
+/* ---------- 自选 ---------- */
+.watch { gap: var(--s2); }
+.wtop { gap: var(--s3); }
+.wtop .wi { white-space: nowrap; }
+.wrows { flex: 1; min-height: 0; display: grid; grid-template-rows: repeat(3, 1fr); gap: var(--s2); }
+.wrow { display: grid; grid-template-columns: minmax(0, 1fr) var(--w-spark) var(--w-price) var(--w-pct); align-items: center; gap: var(--s3); padding: 0 var(--s3); border-radius: var(--r-md); min-height: 0; }
+.wrow.loud { background: var(--card); color: var(--on-card); }
+.wrow.loud .label { color: var(--on-card-muted); }
+.wrow.loud .up { color: var(--up-on-card); }
+.wrow.loud .down { color: var(--down-on-card); }
+.screen[data-card="quiet"] .wrow.loud { background: var(--surface); color: var(--ink); }
+.screen[data-card="quiet"] .wrow.loud .label { color: var(--ink-muted); }
+.screen[data-card="quiet"] .wrow.loud .up { color: var(--up); }
+.screen[data-card="quiet"] .wrow.loud .down { color: var(--down); }
+.wname { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wname .headline { white-space: nowrap; overflow: hidden; text-overflow: clip; }
+.wspark svg { width: 100%; height: var(--w-spark-h); display: block; }
+.wprice { font: 400 calc(var(--t-body) * var(--fs))/1 var(--sans); font-variant-numeric: tabular-nums; text-align: right; }
+.wpct { font: 500 calc(var(--t-head) * var(--fs))/1 var(--sans); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; display: flex; align-items: baseline; justify-content: flex-end; gap: 0.15em; }
+.wpct b { font-weight: 500; }
+.wpct .g { font-size: .62em; align-self: center; }
+.wpct .sg { margin-right: -0.05em; }
+.wpct .u { font-size: .7em; }
+.wpct .n { font: var(--numeral-weight) calc(var(--t-md) * .72 * var(--fs))/1 var(--numeral); letter-spacing: -1px; }
+.screen { --w-spark: 60px; --w-price: 78px; --w-pct: 124px; --w-spark-h: 26px; }
+.screen[data-size="s"] { --w-spark: 36px; --w-price: 52px; --w-pct: 86px; --w-spark-h: 18px; }

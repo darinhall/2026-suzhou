@@ -16,6 +16,8 @@
   --lilac: #9b7ef0;
   --up: #c8281e;
   --down: #137044;
+  --up-on-card: #ff5a4e;
+  --down-on-card: #3ec27a;
   --shadow-lift: 0 8px 24px rgba(0,0,0,0.10);
 }
 [data-theme="dark"] {
@@ -35,6 +37,8 @@
   --lilac: #b39cff;
   --up: #ff5a4e;
   --down: #3ec27a;
+  --up-on-card: #c8281e;
+  --down-on-card: #137044;
   --shadow-lift: 0 8px 24px rgba(0,0,0,0.5);
 }
 :root {

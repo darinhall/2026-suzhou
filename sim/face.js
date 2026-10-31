@@ -22,6 +22,18 @@ function spark(points, up) {
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${xy}" fill="none" stroke="var(--${up ? 'up' : 'down'})" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
 }
 
+// 自选里每一行的迷你走势（viewBox 72×28，颜色跟涨跌；在 loud 行里用深底上的涨跌色）
+function miniSpark(points, up) {
+  if (!points?.length) return '<span class="wspark"></span>';
+  const w = 72, h = 28, min = Math.min(...points), max = Math.max(...points), span = max - min || 1;
+  const xy = points.map((v, i) => `${(i / Math.max(1, points.length - 1)) * w},${h - ((v - min) / span) * (h - 6) - 3}`).join(' ');
+  return `<span class="wspark ${up ? 'up' : 'down'}"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${xy}" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg></span>`;
+}
+
+// 数据来源：收盘 = 上一个交易日收盘价；回放 = 历史分钟线快进；实时 = 盘中（需要实时行情权限）；示例 = 编造的数字
+const MODE = { close: '收盘', replay: '回放', live: '实时', sample: '示例' };
+const legalOf = (mode, legal) => (legal ? `<div class="caption">${esc(legal)}</div>` : mode && mode !== 'sample' ? '<div class="caption">行情数据仅供参考 · 不构成投资建议</div>' : LEGAL);
+
 function ruler(total, done) {
   return `<div class="ruler">${Array.from({ length: total }, (_, i) => `<i class="${i < done ? 'past' : i === done ? 'now' : ''}"></i>`).join('')}</div>`;
 }
@@ -45,16 +57,52 @@ const VIEWS = {
       <div class="hint">${esc(c.hint ?? '')}</div>
     </div>`,
 
-  // 行情：一个点阵大数字 + 走势 + 合规提示
+  // 行情：一个点阵大数字 + 走势 + 合规提示。可选：price / prev_close / asof / mode（close|replay|live|sample）/ alert。
+  // 没有 mode（老用法）= 一个闪烁的 accent 点。有 mode：右上角一个无色 chip；只有 mode=live 才闪点；alert = 点换成 accent 的「异动」chip（这一屏唯一的 accent）。
   mkt: (c = {}) => {
     const pct = Number(c.pct ?? 0);
+    const dot = !c.alert && (c.mode === undefined || c.mode === 'live');
+    const chip = c.alert ? '<span class="chip accent">异动</span>' : c.mode ? `<span class="chip">${MODE[c.mode] ?? esc(c.mode)}</span>` : '';
+    const priceLine = c.price != null
+      ? `<div class="label mkt-price">¥${Number(c.price).toFixed(2)}${c.prev_close != null ? ` · 昨收 ${Number(c.prev_close).toFixed(2)}` : ''}${c.asof ? ` · ${esc(c.asof)}` : ''}</div>`
+      : c.asof ? `<div class="label mkt-price">${esc(c.asof)}</div>` : '';
     return `
     <div class="pane mkt">
       <div class="row"><span class="headline">${esc(c.name)}</span><span class="label">${esc(c.code)}</span>
-        ${c.vol_ratio != null ? `<span class="label" style="margin-left:auto">量比 ${Number(c.vol_ratio).toFixed(1)}</span>` : ''}</div>
-      <div class="hero ${dir(pct)}"><span class="live" style="margin-bottom:14px"></span><span class="sign">${glyph(pct)} ${sign(pct)}</span><span class="numeral-xl">${numeral(fixed(pct))}</span><span class="sign">%</span></div>
+        <span class="mkt-right">${c.vol_ratio != null ? `<span class="label">量比 ${Number(c.vol_ratio).toFixed(1)}</span>` : ''}${chip}</span></div>
+      <div class="hero ${dir(pct)}">${dot ? '<span class="live" style="margin-bottom:14px"></span>' : ''}<span class="sign">${glyph(pct)} ${sign(pct)}</span><span class="numeral-xl">${numeral(fixed(pct))}</span><span class="sign">%</span></div>
       <div class="grow">${spark(c.spark, pct >= 0)}</div>
-      <div class="foot"><span class="hint">${esc(c.hint ?? '')}</span>${c.legal ? `<div class="caption">${esc(c.legal)}</div>` : LEGAL}</div>
+      <div class="foot"><div class="foot-l">${priceLine}${c.hint ? `<span class="hint">${esc(c.hint)}</span>` : ''}${priceLine ? legalOf(c.mode, c.legal) : ''}</div>${priceLine ? '' : legalOf(c.mode, c.legal)}</div>
+    </div>`;
+  },
+
+  // 自选：顶上一行（标题 · 数据日期 · 指数 · 模式 chip），下面最多三行个股；涨跌幅最大的一行是唯一的 loud 行（深色药丸，点阵大数字）。
+  watch: (c = {}) => {
+    const sample = { title: '自选', asof: '10-30', mode: 'sample', index: { name: '上证指数', pct: 0.42 }, rows: [
+      { name: '宁德时代', code: '300750', pct: 4.8, price: 215.3, spark: [12, 11, 12, 11, 12, 13, 12, 14, 13, 17, 20, 24, 23, 28] },
+      { name: '贵州茅台', code: '600519', pct: -0.6, price: 1432.5, spark: [20, 21, 20, 22, 21, 20, 19, 20, 19, 19, 18] },
+      { name: '比亚迪', code: '002594', pct: 1.2, price: 268.4, spark: [14, 13, 14, 15, 14, 15, 16, 15, 16, 17] }] };
+    const d = { ...sample, ...Object.fromEntries(Object.entries(c).filter(([, v]) => v != null)) };
+    const rows = (d.rows ?? []).slice(0, 3);
+    const big = rows.reduce((bi, r, i) => (Math.abs(r.pct) > Math.abs(rows[bi].pct) ? i : bi), 0);
+    const ix = d.index;
+    const row = (r, i) => {
+      const p = Number(r.pct ?? 0), loud = i === big;
+      const num = loud ? `<b class="n">${numeral(fixed(p, 1))}</b>` : `<b>${fixed(p, 1)}</b>`;
+      return `<div class="wrow${loud ? ' loud' : ''}">
+        <div class="wname"><span class="headline">${esc(r.name)}</span><span class="label">${esc(r.code)}</span></div>
+        ${miniSpark(r.spark, p >= 0)}
+        <span class="wprice">${r.price != null ? Number(r.price).toFixed(2) : ''}</span>
+        <span class="wpct ${dir(p)}"><span class="g">${glyph(p)}</span><span class="sg">${sign(p)}</span>${num}<span class="u">%</span></span>
+      </div>`;
+    };
+    return `
+    <div class="pane watch">
+      <div class="row wtop"><span class="label">${esc(d.title)}${d.asof ? ` · ${esc(d.asof)}` : ''}</span>
+        ${ix ? `<span class="label wi">${esc(ix.name)} <span class="${dir(ix.pct)}">${glyph(ix.pct)} ${sign(ix.pct)}${fixed(ix.pct, 2)}%</span></span>` : ''}
+        <span class="chip" style="margin-left:auto">${MODE[d.mode] ?? esc(d.mode ?? '')}</span></div>
+      <div class="wrows">${rows.map(row).join('')}</div>
+      ${legalOf(d.mode, d.legal)}
     </div>`;
   },
 
@@ -272,7 +320,11 @@ export class Face {
     const prev = this.state;
     this.stopAnim();
     // 摸鱼模式连续更新时不重画，只改变量，呼吸动画才不会一跳一跳
-    if (!(state === 'stealth' && this.state === 'stealth')) this.el.innerHTML = view(card);
+    if (!(state === 'stealth' && this.state === 'stealth')) {
+      this.el.innerHTML = view(card);
+      // 行情 / 自选连续刷新数字时不重放进场动画，不然每次更新都闪一下
+      if (state === prev && (state === 'watch' || state === 'mkt')) for (const ch of this.el.children) ch.style.animation = 'none';
+    }
     if (state === 'stealth') updateStealth(this.el, card);
     clearInterval(this.clock);
     if (state === 'decoy' && !card?.time) this.clock = setInterval(() => (this.el.innerHTML = view(card)), 15000);
