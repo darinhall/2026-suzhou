@@ -17,8 +17,8 @@ import time
 
 from brain import llm
 
-INDEX_SYMBOLS = {"000001.SH", "399001.SZ", "399006.SZ", "000300.SH", "000016.SH", "000905.SH", "000852.SH", "000688.SH"}
-MAX_ROUNDS = 5
+MAX_ROUNDS = 8
+DEADLINE_S = 15    # 总时长上限：到点就让它用已有结果直接回答（板子最多等 30 秒）
 ROWS = 20          # 工具结果最多给大模型看几行（取最后几行 = 最新的）
 RESULT_CHARS = 3500
 
@@ -37,7 +37,11 @@ CHEATSHEET = """常用方法（参数名准确，* = 必填；日期都是 YYYYM
 - get_top_holders(symbol, start_date*, end_date*, end_rank)  十大股东
 - get_holder_count(symbol, start_date, end_date)  股东户数
 - get_index_indicator(symbol, start_date, end_date)  指数估值：pe_ttm pb_lf
+- get_industry_detail(level)  行业列表（level = L1 / L2 / L3；没有 date 参数）
+- get_industry_constituents(industry_code, level)  行业成分股
 - get_restricted_list(symbol, start_date*, end_date*)  限售解禁
+行业 / 板块 / 主题的行情：先 find_index 按名字找指数代码，再 period_return。
+代码规则：A 股 6/9 开头 .SH，0/2/3 开头 .SZ；指数代码以 find_index 返回的为准（可能是 .CSI、H3xxxx.SH）。**不要自己改代码后缀**，换了就是另一只证券。
 不在上面的：先 search_methods 找方法名，再 method_doc 看参数。"""
 
 TOOLS = [
@@ -47,10 +51,13 @@ TOOLS = [
             "method": {"type": "string", "description": "方法名，如 get_stock_daily"},
             "params": {"type": "object", "description": "参数，名字必须和文档一致"}}, "required": ["method", "params"]}}},
     {"type": "function", "function": {
-        "name": "period_return", "description": "A 股 / 指数 / 港股在最近 N 个交易日的涨跌（Python 算好的：起止收盘价、区间涨跌幅、最高、最低）。问「最近怎么样 / 一周 / 一个月涨了多少」先用它。",
+        "name": "period_return", "description": "A 股 / 指数 / 港股在最近 N 个交易日的涨跌（Python 算好的：名字、起止收盘价、区间涨跌幅、最新一天涨跌、最高、最低）。问「最近怎么样 / 一周 / 一个月涨了多少」先用它。返回里的 name 要核对是不是你要的那个。",
         "parameters": {"type": "object", "properties": {
             "symbol": {"type": "string", "description": "如 688981.SH；指数如 000001.SH；港股如 0700.HK"},
             "days": {"type": "integer", "description": "交易日数：一周 5，一个月 22，三个月 66"}}, "required": ["symbol", "days"]}}},
+    {"type": "function", "function": {
+        "name": "find_index", "description": "按名字找指数代码（PandaAI 指数目录 2000 多个：行业、主题、宽基），如 医药、半导体、光伏、红利。",
+        "parameters": {"type": "object", "properties": {"keyword": {"type": "string"}}, "required": ["keyword"]}}},
     {"type": "function", "function": {
         "name": "calc", "description": "算数（加减乘除、括号、round）。单位换算（元→亿元 除以 1e8）也用它，不要心算。",
         "parameters": {"type": "object", "properties": {"expr": {"type": "string"}}, "required": ["expr"]}}},
@@ -120,41 +127,19 @@ def _calc(expr: str) -> str:
         return f"算不了：{e}"
 
 
-def _period_return(symbol: str, days: int) -> str:
-    import datetime as dt
-
-    import panda_data
-    from panda_client import PandaClient, login
-    login()
-    last = PandaClient().last_trade_date()
-    start = (dt.datetime.strptime(last, "%Y%m%d") - dt.timedelta(days=int(days * 1.6) + 10)).strftime("%Y%m%d")
-    if symbol.upper().endswith(".HK"):   # 港股：SDK 没封装，走 MCP
-        import pandas as pd
-        d = json.loads(_mcp().call("call_pandadata", {"method": "get_hk_daily", "params": {
-            "symbol": symbol.upper(), "start_date": start, "end_date": last, "fields": ["date", "high", "low", "close", "name"]}})["content"][0]["text"])
-        res = d.get("result") or {}
-        df = pd.DataFrame(res.get("rows") or [], columns=res.get("columns") or [])
-    else:
-        fn = panda_data.get_index_daily if symbol in INDEX_SYMBOLS else panda_data.get_stock_daily
-        df = fn(symbol=[symbol], start_date=start, end_date=last)
-    if df is None or not len(df):
-        return json.dumps({"error": f"{symbol} 没有数据"}, ensure_ascii=False)
-    df = df.sort_values("date").tail(days + 1)
-    first, end = df.iloc[0], df.iloc[-1]
-    return json.dumps({
-        "symbol": symbol, "name": str(end.get("name", "")), "days": len(df) - 1,
-        "from_date": str(first["date"]), "from_close": round(float(first["close"]), 2),
-        "to_date": str(end["date"]), "to_close": round(float(end["close"]), 2),
-        "change_pct": round((float(end["close"]) / float(first["close"]) - 1) * 100, 2),
-        "high": round(float(df["high"].max()), 2), "low": round(float(df["low"].min()), 2)}, ensure_ascii=False)
-
-
 def _run_tool(name: str, args: dict, mcp_holder: list) -> str:
     try:
         if name == "calc":
             return _calc(str(args.get("expr", "")))
         if name == "period_return":
-            return _period_return(str(args["symbol"]), int(args.get("days", 22)))
+            from brain import series
+            return json.dumps(series.period_return(str(args["symbol"]), int(args.get("days", 5))), ensure_ascii=False)
+        if name == "find_index":
+            from brain import series
+            hits = series.find_index(str(args.get("keyword", "")))
+            return json.dumps(hits or {"note": "没找到，换个关键词（比如更短的行业名）"}, ensure_ascii=False)
+        if name.startswith("get_"):   # 大模型有时把 PandaData 方法名直接当工具名调：按 panda 处理
+            args, name = {"method": name, "params": args.get("params", args)}, "panda"
         if not mcp_holder:
             mcp_holder.append(_mcp())
         c = mcp_holder[0]
@@ -200,12 +185,15 @@ def unverified(say: str, evidence: str) -> list[str]:
 def answer(text: str, last_trade_date: str, log=print) -> dict | None:
     msgs = [{"role": "system", "content": _system(last_trade_date)}, {"role": "user", "content": text}]
     evidence, mcp_holder, t0, fixed = [], [], time.monotonic(), False
-    for _ in range(MAX_ROUNDS + 1):
-        r = llm.complete(msgs, tools=TOOLS)
+    for rnd in range(MAX_ROUNDS + 1):
+        late = time.monotonic() - t0 > DEADLINE_S or rnd == MAX_ROUNDS
+        if late:   # 到点 / 轮数用完：不给工具了，用已经查到的直接回答
+            msgs.append({"role": "user", "content": "时间到了。只用上面已经查到的工具结果，现在直接输出最终 JSON；查到的不够就如实说。"})
+        r = llm.complete(msgs, tools=None if late else TOOLS)
         if r is None:
             return None
         m = r.choices[0].message
-        if m.tool_calls:
+        if m.tool_calls and not late:
             msgs.append({"role": "assistant", "content": m.content or "", "tool_calls": [tc.model_dump() for tc in m.tool_calls]})
             for tc in m.tool_calls:
                 try:

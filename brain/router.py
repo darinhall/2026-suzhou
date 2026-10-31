@@ -25,11 +25,12 @@ ASR_FIX = [(re.compile(r"(移动|一动|易动|意动|异洞)"), "异动"),
 
 @dataclass
 class Intent:
-    kind: str                 # quote yesno compare overview watchlist advice control explain research watch_add watch_remove watch_list sim_start sim_stop unknown
+    kind: str                 # quote yesno compare overview sector watchlist advice control explain research watch_add watch_remove watch_list sim_start sim_stop unknown
     codes: list[str] = field(default_factory=list)
     period_days: int = 1
     text: str = ""
     op: str = ""              # control：next / prev / pause / resume
+    sector: tuple = ()        # sector：(说法, 指数代码, 指数名)，见 brain/sectors.py
 
 
 def _pinyin(s: str) -> list[str]:
@@ -119,6 +120,11 @@ class Router:
             return it("explain", self.prev_codes)
         if re.search(r"自选.*(谁|哪只|哪个|最强|最弱|怎么样|表现)", t):
             return it("watchlist", [])
+        if not codes:   # 行业 / 板块：「生物医药现在怎么样」→ 行业指数（快速通道）
+            from brain import sectors
+            sec = sectors.find(t)
+            if sec and not re.search(r"概念|成分|有哪些|哪几只|龙头", t):   # 问成分股的交给大模型
+                return it("sector", [], sector=sec)
         if not codes and re.search(r"大盘|指数|市场|上证|深证|创业板|沪深|a股|A股", t):
             return it("overview", [])
         if codes and re.search(r"概念|行业|板块|题材|业绩|财报|预告|快报|营收|利润|净利|龙虎榜|融资|融券|两融|北向|股东|解禁|估值|市盈率|市净率|分红|港股|美股|主营|做什么的", t):
