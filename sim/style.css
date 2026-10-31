@@ -131,27 +131,26 @@ details.dev .group { border-bottom: 0; padding-top: 4px; }
   .panel { width: auto; border-left: 0; border-top: 1px solid var(--line); }
 }
 
-/* ---------- 3D 机身：设计系统材质（暖白外壳、墨色转塔、橙色叉臂），每个面按朝向打光 ---------- */
+/* ---------- 3D 机身：照实物（白色 PLA 3D 打印，2026-10-31 照片），每个面按朝向打光 ---------- */
 .box, .part { position: absolute; transform-style: preserve-3d; }
 .face { position: absolute; backface-visibility: hidden; outline: 1px solid transparent; }   /* 透明描边：去掉 3D 面接缝处的锯齿虚线 */
-.face.top    { filter: brightness(1.06); }
-.face.side   { filter: brightness(.82); }
-.face.back   { filter: brightness(.7); }
-.face.bottom { filter: brightness(.55); }
-.shell .face { background: linear-gradient(180deg, #ecebe6, #dcdad3); }
-.head .face.front { border-radius: 16px; box-shadow: inset 0 1px 0 rgba(255,255,255,.6), inset 0 -2px 6px rgba(0,0,0,.08); }
-.plate .face { background: #2b2b29; }
-.plate .face.top { background: linear-gradient(180deg, #353532, #2b2b29); }
-.base .face { background: linear-gradient(180deg, #e9e8e3, #d5d3cc); }
-.plinth .face { background: #1f1f1d; }
-.arm .face { background: linear-gradient(180deg, #ff7a3d, #e85a1c); }
+.face.top    { filter: brightness(1.05); }
+.face.side   { filter: brightness(.8); }
+.face.back   { filter: brightness(.74); }
+.face.bottom { filter: brightness(.6); }
+/* 白色 PLA：哑光（试过画打印层纹，缩小后会出摩尔纹，去掉了） */
+.shell .face, .plate .face, .base .face, .arm .face, .plinth .face {
+  background: linear-gradient(180deg, #f4f3f0, #e2e0db);
+}
+.plinth .face { filter: brightness(.93); }
+.head .face.front { border-radius: 18px; box-shadow: inset 0 1px 0 rgba(255,255,255,.7), inset 0 -2px 8px rgba(0,0,0,.06); }
 .floor-shadow {
   position: absolute; width: 900px; height: 700px; left: -450px; top: -350px;
   background: radial-gradient(ellipse at center, rgba(0,0,0,.55) 0%, rgba(0,0,0,.25) 35%, transparent 65%);
 }
 
-.cam {
+.cam {   /* 顶上的圆盘：现在是白色打印件，摄像头装进去前没有镜头 */
   position: absolute; width: 120px; height: 120px; margin: -60px 0 0 -60px;
-  border-radius: 50%; background: radial-gradient(circle at 45% 40%, #2a2a2a 0 10px, #0c0c0c 11px 18px, #2f2f2d 19px 27px, #ecebe6 28px);
-  box-shadow: inset 0 0 0 6px #d3d1ca, 0 6px 14px rgba(0,0,0,.25);
+  border-radius: 50%; background: radial-gradient(circle at 50% 45%, #f6f5f2 0 50px, #e3e1dc 51px);
+  box-shadow: inset 0 0 0 5px #e8e6e1, 0 6px 14px rgba(0,0,0,.18);
 }
