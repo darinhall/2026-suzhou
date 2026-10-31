@@ -15,6 +15,7 @@ class Brain:
 
 ## 中枢 `hub/mock_hub.py`
 - [ ] 收 `{"t":"ask"}` → 广播 `ask_state thinking` → `await brain.ask()` → 依次发 `gesture`、`face answer`、`reply`、（阶段 2）`spk_*` → `ask_state done`。
+- [ ] 把当前回放下标传给 `brain.ask(..., at=i)`（`modes.py` 暴露一个 `replay_index()`；回放关掉时为 None）。
 - [ ] 同一时间只处理一个问题；新问题来了取消旧的（`spk_stop`）。
 - [ ] 答案卡显示 30 秒后回到之前的模式（`modes.py` 暂停 / 恢复，复用 `mode_ctl pause|resume`）。
 - [ ] 出错：`ask_state error` + 摇头 1 次 + 日志 `ASK_FAIL`。

@@ -7,7 +7,8 @@
 - [ ] 颜色：tone=up 红、down 绿、flat 灰、warn 黄边框（用 `design/tokens.json` 的语义色，过 `devColor()`）。
 - [ ] 折线：pts 自己归一到绘图区；两条线不同色 + 图例。
 - [ ] 字段缺失不崩（series 没有就不画图，stats 少于 4 个就少画）。
-- [ ] 底部 `src` 小字，永远显示。
+- [ ] 底部 `say` 字幕（≤2 行）+ `src` 小字，永远显示。
+- [ ] 配色跟 T14 的熊猫黑白主题走（先用现有主题画，T14 换 token 即可）。
 - [ ] 新表情 state：`thinking`（`ui.cpp`，眼睛往上看 + 三个点）。
 
 ## 模拟器 `sim/`
