@@ -10,9 +10,15 @@ namespace servotest {
 static const int RX = 47, TX = 21;
 static const int STEPS_10DEG = 114;   // 4096 步 = 360°，10° ≈ 114 步
 
+static const uint8_t PITCH = 1, YAW = 2;
+static const int LOOK_DIR = 1;   // 「转头看你」往哪边转：+1 = 位置增大。装好后如果转反了改成 -1   // 11-01 实测：ID1 = 点头（俯仰），ID2 = 横向转头（偏航）
+
 // 每个舵机允许的摆幅（单边，步数）。连线复杂：所有动作都不能超出开机摆动的范围。
-// 11-01：ID1（转头）加大一倍到 ±20°；ID2（点头）仍是 ±10°
-int amp(uint8_t id) { return id == 1 ? 2 * STEPS_10DEG : STEPS_10DEG; }
+// 11-01：ID1（点头）±20°；ID2（转头）±10°
+int amp(uint8_t id) { return id == PITCH ? 2 * STEPS_10DEG : STEPS_10DEG; }
+
+// 开机摆动实际走过的范围 [lo, hi] 和原位：之后所有动作都夹在这里面
+static int lo[3] = {0, -1, -1}, hi[3] = {0, -1, -1}, rest[3] = {0, -1, -1};
 
 static void report(const char *lvl, const char *code, const char *fmt, ...) {
   char m[160];
@@ -49,6 +55,7 @@ void wiggle(uint8_t id, int times) {
   if (!pingRetry(id) || !readPosRetry(id, p0)) { report("error", "SERVO_TIMEOUT", "ID%d 没应答", id); return; }
   const int a = amp(id);
   const int c0 = constrain(p0, a + 10, 4095 - a - 10);
+  lo[id] = c0 - a; hi[id] = c0 + a; rest[id] = p0;
   servo::setTorqueLimit(id, 300);
   servo::setTorqueEnable(id, true);
   for (int i = 0; i < times; i++) { goAndRead(id, c0 - a); goAndRead(id, c0 + a); }
@@ -57,22 +64,64 @@ void wiggle(uint8_t id, int times) {
   report("info", "SERVO_WIGGLE", "ID%d 来回摆了 %d 次（±%d°），回到 %d（原位 %d）", id, times, (int)lroundf(a * 360.0f / 4096), end, p0);
 }
 
-void nod() {
-  static bool begun = false;
-  if (!begun) { servo::begin(RX, TX, -1); begun = true; delay(20); }
-  const uint8_t PITCH = 2;
-  int p0 = -1;
-  if (!readPosRetry(PITCH, p0)) { Serial.println("[servo] 点头：ID2 没应答"); return; }
-  const int d = 90;   // ≈ 8°
-  const int down = p0 - d >= 0 ? p0 - d : p0 + d;   // 靠近量程边上时往另一边点
-  servo::setTorqueLimit(PITCH, 300);
-  servo::setTorqueEnable(PITCH, true);
-  servo::move(PITCH, down, 900, 40);
-  delay(280);
-  servo::move(PITCH, p0, 900, 40);
-  delay(300);
-  servo::setTorqueEnable(PITCH, false);
+// ---------- 动作（不阻塞）：排成一串步骤，loop() 里的 tick() 按时间一步步发 ----------
+struct Step { uint8_t id; int target; uint16_t speed; uint16_t waitMs; };
+static Step q[16];
+static int qn = 0, qi = 0;
+static uint32_t nextAt = 0;
+static bool torqueOn[3] = {false, false, false};
+
+static int clampT(uint8_t id, int target) { return lo[id] < 0 ? rest[id] : constrain(target, lo[id], hi[id]); }
+
+static void push(uint8_t id, int offset, uint16_t speed, uint16_t extraMs = 60) {
+  if (qn >= 16 || rest[id] < 0) return;
+  const int t = clampT(id, rest[id] + offset);
+  const int prev = qn > 0 && q[qn - 1].id == id ? q[qn - 1].target : rest[id];
+  q[qn++] = {id, t, speed, (uint16_t)(abs(t - prev) * 1000 / speed + extraMs)};
 }
+
+bool busy() { return qi < qn; }
+
+void gesture(const char *name, int times, float ampDeg, float holdS) {
+  if (busy()) return;   // 上一个动作还没做完：丢掉，不排队（提醒连着来也不会抽搐）
+  qn = qi = 0;
+  times = constrain(times, 1, 3);
+  const auto steps = [](float deg) { return (int)lroundf(deg * 4096.0f / 360.0f); };
+  if (!strcmp(name, "nod")) {   // 点头：ID1 往下再回来
+    const int d = min(steps(ampDeg > 0 ? ampDeg : 12), amp(PITCH));
+    for (int i = 0; i < times; i++) { push(PITCH, -d, 900); push(PITCH, 0, 900); }
+  } else if (!strcmp(name, "shake")) {   // 摇头：ID2 左右
+    const int d = min(steps(ampDeg > 0 ? ampDeg : 8), amp(YAW));
+    for (int i = 0; i < times; i++) { push(YAW, -d, 700); push(YAW, d, 700); }
+    push(YAW, 0, 700);
+  } else if (!strcmp(name, "glance")) {   // 瞥一眼：ID2 转一点马上回来
+    push(YAW, LOOK_DIR * min(steps(ampDeg > 0 ? ampDeg : 6), amp(YAW)), 500, 400);
+    push(YAW, 0, 500);
+  } else if (!strcmp(name, "look")) {   // 转头看你：ID2 转到头，停 hold 秒，抬一下头，再回来
+    push(YAW, LOOK_DIR * amp(YAW), 400, (uint16_t)(constrain(holdS > 0 ? holdS : 2, 0.5f, 5.0f) * 1000));
+    push(YAW, 0, 400);
+  } else {
+    Serial.printf("[servo] 不认识的动作 %s\n", name);
+    return;
+  }
+  nextAt = millis();
+}
+
+void tick() {
+  if (!busy() || (int32_t)(millis() - nextAt) < 0) {
+    if (!busy() && qn) {   // 做完了：放松扭矩（手还能拧动，也不发热）
+      for (uint8_t id = 1; id <= 2; id++) if (torqueOn[id]) { servo::setTorqueEnable(id, false); torqueOn[id] = false; }
+      qn = qi = 0;
+    }
+    return;
+  }
+  const Step &s = q[qi++];
+  if (!torqueOn[s.id]) { servo::setTorqueLimit(s.id, 300); servo::setTorqueEnable(s.id, true); torqueOn[s.id] = true; }
+  servo::move(s.id, s.target, s.speed, 40);
+  nextAt = millis() + s.waitMs;
+}
+
+void nod() { gesture("nod", 1, 8, 0); }
 
 // STS 系列：往寄存器 40（扭矩开关）写 128 = 把当前位置校正为 2048（中位）。要先解锁 EEPROM（55 = 0）
 static bool setCenterHere(uint8_t id) {
@@ -85,10 +134,10 @@ static bool setCenterHere(uint8_t id) {
   return ok;
 }
 
-void rebasePitch(float deg) {
+void rebaseYaw(float deg) {
   servo::begin(RX, TX, -1);
   delay(50);
-  const uint8_t id = 2;
+  const uint8_t id = YAW;
   int p0 = -1, p1 = -1, p2 = -1, p3 = -1;
   if (!pingRetry(id) || !readPosRetry(id, p0)) { report("error", "SERVO_TIMEOUT", "ID2 没应答，没法定基准"); return; }
   setCenterHere(id);                 // 先把当前位置变成 2048，离量程两头都远，才能往任一方向转
