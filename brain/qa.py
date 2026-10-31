@@ -96,6 +96,24 @@ def _overview(intent: Intent, watch_codes) -> dict:
     return _reply(intent, say, _msg(f"大盘 · {_asof(day)}", body, meta=f"PandaAI · {LEGAL}"))
 
 
+def _sector(intent: Intent) -> dict:
+    """行业指数：最新一天涨跌 + 区间涨跌（默认最近 5 个交易日）。数字都是 brain/series.py 用 PandaAI 日线算的。"""
+    from brain import series
+    alias, code, _ = intent.sector
+    days = intent.period_days if intent.period_days > 1 else 5
+    r = series.period_return(code, days)
+    if "error" in r:
+        return _reply(intent, f"{alias}的数据暂时没取到。", _msg(alias, f"{r['error']}"), None)
+    d = r["to_date"]
+    when = f"{int(d[4:6])}月{int(d[6:])}日"
+    iname = r["name"] if r["name"].endswith("指数") else r["name"] + "指数"
+    say = (f"{alias}看{iname}：{when}收在 {r['to_close']:.2f}，{_ud(r['last_day_pct'])} {_pct(r['last_day_pct'])}；"
+           f"最近 {r['days']} 个交易日{_ud(r['change_pct'])} {_pct(r['change_pct'])}。")
+    body = (f"{when} 收 {r['to_close']:.2f}，{'+' if r['last_day_pct'] >= 0 else '-'}{_pct(r['last_day_pct'])}；"
+            f"近 {r['days']} 日 {'+' if r['change_pct'] >= 0 else '-'}{_pct(r['change_pct'])}，区间 {r['low']:.2f}–{r['high']:.2f}")
+    return _reply(intent, say, _msg(f"{alias} · {r['name']}", body, meta=f"PandaAI · {code} · {LEGAL}"))
+
+
 def _watchlist(intent: Intent, watch_codes, refuse: bool = False) -> dict:
     from watch import top_movers
     day = _day(watch_codes)
@@ -143,6 +161,8 @@ def answer(intent: Intent, watch_codes, log=print) -> dict | None:
         return _compare(intent) if len(intent.codes) >= 2 else _quote(intent) if intent.codes else None
     if k == "overview":
         return _overview(intent, watch_codes)
+    if k == "sector":
+        return _sector(intent)
     if k == "watchlist":
         return _watchlist(intent, watch_codes)
     if k == "advice":

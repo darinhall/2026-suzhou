@@ -34,6 +34,9 @@ CASES = [
     ("大阪怎么样？",                       "overview",     []),   # 「大盘」被听成「大阪」
     ("宁德时代属于哪些概念",                "research",     ["300750"]),   # 要查 MCP
     ("茅台三季度业绩预告怎么说",             "research",     ["600519"]),
+    ("生物医药现在怎么样",                  "sector",       []),
+    ("医药股最近怎么样",                    "sector",       []),
+    ("恒瑞医药怎么样",                      "quote",        ["600276"]),   # 股票名里带「医药」：还是个股
 ]
 
 
@@ -63,3 +66,19 @@ def test_followup_uses_previous_codes():
 def test_unknown_stock_is_not_guessed():
     it = router.Router().route("火星科技今天涨了吗")
     assert it.codes == []
+
+
+def test_sector_picks_longest_alias():
+    from brain import sectors
+    assert sectors.find("生物医药现在怎么样")[1] == "399441.SZ"   # 不是「医药」
+    assert sectors.find("医药股最近怎么样")[1] == "000933.SH"
+    assert sectors.find("半导体板块")[1] == "H30184.SH"
+    assert sectors.find("今天天气怎么样") is None
+
+
+def test_stock_suffix_never_swapped():
+    from brain import series
+    assert series.stock_suffix_error("600519.SH") is None
+    assert series.stock_suffix_error("300750.SZ") is None
+    assert "不要自己换后缀" in series.stock_suffix_error("000933.SH")   # 000 开头是深市股票；800医卫指数要走指数目录
+    assert series.stock_suffix_error("600519.SZ")
