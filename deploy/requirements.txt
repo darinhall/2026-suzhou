@@ -1,0 +1,7 @@
+websockets>=13
+panda-data==1.0.5
+pandas
+numpy
+openai>=1.40
+pypinyin
+python-dotenv

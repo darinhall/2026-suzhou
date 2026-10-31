@@ -41,11 +41,18 @@ static void mapTouch(int rx, int ry, int &x, int &y) {
 #endif
 }
 
-// 中枢发来的消息：这块板只管脸，pose / gesture / torque 之类给身体的直接忽略
+// 中枢发来的消息：gesture 由这块板的两个舵机做；pose / torque 是旧的双板协议，忽略
 static void onMessage(JsonDocument &d) {
   const char *t = d["t"] | "";
-  if (!strcmp(t, "servo_rebase")) { servotest::rebasePitch(d["deg"] | 10.0f); return; }   // 需要时再定一次基准
+  if (!strcmp(t, "servo_rebase")) { servotest::rebaseYaw(d["deg"] | 10.0f); return; }   // 需要时再定一次基准
   if (!strcmp(t, "servo_test")) { servotest::run(); return; }
+  if (!strcmp(t, "servo_pos")) { servotest::reportPos(); return; }          // 只读：现在的位置和基准
+  if (!strcmp(t, "servo_home_set")) { servotest::setHomeHere(); return; }   // 现在的位置 = 新基准
+  if (!strcmp(t, "servo_home")) { servotest::goHome(); return; }            // 走回基准
+  if (!strcmp(t, "gesture")) {   // 中枢的提醒阶梯 / 问答表态：nod / shake / glance / look（不阻塞，loop() 里慢慢做）
+    servotest::gesture(d["name"] | "", d["times"] | 1, d["amp"] | 0.0f, d["hold"] | 0.0f);
+    return;
+  }
   if (!strcmp(t, "servo_wiggle")) { servotest::wiggle(d["id"] | 1, d["times"] | 3); return; }
   if (!strcmp(t, "voice_calibrate")) { audio::calibrate(d["ms"] | 3000); return; }   // 换了环境：重新量背景音量
   if (!strcmp(t, "audio_test")) { audio::selfTest(); return; }   // 中枢 / 网页可以再跑一次音频自检
@@ -105,14 +112,17 @@ void setup() {
   screens::begin(&tft);
   if (audio::begin()) audio::chime(0.08f);
   delay(1500);
-  {   // 一次性：ID2（俯仰）重新定基准，做过就记在 NVS 里，以后开机不再做
+  {   // 一次性：ID2（转头）重新定基准，做过就记在 NVS 里，以后开机不再做
     Preferences pr;
     pr.begin("deskbot", false);
-    if (!pr.getBool("pitchBase", false)) { servotest::rebasePitch(10); pr.putBool("pitchBase", true); }
-    if (!pr.getBool("pitchBase3", false)) { servotest::rebasePitch(3); pr.putBool("pitchBase3", true); }   // 10-31 再微调 +3°（同方向）
+    if (!pr.getBool("pitchBase", false)) { servotest::rebaseYaw(10); pr.putBool("pitchBase", true); }
+    if (!pr.getBool("pitchBase3", false)) { servotest::rebaseYaw(3); pr.putBool("pitchBase3", true); }   // 10-31 再微调 +3°（同方向）
+    if (!pr.getBool("pitchBaseM10", false)) { servotest::rebaseYaw(-10); pr.putBool("pitchBaseM10", true); }   // 11-01 往开机第一下的方向（位置减小）转 10°
+    if (!pr.getBool("pitchBaseP20", false)) { servotest::rebaseYaw(20); pr.putBool("pitchBaseP20", true); }    // 11-01 方向反了：改往位置增大转 20°（相对 M10 之前净 +10°）
+    if (!pr.getBool("yawBaseM20", false)) { servotest::rebaseYaw(-20); pr.putBool("yawBaseM20", true); }        // 11-01 ID2 是横向转头：归位 −20°（相对今天早上净 −10°）
     pr.end();
   }
-  servotest::wiggle(1, 1);   // 开机：两个舵机轮流在原位附近来回摆一下（±10°，30% 扭矩，摆完放松）
+  servotest::wiggle(1, 1);   // 开机：两个舵机轮流在原位附近来回摆一下（ID1 ±20°、ID2 ±10°，30% 扭矩，摆完放松）
   servotest::wiggle(2, 1);
   delay(500);
   audio::calibrate(3000);   // 舵机和喇叭都停了以后，量 3 秒背景音量；之后超过它 4 倍才算有人说话
@@ -208,6 +218,7 @@ void loop() {
   serialInject();
   voiceTick(now);   // 按音量检测有没有人说话：说话时换"在听"的表情 + 点头；右下角显示实时音量
   net::loop();
+  servotest::tick();   // 动作队列：到点就发下一步
 
   static bool wasTouched = false;
   static uint32_t lastRead = 0;

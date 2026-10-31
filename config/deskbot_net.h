@@ -9,6 +9,10 @@
 
 // 自动发现：开机连上 WiFi 后广播 DB_DISCOVERY_QUERY 到 UDP DB_DISCOVERY_PORT，中枢回复
 // {"t":"hub","ws_port":…,"path":"…","auth":true}，地址用回复包的源 IP。详见 双板方案.md
+// 云端中枢：只连这里（wss），不做局域网发现
+#define DB_HUB_CLOUD_HOST "api-suzhou-hackathon.ppclaw.cn"
+#define DB_HUB_CLOUD_PORT 443
+
 #define DB_DISCOVERY_PORT 8766
 #define DB_DISCOVERY_QUERY "{\"t\":\"deskbot?\",\"v\":1}"
 

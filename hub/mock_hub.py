@@ -39,6 +39,7 @@ face/audio 只发给 face，pose/gesture/torque 只发给 body；没报 role 的
 - 令牌来源：环境变量 DESKBOT_TOKEN，否则读 hub/.token，都没有就随机生成一个存进 hub/.token（已 gitignore）。
   重启中枢令牌不变，所以固件不用重新烧。
 - 本机（127.0.0.1）的连接不用令牌，所以电脑上的模拟器照常能用；手机 / 板子 / 别的电脑要带。
+- 云端（--proxy，在 nginx 后面）：只听 127.0.0.1，真实地址取 X-Real-IP，**所有连接都要令牌**（经过 nginx 的连接看起来都来自本机），不做 UDP 发现。
 - 同一个地址连续 5 次令牌错误，锁 30 秒。首条消息不是 hello、5 秒没发，或超过 64 KB，直接断开。
 """
 
@@ -75,6 +76,7 @@ robots = {}   # ws -> role ("face" / "body" / None = 全部)
 fails = {}    # ip -> (失败次数, 解锁时间)
 TOKEN = ""
 AUTH = True
+PROXY = False   # --proxy：在 nginx 后面（云端），见文件头「令牌」
 
 engine = None   # 场景引擎（main() 里创建）
 
@@ -212,8 +214,8 @@ async def broadcast_raw(msg: dict, exclude=None):
 
 
 async def handler(ws):
-    ip = ws.remote_address[0]
-    trusted = (not AUTH) or ip in LOCAL
+    ip = (ws.request.headers.get("X-Real-IP") if PROXY else None) or ws.remote_address[0]
+    trusted = (not AUTH) or (ip in LOCAL and not PROXY)
     if ws.request.path != "/robot":
         await ws.close(code=1008, reason="path must be /robot")
         return
@@ -608,10 +610,11 @@ async def main(port: int):
     asyncio.create_task(desync_watch())
     # 保活：每 20 秒 ping 一次，60 秒没回才断（默认是 20 秒）。真机的 WebSocketsClient 只在 ws.loop() 里回 pong，
     # 板子画一张卡 / 扫 WiFi 的几百毫秒到几秒里不会回；网页标签页在后台时浏览器也会推迟回 pong。
-    async with serve(handler, "0.0.0.0", port, max_size=64 * 1024, ping_interval=20, ping_timeout=60):
-        await start_discovery(port)
+    async with serve(handler, "127.0.0.1" if PROXY else "0.0.0.0", port, max_size=64 * 1024, ping_interval=20, ping_timeout=60):
+        if not PROXY:
+            await start_discovery(port)
         print(f"mock hub  ws://{lan_ip()}:{port}/robot   （本机 ws://localhost:{port}/robot）")
-        print(f"令牌：{TOKEN}（也在 hub/.token；本机连接不用）" if AUTH
+        print(f"令牌：{TOKEN}（也在 hub/.token；" + ("--proxy：所有连接都要）" if PROXY else "本机连接不用）") if AUTH
               else "⚠️ 令牌检查已关闭（--no-auth）：同一个 WiFi 里的任何人都能连上来控制机器人")
         print("输入 JSON、demo、weather、today、market、mode <watch|list|idle|booth>、profile、scene <…>、logs 或 token")
         await hub_log("info", "HUB_START", f"中枢启动 ws://{lan_ip()}:{port}/robot" + ("" if AUTH else "（无令牌）"))
@@ -622,7 +625,9 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-auth", action="store_true", help="不检查令牌（只在自己电脑上调试时用）")
     ap.add_argument("--port", type=int, default=NET["ws_port"])
+    ap.add_argument("--proxy", action="store_true", help="云端：在 nginx 后面，只听 127.0.0.1，所有连接都要令牌，不做 UDP 发现")
     a = ap.parse_args()
+    PROXY = a.proxy
     sys.stdout.reconfigure(line_buffering=True)   # 重定向到文件 / nohup 时日志也要立刻写出来
     AUTH = not a.no_auth
     TOKEN = load_token() if AUTH else ""
