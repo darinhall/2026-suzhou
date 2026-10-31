@@ -40,7 +40,11 @@ export class Body {
     this.pressDip = 0;   // 按头时被手压下的角度
     this.token = 0;
 
+    const shadow = document.createElement('div');
+    shadow.className = 'floor-shadow';
+    shadow.style.transform = 'translate3d(0, 191px, 0) rotateX(90deg)';   // 贴在桌面上的软阴影
     root.append(
+      shadow,
       at(box('plinth', 640, 30, 560), 0, 175),
       at(box('base', 600, 160, 520), 0, 80),
     );

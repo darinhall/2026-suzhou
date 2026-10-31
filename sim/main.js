@@ -3,6 +3,7 @@ import { Face } from './face.js';
 import { Link, defaultUrl } from './link.js';
 import { demos } from './demo.js';
 import { follow } from './design.js';
+import { USECASES } from './usecases.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -41,7 +42,10 @@ let pressWaiters = [];
 async function handle(msg) {
   if (msg.t !== 'face' || msg.state !== 'mkt') log('down', JSON.stringify(msg));
   switch (msg.t) {
-    case 'pose': return body.moveTo(msg.yaw, msg.pitch, msg.ms ?? 500);
+    case 'pose':
+      // 眼睛先看过去，头再跟上（真机上 T5 屏也这么做，动作才显得有意图）
+      face.glance(Math.sign((msg.yaw ?? body.yaw) - body.yaw) * 14, Math.sign((msg.pitch ?? body.pitch) - body.pitch) * -8, msg.ms ?? 500);
+      return body.moveTo(msg.yaw, msg.pitch, msg.ms ?? 500);
     case 'gesture': return body.gesture(msg.name, msg.times ?? 1);
     case 'face':
       if (boss) { boss = { state: msg.state, card: msg.card }; return; }
@@ -106,11 +110,16 @@ $('#btn-connect').onclick = () => link.connect($('#ws-url').value.trim());
 if (location.protocol !== 'https:' || new URLSearchParams(location.search).has('ws')) link.connect($('#ws-url').value);
 
 // ---------- 控件 ----------
+// 场景卡片：标题 + 谁在用，来自 usecases.js
+$('#scenes').innerHTML =
+  USECASES.map((uc) => `<button class="scene" data-demo="${uc.id}"><b>${uc.name}</b><span>${uc.who}</span><i>▶</i></button>`).join('') +
+  '<button class="all" data-demo="all">▶ 三个连播</button>';
 let running = false;
 document.querySelectorAll('[data-demo]').forEach((b) => (b.onclick = async () => {
   if (running) return;
   running = true;
-  try { await demos[b.dataset.demo](bot); } finally { running = false; }
+  b.classList.add('running');
+  try { await demos[b.dataset.demo](bot); } finally { running = false; b.classList.remove('running'); }
 }));
 document.querySelectorAll('[data-gesture]').forEach((b) => (b.onclick = () => handle({ t: 'gesture', name: b.dataset.gesture, times: 2 })));
 document.querySelectorAll('[data-face]').forEach((b) => (b.onclick = () => handle({ t: 'face', state: b.dataset.face })));
@@ -123,8 +132,8 @@ $('#btn-inject').onclick = () => {
   } catch (e) { log('sys', `JSON 解析失败：${e.message}`); }
 };
 
-// 视角：正面（方便看屏幕） ↔ 3/4 侧视（看结构）
-const cams = ['rotateX(-8deg)', 'rotateX(-18deg) rotateY(-32deg)'];
+// 视角：微侧（默认，有立体感又看得清屏） → 正面 → 3/4 侧视（看结构）
+const cams = ['rotateX(-10deg) rotateY(-14deg)', 'rotateX(-6deg)', 'rotateX(-20deg) rotateY(-36deg)'];
 let cam = 0;
 $('#robot').style.transform = cams[0];
 $('#btn-cam').onclick = () => { cam = (cam + 1) % cams.length; $('#robot').style.transform = cams[cam]; };
@@ -132,8 +141,8 @@ $('#btn-cam').onclick = () => { cam = (cam + 1) % cams.length; $('#robot').style
 // 整机约 800px 高，按舞台大小缩放
 function fit() {
   const r = $('#stage').getBoundingClientRect();
-  const k = Math.min(r.width / 820, r.height / 980);
-  $('#fit').style.transform = `translateY(${170 * k}px) scale(${k})`;
+  const k = Math.min(r.width / 1150, r.height / 1320);   // 留出上下边距，底座不再被裁掉
+  $('#fit').style.transform = `translateY(${110 * k}px) scale(${k})`;
   $('#stage').style.perspective = `${1800 * k}px`;  // 透视随缩放走，手机上不会显得特别近
 }
 fit();
