@@ -55,7 +55,7 @@ DEFAULT_PROFILE = {
     "watch": {"codes": ["300750", "688981", "600519", "002594", "600036"], "view": "single", "interval": 10},
     "booth": {"enabled": False, "dwell": 30},
     "replay": {"enabled": True, "speed": 1.0, "loop": True},
-    "persona": "guardian",   # 交易人格（brain/personas.json）：决定提醒阶梯的阈值
+    "persona": "standard",   # 提醒阶梯的阈值（brain/personas.json）；交易人格先搁置（T16），界面不暴露
 }
 LABEL = {"watch": "盯盘", "list": "自选", "idle": "待机", "booth": "展台"}
 
