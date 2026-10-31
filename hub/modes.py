@@ -5,23 +5,21 @@
   行情默认回放最近一个交易日的 5 分钟线（数字在跳），第一次触及 ±2% / ±3% 的股票跳到它的整屏行情 alert_hold 秒。
   真机点一下（touch）= 下一只；{"t":"open","code":"688981"} = 点了列表里的某一行：这只的整屏行情停 12 秒再回来。
 - list 自选（列表）：`watch` 列表整屏，一页 5 行（简洁显示 3 行、紧凑 4 行），行情照样回放；多于一页时每 watch.interval 秒翻页，touch / mode_ctl next = 下一页。
-- weather 天气：整屏 `sky` 卡，在 weather.cities 里每 interval 秒换一个城市；touch = 下一个城市。
+- （weather 天气 和 clock 时钟 已移除，2026-10-31 用户决定去掉：中枢不再有这两个模式，也不再推 `sky` / `weather` 卡和 `face decoy`。）
 - today 今天（起床后）：`today` 卡，每分钟刷新；today.brief 打开时第二页是盘前简报。
-- clock 时钟：老板键的时钟在真机本地画，中枢只是发 face decoy 并停止推卡片。
 - idle 待机：停止推卡片，发 face idle，真机自己的待机动画接管。
-- booth 展台：watch → weather → today 各停 booth.dwell 秒，一直循环。
+- booth 展台：watch → list → today 各停 booth.dwell 秒，一直循环。
 
 设置（profile）由中枢持有，存在 hub/profile.json，所有客户端（网页、真机）都收到同一份：
     {"mode":"watch","display":"pro",
      "watch":{"codes":["300750",…],"view":"single","interval":10},
-     "weather":{"cities":[{"name":"苏州","lat":31.27,"lon":120.74},…],"interval":10},
      "today":{"city":"苏州","interval":15,"brief":false},
      "booth":{"enabled":false,"dwell":30},"replay":{"enabled":true,"speed":1.0,"loop":true}}
 
 消息（client = 网页 / 真机）：
     client→hub  {"t":"profile","set":{…部分设置，深度合并…}}      → 回给发送者 {"t":"profile_result","ok":true|false,"error":"…"}
     hub→所有人  {"t":"profile","profile":{…完整设置，watch.stocks 带名称…}}   每次变化、新连上时
-    client→hub  {"t":"mode","name":"watch|list|weather|today|clock|idle|booth"}
+    client→hub  {"t":"mode","name":"watch|list|today|idle|booth"}
     client→hub  {"t":"open","code":"688981"}                      点某只股票看详情
     client→hub  {"t":"symbols","q":"宁德"}                        → 回给发送者 {"t":"symbols_result","items":[{"code","name"},…≤8]}
     hub→所有人  {"t":"scene_state","name":"watch","page":2,"of":5,"label":"中芯国际","item":"中芯国际",["clock":"13:35","sub":30,"subof":48]}
@@ -39,10 +37,11 @@ from pathlib import Path
 
 from scenes import DEFAULTS, SceneEngine
 
-MODES = ("watch", "list", "weather", "today", "clock", "idle", "booth")
+MODES = ("watch", "list", "today", "idle", "booth")
+REMOVED = ("weather", "clock")   # 已移除的模式：收到会给友好的提示；读到旧设置文件里的就迁移成 watch
 DISPLAY_MODES = ("simple", "compact", "pro")
-ROTATING = ("watch", "list", "today")   # 展台轮流演的模式（天气模式还在，只是展台不放了）
-MAX_STOCKS, MAX_CITIES = 8, 6
+ROTATING = ("watch", "list", "today")   # 展台轮流演的模式
+MAX_STOCKS = 8
 OPEN_HOLD = 12.0   # 点了某只股票：整屏行情停多久（秒）
 REFRESH = 2.0      # 行情卡刷新间隔（秒）
 TICK = 0.25
@@ -51,17 +50,15 @@ DEFAULT_PROFILE = {
     "mode": "watch",
     "display": "pro",
     "watch": {"codes": ["300750", "688981", "600519", "002594", "600036"], "view": "single", "interval": 10},
-    "weather": {"cities": [{"name": "苏州", "lat": 31.27, "lon": 120.74}, {"name": "北京", "lat": 39.9, "lon": 116.4},
-                           {"name": "上海", "lat": 31.23, "lon": 121.47}], "interval": 10},
     "today": {"city": "苏州", "interval": 15, "brief": False},
     "booth": {"enabled": False, "dwell": 30},
     "replay": {"enabled": True, "speed": 1.0, "loop": True},
 }
-LABEL = {"watch": "盯盘", "list": "自选", "weather": "天气", "today": "今天", "clock": "时钟", "idle": "待机", "booth": "展台"}
+LABEL = {"watch": "盯盘", "list": "自选", "today": "今天", "idle": "待机", "booth": "展台"}
 
 
 class ProfileError(ValueError):
-    """设置不合法。field = 出错的设置块（watch / weather / today / booth / replay / display / mode），界面据此把错误显示在对应控件下面。"""
+    """设置不合法。field = 出错的设置块（watch / today / booth / replay / display / mode），界面据此把错误显示在对应控件下面。"""
 
     def __init__(self, msg: str, field: str = ""):
         super().__init__(msg)
@@ -91,7 +88,6 @@ class ModeEngine(SceneEngine):
         self.open_code: str | None = None
         self.sub: str | None = None   # 展台里现在在演哪个模式
         self.paused = False           # 暂停滚动（界面上的暂停键）
-        self._wxt: dict = {}          # 城市名 -> (取数时刻, 天气任务)：提前并行取，换城市时不用等
         self._tdt: dict = {}          # 今天卡的同样缓存
         self._plock = asyncio.Lock()  # 设置一次只处理一个（查城市要联网，别互相踩）
         self.step = 0                 # 上一个 / 下一个：-1 / +1，由循环取走
@@ -137,6 +133,10 @@ class ModeEngine(SceneEngine):
         p = copy.deepcopy(base)
         for key, val in part.items():
             if key == "mode":
+                if val in REMOVED:   # 旧设置文件里的天气 / 时钟：迁移成 watch；新的请求：友好地拒绝
+                    if not sync:
+                        raise ProfileError("天气 / 时钟模式已移除：用 " + " / ".join(MODES), "mode")
+                    val = "watch"
                 if val not in MODES:
                     raise ProfileError(f"mode 要是 {'/'.join(MODES)} 之一", "mode")
                 p["mode"] = val
@@ -158,14 +158,7 @@ class ModeEngine(SceneEngine):
                     elif k != "stocks":   # stocks 是只读的名称表，客户端把整份 profile 回传时带着也没关系
                         raise ProfileError(f"不认识的设置项：watch.{k}", "watch")
             elif key == "weather":
-                w = p["weather"]
-                for k, v in (val or {}).items():
-                    if k == "cities":
-                        w["cities"] = self._cities(v, sync)
-                    elif k == "interval":
-                        w["interval"] = _num(v, 3, 120, "weather.interval")
-                    else:
-                        raise ProfileError(f"不认识的设置项：weather.{k}", "weather")
+                pass   # 天气设置已移除：旧客户端发来也忽略，不报错
             elif key == "today":
                 t = p["today"]
                 for k, v in (val or {}).items():
@@ -226,33 +219,6 @@ class ModeEngine(SceneEngine):
             raise ProfileError(f"自选最多 {MAX_STOCKS} 只", "watch")
         return out
 
-    def _cities(self, v, sync: bool) -> list[dict]:
-        """城市：{"name","lat","lon"} 直接用；只有名字就查经纬度（geo.py，联网，第一次要 1–2 秒）。最多 6 个。"""
-        from geo import geocode
-
-        if not isinstance(v, list) or not v:
-            raise ProfileError("weather.cities 要是至少一个城市的列表", "weather")
-        out = []
-        for c in v:
-            if isinstance(c, str):
-                c = {"name": c}
-            if not isinstance(c, dict) or not str(c.get("name", "")).strip():
-                raise ProfileError("城市要是名字或 {name, lat, lon}", "weather")
-            name = str(c["name"]).strip()[:20]
-            if c.get("lat") is None or c.get("lon") is None:
-                try:
-                    c = geocode(name) if not sync else geocode(name, timeout=0.01)
-                except LookupError as e:
-                    raise ProfileError(str(e), "weather") from None
-                except Exception as e:
-                    raise ProfileError(f"查不到 {name} 的位置（没网？）：{type(e).__name__}", "weather") from None
-            lat, lon = _num(c["lat"], -90, 90, "lat"), _num(c["lon"], -180, 180, "lon")
-            if not any(x["name"] == name for x in out):
-                out.append({"name": name, "lat": round(lat, 3), "lon": round(lon, 3)})
-        if len(out) > MAX_CITIES:
-            raise ProfileError(f"城市最多 {MAX_CITIES} 个", "weather")
-        return out
-
     # ---------- 对外：设置 / 模式 / 打开 ----------
     async def profile_set(self, part) -> tuple[bool, str, str]:
         """合并设置。返回 (ok, error)；成功会保存、广播、并按需重启当前模式。联网解析放进线程，不堵消息循环。"""
@@ -286,13 +252,14 @@ class ModeEngine(SceneEngine):
         mode_changed = new["mode"] != old["mode"] or (self.name in MODES and self.name != new["mode"])
         if mode_changed:
             await self.set_mode(new["mode"], persist=False)
-        elif self.name in ("watch", "list", "weather", "today", "booth") and any(old[k] != new[k] for k in ("watch", "weather", "today", "booth", "replay")):
+        elif self.name in ("watch", "list", "today", "booth") and any(old[k] != new[k] for k in ("watch", "today", "booth", "replay")):
             await self._start_mode(self.name)   # 条目变了：从头滚
         return True, "", ""
 
     async def set_mode(self, name: str, persist: bool = True) -> bool:
         if name not in MODES:
-            await self.log("warn", "MODE_BAD", f"不认识的模式：{str(name)[:20]}（{' / '.join(MODES)}）")
+            extra = "（天气 / 时钟已移除）" if name in REMOVED else ""
+            await self.log("warn", "MODE_BAD", f"不认识的模式：{str(name)[:20]}{extra}（{' / '.join(MODES)}）")
             return False
         self.paused = False
         self.profile["mode"] = name
@@ -310,10 +277,7 @@ class ModeEngine(SceneEngine):
         self.skip.clear()
         self.open_code = None
         self.sub = None
-        if name == "clock":
-            await self._state("clock", 1, 1, label="时钟", item="时钟")
-            await self._face("decoy", None)
-        elif name == "idle":
+        if name == "idle":
             await self._state("idle", 1, 1, label="待机", item="待机")
             await self._face("idle", None)
         else:
@@ -353,6 +317,13 @@ class ModeEngine(SceneEngine):
         if self.name == "list" or (self.name == "booth" and self.sub == "list"):
             await self._start_mode(self.name)
 
+    async def warm(self) -> None:
+        """启动预热：只取自选行情（天气不再单独预热：今天卡自己带一个城市的天气）。"""
+        try:
+            await self._day_for(self.profile["watch"]["codes"])
+        except BaseException:
+            pass
+
     async def boot(self) -> None:
         """中枢启动：先把天气 / 行情拉进缓存，再进入上次保存的模式（真机一连上就有画面，不用等）。"""
         self.prefetch()
@@ -381,16 +352,6 @@ class ModeEngine(SceneEngine):
         await super()._state(name, page, of, paused=self.paused, **extra)
 
     # ---------- 提前取数（联网慢：天气一个城市 2–10 秒，今天卡 9 秒）----------
-    def _wx_task(self, place: dict):
-        from weather import get_weather
-        hit = self._wxt.get(place["name"])
-        if hit and time.time() - hit[0] < (900 if not (hit[1].done() and hit[1].exception()) else 30):
-            return hit[1]
-        t = asyncio.ensure_future(self._thread(get_weather, {"city": place["name"], "lat": place["lat"], "lon": place["lon"]}))
-        t.add_done_callback(lambda f: f.exception() if not f.cancelled() else None)   # 没人等的失败也不要报 "never retrieved"
-        self._wxt[place["name"]] = (time.time(), t)
-        return t
-
     def _today_task(self, city: str):
         from geo import geocode
         from today import get_today
@@ -412,9 +373,7 @@ class ModeEngine(SceneEngine):
         return t
 
     def prefetch(self) -> None:
-        """把设置里的所有城市天气、今天卡、行情都在后台取一遍。"""
-        for c in self.profile["weather"]["cities"]:
-            self._wx_task(c)
+        """把今天卡和自选行情在后台取一遍（联网慢：今天卡 9 秒）。"""
         self._today_task(self.profile["today"]["city"])
         asyncio.ensure_future(self._day_for(self.profile["watch"]["codes"]))
 
@@ -620,35 +579,6 @@ class ModeEngine(SceneEngine):
                         else:
                             i = None   # 回放结束：停在收盘数据
                         break
-
-    # ----- 天气 -----
-    async def _m_weather(self) -> None:
-        from weather import to_card
-
-        cities = self.profile["weather"]["cities"]
-        gap = self.profile["weather"]["interval"]
-        for c in cities:   # 全部城市一起开始取，慢的城市不挡着前面的
-            self._wx_task(c)
-        idx, fails = 0, 0
-        while True:
-            await self._unpaused()
-            place = cities[idx % len(cities)]
-            try:
-                w = await asyncio.shield(self._wx_task(place))
-            except asyncio.CancelledError:
-                raise
-            except Exception as e:
-                fails += 1
-                await self.log("warn", "API_WEATHER_FAIL", f"{place['name']} 的天气取不到，跳过：{type(e).__name__}: {e}"[:200])
-                if fails >= len(cities):   # 全断网：别空转
-                    fails = 0
-                    await self._wait(10)
-                idx += 1
-                continue
-            fails = 0
-            await self._push("sky", to_card(w), idx % len(cities) + 1, len(cities), place["name"])
-            self._wx_task(cities[(idx + 1) % len(cities)])   # 下一个城市（过期了就重取）
-            idx += self._dir() if await self._wait(gap) else 1
 
     # ----- 今天 -----
     async def _m_today(self) -> None:

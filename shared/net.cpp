@@ -210,8 +210,17 @@ static void joinBest(int n) {
     // 扫描里哪个都没匹配上：热点可能是隐藏的 / 刚好没扫到。交替直接按名字连（定向探测，隐藏 SSID 也连得上）
     static bool tryFallback = true;
     if (fbSsid[0] && tryFallback) {
-      Serial.printf("[wifi] 扫描没看到，直接按名字连备用热点 %s\n", fbSsid[0]);
-      WiFi.begin(fbSsid[0], fbPass[0]);
+      // 手机热点有时 SSID 不广播（扫出来是空名字）：挑信号最强的"空名字"AP，用它的信道 + BSSID + 备用热点的名字去连
+      int hidden = -1;
+      for (int i = 0; i < n; i++)
+        if (WiFi.SSID(i).length() == 0 && (hidden < 0 || WiFi.RSSI(i) > WiFi.RSSI(hidden))) hidden = i;
+      if (hidden >= 0) {
+        Serial.printf("[wifi] 扫描没看到名字，试最强的隐藏 AP（信道 %d，%d dBm）按备用热点 %s 连\n", (int)WiFi.channel(hidden), (int)WiFi.RSSI(hidden), fbSsid[0]);
+        WiFi.begin(fbSsid[0], fbPass[0], WiFi.channel(hidden), WiFi.BSSID(hidden));
+      } else {
+        Serial.printf("[wifi] 扫描没看到，直接按名字连备用热点 %s\n", fbSsid[0]);
+        WiFi.begin(fbSsid[0], fbPass[0]);
+      }
     } else {
       WiFi.begin(DB_WIFI_SSID, DB_WIFI_PASS);
     }
