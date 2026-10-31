@@ -60,7 +60,8 @@ export class Body {
     const shell = at(box('shell head', 520, 360, 200), 0, 0);
     this.screen = document.createElement('div');
     this.screen.className = 'screen in-head';
-    shell.querySelector('.front').appendChild(this.screen);
+    this.screenHome = shell.querySelector('.front');   // 屏幕视图把屏幕摘出去，再放回这里
+    this.screenHome.appendChild(this.screen);
     const cam = document.createElement('div');
     cam.className = 'cam';
     at(cam, 0, -230, 40);

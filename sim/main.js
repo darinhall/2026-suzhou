@@ -58,6 +58,7 @@ async function handle(msg) {
 
 async function pressHead() {
   if (!(await body.press())) return log('sys', `扭矩 ${body.torque}% 太大，按不动（需 ≤ 60%）`);
+  if (flatOn) { flatEl.classList.add('pressed'); setTimeout(() => flatEl.classList.remove('pressed'), 260); }   // 屏幕视图里没有头，让整块屏幕往下压一下
   up({ t: 'head_press' });
   pressWaiters.forEach((r) => r(true));
   pressWaiters = [];
@@ -134,21 +135,52 @@ $('#btn-inject').onclick = () => {
   } catch (e) { log('sys', `JSON 解析失败：${e.message}`); }
 };
 
-// 视角：微侧（默认，有立体感又看得清屏） → 正面 → 3/4 侧视（看结构）
-const cams = ['rotateX(-10deg) rotateY(-14deg)', 'rotateX(-6deg)', 'rotateX(-20deg) rotateY(-36deg)'];
-let cam = 0;
+// 视角：微侧（默认，有立体感又看得清屏） → 正面 → 3/4 侧视（看结构） → 屏幕（只看屏幕，手机默认）
+const cams = ['rotateX(-10deg) rotateY(-14deg)', 'rotateX(-6deg)', 'rotateX(-20deg) rotateY(-36deg)', 'flat'];
+const stage = $('#stage'), flatEl = $('#flat');
+let cam = 0, flatOn = false;
+
+// 屏幕视图：把屏幕从 3D 头里摘出来，等比放大到整行宽度，外面一圈黑色边框
+function fitFlat() {
+  if (!flatOn) return;
+  const s = body.screen, w = flatEl.clientWidth - 24;      // 24 = 左右边框
+  const k = w / s.offsetWidth;
+  s.style.transform = `scale(${k})`;
+  flatEl.style.height = `${s.offsetHeight * k + 24}px`;
+}
+function setView(i) {
+  cam = i;
+  const flat = cams[i] === 'flat', s = body.screen;
+  if (flat !== flatOn) {
+    flatOn = flat;
+    stage.classList.toggle('flat', flat);
+    s.classList.toggle('in-head', !flat);
+    s.classList.toggle('flat-screen', flat);
+    if (flat) flatEl.querySelector('.flat-inner').appendChild(s);
+    else { s.style.transform = ''; body.screenHome.appendChild(s); }
+  }
+  if (!flat) $('#robot').style.transform = cams[i];
+  fit();
+  fitFlat();
+}
+$('#btn-cam').onclick = () => setView((cam + 1) % cams.length);
+// 窗口窄（手机）默认只看屏幕；?view=3d 可以强制 3D
+const phone = matchMedia('(max-width: 820px)').matches && new URLSearchParams(location.search).get('view') !== '3d';
 $('#robot').style.transform = cams[0];
-$('#btn-cam').onclick = () => { cam = (cam + 1) % cams.length; $('#robot').style.transform = cams[cam]; };
 
 // 整机约 800px 高，按舞台大小缩放
 function fit() {
-  const r = $('#stage').getBoundingClientRect();
-  const k = Math.min(r.width / 1150, r.height / 1320);   // 留出上下边距，底座不再被裁掉
+  if (flatOn) return;
+  const r = stage.getBoundingClientRect();
+  const narrow = r.width < 700;   // 手机：机身只有 640 宽，不用留那么多边
+  const k = Math.min(r.width / (narrow ? 820 : 1150), r.height / 1320);   // 留出上下边距，底座不再被裁掉
   $('#fit').style.transform = `translateY(${110 * k}px) scale(${k})`;
-  $('#stage').style.perspective = `${1800 * k}px`;  // 透视随缩放走，手机上不会显得特别近
+  stage.style.perspective = `${1800 * k}px`;  // 透视随缩放走，手机上不会显得特别近
 }
-fit();
-new ResizeObserver(fit).observe($('#stage'));
+new ResizeObserver(() => { fit(); fitFlat(); }).observe(stage);
+// 设计实验室里切了屏幕尺寸（320×240 ↔ 480×320），屏幕视图要重新算比例
+new MutationObserver(fitFlat).observe(body.screen, { attributes: true, attributeFilter: ['data-size'] });
+setView(phone ? cams.indexOf('flat') : 0);
 
 // ?demo=moyu 打开就自动播放，方便录 Demo 视频
 const autoplay = new URLSearchParams(location.search).get('demo');

@@ -125,10 +125,34 @@ details.dev .group { border-bottom: 0; padding-top: 4px; }
 .log li.up::before { content: "↑ "; color: var(--accent); }
 .log li.sys { color: var(--faint); }
 
+/* 屏幕视图：只看屏幕（手机默认；桌面按「视角」切到最后一档） */
+.flat-holder { display: none; }
+.stage.flat { flex: none; height: auto; perspective: none; display: flex; flex-direction: column; gap: 14px; padding: 16px; background: var(--bg); overflow: visible; }
+.stage.flat .fit { display: none; }
+.stage.flat .flat-holder { display: block; order: 0; background: #111; border-radius: 24px; padding: 12px; box-shadow: 0 0 0 1px #2a2a28, 0 16px 32px rgba(0,0,0,.45); transition: transform .12s ease-out; }
+.flat-holder.pressed { transform: translateY(5px) scale(.985); }
+.flat-inner { position: relative; width: 100%; height: 100%; }
+.screen.flat-screen { position: absolute; left: 0; top: 0; transform-origin: 0 0; touch-action: manipulation; }
+.stage.flat .caption-bar { position: relative; order: 1; max-width: none; left: auto; top: auto; }   /* relative（不是 static）：里面的闪烁点是绝对定位，要以它自己为基准 */
+.stage.flat .stage-tools { position: static; transform: none; order: 2; justify-content: center; background: none; border: 0; padding: 0; backdrop-filter: none; }
+.stage.flat .stage-tools button { flex: 1; min-height: 46px; font-size: 15px; }
+.stage.flat .telemetry { position: static; order: 3; text-align: left; white-space: normal; font-size: 11px; }
+a.btn { display: inline-block; background: var(--raise); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; color: var(--text); text-decoration: none; font-size: 13px; }
+.tools-links { display: none; }
+
 @media (max-width: 820px) {
   .layout { flex-direction: column; }
-  .stage { flex: none; height: 62vh; }
-  .panel { width: auto; border-left: 0; border-top: 1px solid var(--line); }
+  .stage:not(.flat) { flex: none; height: 62vh; }
+  .panel { width: auto; border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+  .bar { padding: 10px 16px; }
+  .brand span, .bar-right a { display: none; }   /* 手机上标题只留名字，两个链接挪到面板底部的「工具」 */
+  .conn { font-size: 12px; white-space: nowrap; }
+  .tools-links { display: block; }
+  button { min-height: 40px; }
+  .row button, a.btn { min-height: 40px; display: inline-flex; align-items: center; }
+  .group { padding: 16px; }
+  .scene { padding: 14px 16px; }
+  .log { max-height: 220px; }
 }
 
 /* ---------- 3D 机身：照实物（白色 PLA 3D 打印，2026-10-31 照片），每个面按朝向打光 ---------- */
