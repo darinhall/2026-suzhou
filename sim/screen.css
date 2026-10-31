@@ -26,15 +26,16 @@
 
   /* ---- l：3.5″ 480×320（设计系统原始值） ---- */
   --W: 480px; --H: 320px;
-  --t-xl: 120px; --t-md: 48px; --t-lg: 72px; --t-title: 28px; --t-head: 20px; --t-body: 15px;
-  --t-cap: 11px; --t-label: 12px; --t-chip: 13px; --t-sign: 28px;
+  /* 字号比设计系统原值大一档：屏幕小、要隔一米看，尽量把空间填满（2026-10-31） */
+  --t-xl: 150px; --t-md: 60px; --t-lg: 112px; --t-title: 38px; --t-head: 26px; --t-body: 20px;
+  --t-cap: 13px; --t-label: 15px; --t-chip: 16px; --t-sign: 36px;
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s6: 24px; --s8: 32px;
   --rb-sm: 8px; --rb-md: 16px; --rb-lg: 24px;
-  --eye-w: 56px; --eye-h: 96px; --eye-gap: 96px; --eye-line: 12px; --arc-h: 36px; --shut: 8px;
-  --mouth-top: 232px; --mouth-w: 24px; --mouth-h: 6px;
-  --badge: 40px; --check: 96px; --check-fs: 56px; --live: 10px;
+  --eye-w: 64px; --eye-h: 112px; --eye-gap: 104px; --eye-line: 14px; --arc-h: 42px; --shut: 8px;
+  --mouth-top: 242px; --mouth-w: 28px; --mouth-h: 7px;
+  --badge: 48px; --check: 112px; --check-fs: 64px; --live: 12px;
   --spark-h: 72px; --ruler-h: 22px; --tick-h: 12px; --split-h: 10px;
-  --blush-top: 206px; --blush-x: 116px; --blush-w: 56px; --blush-h: 16px;
+  --blush-top: 214px; --blush-x: 112px; --blush-w: 64px; --blush-h: 18px;
   --fx-bottom: 40px; --wave-h: 30px; --dot-d: 12px;
 
   --r-sm: calc(var(--rb-sm) * var(--rk)); --r-md: calc(var(--rb-md) * var(--rk)); --r-lg: calc(var(--rb-lg) * var(--rk));
@@ -42,18 +43,18 @@
   border-radius: var(--r-lg); background: var(--ground); color: var(--ink); font-family: var(--sans);
 }
 
-/* ---- s：2.8″ 320×240（T5 实机）。约 2/3，但正文 ≥13px、说明 ≥10px ---- */
+/* ---- s：2.8″ 320×240。约 2/3，但正文 ≥15px、说明 ≥11px ---- */
 .screen[data-size="s"] {
   --W: 320px; --H: 240px;
-  --t-xl: 80px; --t-md: 32px; --t-lg: 48px; --t-title: 20px; --t-head: 16px; --t-body: 13px;
-  --t-cap: 10px; --t-label: 11px; --t-chip: 12px; --t-sign: 20px;
+  --t-xl: 100px; --t-md: 40px; --t-lg: 74px; --t-title: 26px; --t-head: 18px; --t-body: 15px;
+  --t-cap: 11px; --t-label: 12px; --t-chip: 13px; --t-sign: 24px;
   --s1: 3px; --s2: 6px; --s3: 8px; --s4: 12px; --s6: 16px; --s8: 20px;
   --rb-sm: 6px; --rb-md: 10px; --rb-lg: 16px;
-  --eye-w: 38px; --eye-h: 64px; --eye-gap: 64px; --eye-line: 8px; --arc-h: 24px; --shut: 6px;
-  --mouth-top: 156px; --mouth-w: 16px; --mouth-h: 4px;
-  --badge: 28px; --check: 64px; --check-fs: 36px; --live: 8px;
+  --eye-w: 42px; --eye-h: 74px; --eye-gap: 70px; --eye-line: 9px; --arc-h: 28px; --shut: 6px;
+  --mouth-top: 170px; --mouth-w: 18px; --mouth-h: 5px;
+  --badge: 32px; --check: 74px; --check-fs: 42px; --live: 9px;
   --spark-h: 44px; --ruler-h: 16px; --tick-h: 9px; --split-h: 8px;
-  --blush-top: 138px; --blush-x: 78px; --blush-w: 38px; --blush-h: 11px;
+  --blush-top: 144px; --blush-x: 76px; --blush-w: 42px; --blush-h: 12px;
   --fx-bottom: 26px; --wave-h: 20px; --dot-d: 8px;
 }
 
@@ -85,6 +86,8 @@
 .numeral-lg span { color: var(--ink-muted); }
 .title { font: 500 calc(var(--t-title) * var(--fs))/1.1 var(--sans); letter-spacing: -0.5px; text-wrap: balance; }   /* 避免中文末尾单字成行；真机上请把标题控制在一行内 */
 .headline { font: 600 calc(var(--t-head) * var(--fs))/1.2 var(--sans); }
+/* display：一屏只有一句话时（护栏的问题、市场天气的词）用，比 title 再大一档 */
+.display { font: 500 calc(var(--t-title) * 1.45 * var(--fs))/1.08 var(--sans); letter-spacing: -1px; text-wrap: balance; }
 .body { font: 400 calc(var(--t-body) * var(--fs))/1.35 var(--sans); }
 .caption { font: 400 var(--t-cap)/1.3 var(--sans); color: var(--ink-muted); }
 .label { font: 400 var(--t-label)/1.35 var(--mono); letter-spacing: 0.2px; color: var(--ink-muted); }
@@ -167,8 +170,8 @@
 
 /* ---------- 盘前简报 ---------- */
 .brief ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--s3); counter-reset: n; }
-.brief li { display: flex; gap: var(--s3); counter-increment: n; }
-.brief li::before { content: counter(n); font: 500 var(--t-label)/1.8 var(--mono); color: var(--ink-muted); width: 1.8em; height: 1.8em; border-radius: 50%; background: var(--surface); text-align: center; flex: none; }
+.brief li { display: flex; gap: var(--s3); counter-increment: n; font-size: calc(var(--t-head) * var(--fs)); line-height: 1.3; }   /* 要点用 headline 字号，填满屏 */
+.brief li::before { content: counter(n); margin-top: .1em; font: 500 var(--t-label)/1.8 var(--mono); color: var(--ink-muted); width: 1.8em; height: 1.8em; border-radius: 50%; background: var(--surface); text-align: center; flex: none; }
 .steps { display: flex; gap: 6px; }
 .steps i { width: calc(var(--s6) * 1); height: 4px; border-radius: 2px; background: var(--rule); }
 .steps i.on { background: var(--lilac); }
