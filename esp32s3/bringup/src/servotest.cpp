@@ -67,6 +67,36 @@ void nod() {
   servo::setTorqueEnable(PITCH, false);
 }
 
+// STS 系列：往寄存器 40（扭矩开关）写 128 = 把当前位置校正为 2048（中位）。要先解锁 EEPROM（55 = 0）
+static bool setCenterHere(uint8_t id) {
+  servo::writeByte(id, 55, 0);
+  delay(5);
+  const bool ok = servo::writeByte(id, 40, 128);
+  delay(50);
+  servo::writeByte(id, 55, 1);
+  delay(20);
+  return ok;
+}
+
+void rebasePitch() {
+  servo::begin(RX, TX, -1);
+  delay(50);
+  const uint8_t id = 2;
+  int p0 = -1, p1 = -1, p2 = -1, p3 = -1;
+  if (!pingRetry(id) || !readPosRetry(id, p0)) { report("error", "SERVO_TIMEOUT", "ID2 没应答，没法定基准"); return; }
+  setCenterHere(id);                 // 先把当前位置变成 2048，离量程两头都远，才能往任一方向转
+  readPosRetry(id, p1);
+  servo::setTorqueLimit(id, 300);
+  servo::setTorqueEnable(id, true);
+  servo::move(id, p1 + STEPS_10DEG, 300, 20);   // 开机摆动第一下是往位置减小的方向，这里反过来：+10°
+  delay(900);
+  readPosRetry(id, p2);
+  setCenterHere(id);                 // 新位置定为基准（2048）
+  readPosRetry(id, p3);
+  servo::setTorqueEnable(id, false);
+  report("info", "SERVO_REBASE", "ID2 定基准：原来 %d → 校正后 %d → 转 +10° 到 %d → 新基准 %d（应接近 2048）", p0, p1, p2, p3);
+}
+
 void run() {
   servo::begin(RX, TX, -1);   // 没有方向脚：TX、RX 都经电阻接 DATA，发出的字节会回显，驱动里会丢掉
   delay(200);
