@@ -9,6 +9,7 @@
 #include <TFT_eSPI.h>
 #include <Wire.h>
 
+#include "audio.h"
 #include "demo_cards.h"
 #include "net.h"
 #include "screens.h"
@@ -41,6 +42,10 @@ static void mapTouch(int rx, int ry, int &x, int &y) {
 // 中枢发来的消息：这块板只管脸，pose / gesture / torque 之类给身体的直接忽略
 static void onMessage(JsonDocument &d) {
   const char *t = d["t"] | "";
+  if (!strcmp(t, "audio_test")) { audio::selfTest(); return; }   // 中枢 / 网页可以再跑一次音频自检
+  if (!strcmp(t, "hello")) { audio::hello(d["vol"] | 0.15f); return; }
+  if (!strcmp(t, "chime")) { audio::chime(d["vol"] | 0.08f); return; }
+  if (!strcmp(t, "beep")) { audio::tone(d["freq"] | 880.0f, d["ms"] | 200, d["vol"] | 0.08f); return; }
   if (!strcmp(t, "display")) {   // 显示模式：简洁 / 紧凑 / 专业（中枢存着，新连上也会收到一条）
     screens::setMode(d["mode"] | "pro");
     return;
@@ -92,6 +97,7 @@ void setup() {
   digitalWrite(TFT_BL, LOW);   // 背光低电平点亮
   ui::begin(&tft);
   screens::begin(&tft);
+  if (audio::begin()) { audio::hello(0.15f); delay(150); audio::chime(0.08f); }   // 开机测试：说一句话 + 弹一小段旋律（低音量）；完整自检含麦克风：长按左上角
 
   tp.begin();
   tp.setRotation(ROTATION_NORMAL);
@@ -183,6 +189,11 @@ void loop() {
   static uint32_t pressAt = 0;
   static bool fired = false;
   if (touched && !wasTouched) { pressAt = now; fired = false; }
+  if (touched && !fired && pressAt && now - pressAt > 1200) {   // 长按左上角 1.2 秒 = 音频自检（响一声 + 20 秒麦克风电平表）
+    int lx, ly;
+    mapTouch(tp.points[0].x, tp.points[0].y, lx, ly);
+    if (lx < 110 && ly < 70) { fired = true; Serial.println("[audio] 长按左上角：开始音频自检"); audio::selfTest(); }
+  }
   if (touched && !fired && pressAt && now - pressAt > 700 && ui::isText()) {
     int lx, ly;
     mapTouch(tp.points[0].x, tp.points[0].y, lx, ly);
