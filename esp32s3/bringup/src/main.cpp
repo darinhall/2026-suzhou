@@ -110,9 +110,11 @@ void setup() {
     pr.begin("deskbot", false);
     if (!pr.getBool("pitchBase", false)) { servotest::rebasePitch(10); pr.putBool("pitchBase", true); }
     if (!pr.getBool("pitchBase3", false)) { servotest::rebasePitch(3); pr.putBool("pitchBase3", true); }   // 10-31 再微调 +3°（同方向）
+    if (!pr.getBool("pitchBaseM10", false)) { servotest::rebasePitch(-10); pr.putBool("pitchBaseM10", true); }   // 11-01 往开机第一下的方向（位置减小）转 10°
+    if (!pr.getBool("pitchBaseP20", false)) { servotest::rebasePitch(20); pr.putBool("pitchBaseP20", true); }    // 11-01 方向反了：改往位置增大转 20°（相对 M10 之前净 +10°）
     pr.end();
   }
-  servotest::wiggle(1, 1);   // 开机：两个舵机轮流在原位附近来回摆一下（±10°，30% 扭矩，摆完放松）
+  servotest::wiggle(1, 1);   // 开机：两个舵机轮流在原位附近来回摆一下（ID1 ±20°、ID2 ±10°，30% 扭矩，摆完放松）
   servotest::wiggle(2, 1);
   delay(500);
   audio::calibrate(3000);   // 舵机和喇叭都停了以后，量 3 秒背景音量；之后超过它 4 倍才算有人说话
