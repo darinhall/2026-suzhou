@@ -8,3 +8,10 @@ config/network_local.json*
 # PandaAI SDK 登录缓存（加密的账号）：在哪个目录跑就写在哪，别提交
 user.json
 __pycache__/
+
+# 路演 slides 含团队个人信息（姓名、照片、履历）：只留在本地，不进 GitHub
+pitch/index.html
+pitch/wide.html
+pitch/*.pdf
+pitch/assets/shi-pu.jpg
+pitch/assets/darin.jpg

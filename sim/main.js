@@ -158,8 +158,46 @@ function onHub(m) {
     return;
   }
   if (m.t === 'touch' || m.t === 'boss') return log('down', JSON.stringify(m));
+  if (m.t === 'ask_state' || m.t === 'reply') return onAsk(m);
   if (pending && m.t === 'face' && m.state === LIVE_STATE[pending.what]) endPending();
   return handle(m);
+}
+
+// ---------- 问一句：打字代替说话（真机上是 ASR 识别出的文字走同一条 {"t":"ask"}）----------
+// 中枢回：ask_state(thinking) → reply(say, gesture, ms) → face(answer 卡) → gesture(点头 / 摇头)。
+// 真机的语音由中枢合成后推给板子；模拟器用浏览器自带的中文语音把 say 念出来。
+const ASK_SAMPLES = ['宁德时代今天涨了吗', '大盘怎么样', '生物医药现在怎么样', '今天推荐什么股票', '把工商银行加到自选', '我的自选有哪些', '行情异动模拟'];
+function ask(text) {
+  text = text.trim();
+  if (!text) return;
+  if (!link.connected) { bot.caption('先在上面连接中枢'); setTimeout(() => bot.caption(''), 3000); return; }
+  up({ t: 'ask', text, src: 'sim' });
+}
+$('#ask-chips').innerHTML = ASK_SAMPLES.map((q) => `<button>${esc(q)}</button>`).join('');
+$('#ask-chips').onclick = (e) => { const b = e.target.closest('button'); if (b) ask(b.textContent); };
+$('#btn-ask').onclick = () => ask($('#ask-text').value || $('#ask-text').placeholder);
+$('#ask-text').onkeydown = (e) => { if (e.key === 'Enter') $('#btn-ask').click(); };
+function onAsk(m) {
+  log('down', JSON.stringify(m));
+  if (m.t === 'ask_state' && m.stage === 'thinking') {
+    for (const f of [face, mirror]) f.set('thinking');
+    bot.caption(`“${m.text}”`);
+    $('#ask-reply').textContent = '在想…';
+  } else if (m.t === 'ask_state' && m.stage === 'done') {   // 中枢判断不是对它说的 / 答不了：不反应
+    bot.caption('');
+    $('#ask-reply').textContent = '（没接话：不像是对它说的，或者答不了）';
+  } else if (m.t === 'reply') {
+    const act = { nod: '点头', shake: '摇头' }[m.gesture] ?? '';
+    $('#ask-reply').textContent = `${act ? `【${act}】` : ''}${m.say}（${(m.ms / 1000).toFixed(1)} s）`;
+    bot.caption(m.say);
+    setTimeout(() => bot.caption(''), 8000);
+    try {
+      const u = new SpeechSynthesisUtterance(m.say);
+      u.lang = 'zh-CN';
+      speechSynthesis.cancel();
+      speechSynthesis.speak(u);
+    } catch {}
+  }
 }
 
 // 网页上做的动作：打开「同步到真机」时，同一条指令也转给真机（经中枢）。中枢不会把它再发回给我们，不会回环
