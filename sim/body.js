@@ -109,6 +109,12 @@ export class Body {
           await this.moveTo(yaw + 15, pitch, 250);
           await this.moveTo(yaw, pitch, 150);
           break;
+        case 'startle':   // 惊醒：猛抬头 + 小摇
+          await this.moveTo(yaw, 8, 140);
+          await this.moveTo(yaw - 6, 8, 100);
+          await this.moveTo(yaw + 6, 6, 120);
+          await this.moveTo(yaw, 0, 260);
+          break;
         case 'look_up': return this.moveTo(yaw, 20, 400);
         case 'look_down': return this.moveTo(yaw, -18, 400);
         case 'home': return this.moveTo(0, 0, 600);
