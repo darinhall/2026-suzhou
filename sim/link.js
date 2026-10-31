@@ -4,6 +4,7 @@ export function defaultUrl() {
   const param = new URLSearchParams(location.search).get('ws');
   if (param) return param;
   try { const saved = localStorage.getItem('deskbot.ws'); if (saved) return saved; } catch {}
+  if (location.protocol === 'https:') return `wss://${location.host}/robot`;   // 云端：网页和中枢在同一个域名下（nginx 转发 /robot）
   return `ws://${location.hostname || 'localhost'}:8765/robot`;
 }
 
