@@ -13,7 +13,7 @@ static const i2s_port_t PORT = I2S_NUM_0;
 static const int RATE = 16000;
 static const int PIN_BCLK = 12, PIN_WS = 13, PIN_DOUT = 11, PIN_DIN = 38;
 static bool ok = false;
-static const float VOL_MAX = 0.5f;   // 1 W / 8 Ω 喇叭：0.5 满幅 ≈ 0.5 W（11-01 语音音量 0.2 → 0.4，上限 0.3 → 0.5）
+static const float VOL_MAX = 0.6f;   // 1 W / 8 Ω 喇叭：0.6 满幅的峰值约 1 W，说话的平均功率远低于峰值（11-01 用户要求语音音量 0.6）
 static volatile bool playing = false;   // 自己在放音时不听（喇叭会把自己"吵醒"）
 
 bool begin() {

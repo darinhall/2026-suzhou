@@ -64,7 +64,7 @@ def _quote(intent: Intent) -> dict:
     day = _day(intent.codes[:1])
     s = stock_state(day, 0, None)
     card = mover_card(day, 0, None, "close", alert=False)
-    card["hint"] = "说「行情异动模拟」看看我怎么提醒你"
+    card["hint"] = "说“行情异动模拟”看看我怎么提醒你"
     bits = [f"{s['name']}{_spoken(day)}报 {s['price']:.2f} 元，{_ud(s['pct'])} {_pct(s['pct'])}"]
     if s.get("vol_ratio"):
         bits.append(f"量比 {s['vol_ratio']:.1f}")
@@ -80,7 +80,7 @@ def _compare(intent: Intent) -> dict:
     day = _day(intent.codes[:3])
     sts = [stock_state(day, k, None) for k in range(len(day["stocks"]))]
     best = max(sts, key=lambda s: s["pct"])
-    body = " ｜ ".join(f"{s['name']} {'+' if s['pct'] >= 0 else '-'}{_pct(s['pct'])}" for s in sts)
+    body = "  /  ".join(f"{s['name']} {'+' if s['pct'] >= 0 else '-'}{_pct(s['pct'])}" for s in sts)
     say = "，".join(f"{s['name']}{_ud(s['pct'])} {_pct(s['pct'])}" for s in sts) + f"。{best['name']}更强。"
     return _reply(intent, say, _msg(f"对比 · {_asof(day)}", body, meta=f"PandaAI · {LEGAL}"))
 
@@ -89,7 +89,7 @@ def _overview(intent: Intent, watch_codes) -> dict:
     from watch import indices_state
     day = _day(watch_codes)
     ixs = indices_state(day)
-    body = "　".join(f"{x['name']} {'+' if x['pct'] >= 0 else '-'}{_pct(x['pct'])}" for x in ixs)
+    body = "，".join(f"{x['name']} {'+' if x['pct'] >= 0 else '-'}{_pct(x['pct'])}" for x in ixs)
     up = sum(1 for x in ixs if x["pct"] >= 0)
     mood = "普涨" if up == len(ixs) else "普跌" if up == 0 else "涨跌互现"
     say = f"{_spoken(day)}，大盘{mood}：" + "，".join(f"{x['name']}{_ud(x['pct'])} {_pct(x['pct'])}" for x in ixs[:3]) + "。"
@@ -121,7 +121,7 @@ def answer(intent: Intent, watch_codes) -> dict | None:
         return _watchlist(intent, watch_codes, refuse=True)
     if k == "sim_start":
         return _reply(intent, "好，开始行情异动模拟。我替你盯着自选股，有异动就转头提醒你。",
-                      _msg("行情异动模拟", "我替你盯着自选股，有异动就转头提醒你。", hint="说「停止模拟」结束", meta="模拟数据 · " + LEGAL),
+                      _msg("行情异动模拟", "我替你盯着自选股，有异动就转头提醒你。", hint="说“停止模拟”结束", meta="模拟数据 · " + LEGAL),
                       "nod", 1, action="sim_start")
     if k == "sim_stop":
         return _reply(intent, "好，模拟结束。", None, "nod", 1, action="sim_stop")

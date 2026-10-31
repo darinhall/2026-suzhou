@@ -8,7 +8,7 @@ namespace audio {
 bool begin();
 // 播放一个正弦音；vol 0–1（相对满幅）。默认 0.08 ≈ 十几毫瓦，对 1 W 喇叭很安全
 void tone(float freq, int ms, float vol = 0.08f);
-// 播一段 16 kHz 单声道 16 位 PCM（vol 0–0.5）
+// 播一段 16 kHz 单声道 16 位 PCM（vol 0–0.6）
 void playPcm(const int16_t *pcm, int n, float vol = 0.15f);
 // 开机小旋律（拨弦音）
 void chime(float vol = 0.08f);
