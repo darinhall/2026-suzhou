@@ -41,9 +41,30 @@ static void mapTouch(int rx, int ry, int &x, int &y) {
 #endif
 }
 
+// 语音状态（voiceTick / onMessage 都要用）
+static ui::State voiceBefore = ui::State::Idle;
+static uint32_t waitReplyUntil = 0;   // 等中枢回话：超时就自己回到原来的屏
+
+static void restoreFace() {
+  waitReplyUntil = 0;
+  if (voiceBefore == ui::State::Text) { screens::redraw(); ui::setText(); }
+  else ui::set(voiceBefore == ui::State::Listening || voiceBefore == ui::State::Thinking ? ui::State::Idle : voiceBefore);
+}
+
+// 喇叭：中枢发 spk_start → 若干二进制帧（μ-law）→ spk_end。边收边放：攒够 0.4 秒就开始放，loop() 里一点点往 I2S 塞
+static int16_t *spkBuf = nullptr;
+static size_t spkN = 0, spkPos = 0, spkCap = 0;
+static bool spkOn = false, spkEnded = false, spkPlaying = false, spkUlaw = true;
+static float spkVol = 0.6f;   // 11-01：0.2 → 0.4 → 0.6（用户要求）
+static const size_t SPK_PREROLL = 16000 * 4 / 10;
+static bool micStreaming = false;   // 正在边说边传
+
 // 中枢发来的消息：gesture 由这块板的两个舵机做；pose / torque 是旧的双板协议，忽略
+static void onBinary(const uint8_t *data, size_t n);
+
 static void onMessage(JsonDocument &d) {
   const char *t = d["t"] | "";
+  if (!strcmp(t, "face")) waitReplyUntil = 0;   // 中枢的回答（卡片）到了：不再等，别被超时改回去
   if (!strcmp(t, "servo_rebase")) { servotest::rebaseYaw(d["deg"] | 10.0f); return; }   // 需要时再定一次基准
   if (!strcmp(t, "servo_test")) { servotest::run(); return; }
   if (!strcmp(t, "servo_pos")) { servotest::reportPos(); return; }          // 只读：现在的位置和基准
@@ -57,6 +78,17 @@ static void onMessage(JsonDocument &d) {
   if (!strcmp(t, "voice_calibrate")) { audio::calibrate(d["ms"] | 3000); return; }   // 换了环境：重新量背景音量
   if (!strcmp(t, "audio_test")) { audio::selfTest(); return; }   // 中枢 / 网页可以再跑一次音频自检
   if (!strcmp(t, "hello")) { audio::hello(d["vol"] | 0.15f); return; }
+  if (!strcmp(t, "spk_start")) {   // 中枢要说话：准备收音频（边收边放）
+    if (!spkBuf) { spkCap = 16000 * 20; spkBuf = (int16_t *)ps_malloc(spkCap * 2); }   // 最长 20 秒
+    spkN = spkPos = 0; spkOn = spkBuf != nullptr; spkEnded = spkPlaying = false;
+    spkVol = d["vol"] | 0.6f;
+    spkUlaw = !strcmp(d["fmt"] | "ulaw", "ulaw");
+    waitReplyUntil = 0;
+    return;
+  }
+  if (!strcmp(t, "spk_end")) { spkEnded = true; return; }   // 收齐了：放完剩下的就结束
+  if (!strcmp(t, "spk_stop")) { spkEnded = true; spkN = spkPos; return; }
+  if (!strcmp(t, "listen_done")) { restoreFace(); return; }   // 没听清 / 不是对我说的：回到原来的屏，不动
   if (!strcmp(t, "chime")) { audio::chime(d["vol"] | 0.08f); return; }
   if (!strcmp(t, "beep")) { audio::tone(d["freq"] | 880.0f, d["ms"] | 200, d["vol"] | 0.08f); return; }
   if (!strcmp(t, "display")) {   // 显示模式：简洁 / 紧凑 / 专业（中枢存着，新连上也会收到一条）
@@ -131,6 +163,7 @@ void setup() {
   tp.setRotation(ROTATION_NORMAL);
 
   net::begin(onMessage);
+  net::onBinary(onBinary);   // 中枢下发的语音
   const esp_reset_reason_t rr = esp_reset_reason();
   char bm[64];
   snprintf(bm, sizeof bm, "开机 fw 0.2.0 · PSRAM %u KB · 复位原因 %d", ESP.getPsramSize() / 1024, (int)rr);
@@ -183,18 +216,75 @@ static void offlineDemo(uint32_t now) {
   if (!deserializeJson(d, DEMO_CARDS[idx++ % DEMO_COUNT])) onMessage(d);
 }
 
-// 说话检测的反应：开始说话 → 点一下头 + 屏幕换成"在听"（紫色眼睛 + 声波）；说完 → 回到原来的屏
-static void voiceTick(uint32_t now) {
-  static ui::State before = ui::State::Idle;
-  const int ev = audio::listenTick();
-  if (ev == 1) {
-    before = ui::current();
-    ui::set(ui::State::Listening);
-    servotest::nod();
-  } else if (ev == 2) {
-    if (before == ui::State::Text) { screens::redraw(); ui::setText(); }
-    else ui::set(before == ui::State::Listening ? ui::State::Idle : before);
+// ---------- 语音 ----------
+// 说话：确认是一句话（有声 ≥ 0.6 秒）→ 屏幕换"在听"（不动）；说完 → 整句传给中枢（mic_start + 二进制 + mic_end）→ "想一想"。
+// 中枢识别出一句完整的命令才会回卡片、动作、语音；没听清 / 不是对我说的 → listen_done，回到原来的屏。噪音不会让它动。
+// 边说边传：确认是一句话后发 mic_start，之后每攒够 4000 个样本（0.25 秒，μ-law 4000 字节）发一帧，说完把剩下的发掉
+static void micPump(bool final) {
+  static uint8_t chunk[4000];
+  static int have = 0;
+  for (;;) {
+    have += audio::takeUlaw(chunk + have, sizeof chunk - have);
+    if (have == (int)sizeof chunk || (final && have > 0)) { net::sendBin(chunk, have); have = 0; continue; }
+    break;
   }
+}
+
+static void onBinary(const uint8_t *data, size_t n) {
+  if (!spkOn || !spkBuf) return;
+  if (spkUlaw) {
+    const size_t k = min(n, spkCap - spkN);
+    for (size_t i = 0; i < k; i++) spkBuf[spkN + i] = audio::ulawDec(data[i]);
+    spkN += k;
+  } else {
+    const size_t k = min(n / 2, spkCap - spkN);
+    memcpy(spkBuf + spkN, data, k * 2);
+    spkN += k;
+  }
+}
+
+static void speakerTick() {
+  if (!spkOn) return;
+  if (!spkPlaying) {
+    if (spkN - spkPos < SPK_PREROLL && !spkEnded) return;   // 先攒 0.4 秒，网络慢也不断断续续
+    spkPlaying = true;
+    audio::streamBegin();
+    Serial.printf("[spk] 开始放（已收到 %u ms）\n", (unsigned)(spkN / 16));
+  }
+  for (int i = 0; i < 4 && spkPos < spkN; i++) spkPos += audio::streamWrite(spkBuf + spkPos, spkN - spkPos, spkVol);
+  if (spkEnded && spkPos >= spkN) {
+    spkOn = spkPlaying = false;
+    audio::streamEnd();
+    Serial.printf("[spk] 放完 %u ms\n", (unsigned)(spkN / 16));
+  }
+}
+
+static void voiceTick(uint32_t now) {
+  if (waitReplyUntil && (int32_t)(now - waitReplyUntil) > 0) restoreFace();
+  const int ev = audio::listenTick();
+  if (ev == 1) {   // 确认是一句话：换"在听"，开始边说边传
+    if (!waitReplyUntil) voiceBefore = ui::current();
+    ui::set(ui::State::Listening);
+    micStreaming = net::connected();
+    if (micStreaming) {
+      JsonDocument d;
+      d["t"] = "mic_start"; d["sr"] = 16000; d["fmt"] = "ulaw"; d["trigger"] = "vad";
+      net::send(d);
+    }
+  } else if (ev == 2) {   // 说完了：发剩下的 + mic_end，换"想一想"，一直等到中枢回话
+    if (micStreaming) {
+      micPump(true);
+      JsonDocument e;
+      e["t"] = "mic_end";
+      net::send(e);
+      ui::set(ui::State::Thinking);
+      waitReplyUntil = millis() + 15000;
+    } else {
+      restoreFace();
+    }
+    micStreaming = false;
+  }
+  if (micStreaming) micPump(false);
   // 调试：右下角小条显示 背景 / 现在 / 倍数，每 200 ms 刷新（直接画在屏上，被整屏重画盖掉后下次再画）
   static uint32_t last = 0;
   if (now - last < 200 || audio::background() <= 0) return;
@@ -216,7 +306,8 @@ void loop() {
   const uint32_t now = millis();
   offlineDemo(now);
   serialInject();
-  voiceTick(now);   // 按音量检测有没有人说话：说话时换"在听"的表情 + 点头；右下角显示实时音量
+  voiceTick(now);   // 按音量检测一句话：边说边传给中枢；右下角显示实时音量
+  speakerTick();    // 中枢下发的语音：边收边放
   net::loop();
   servotest::tick();   // 动作队列：到点就发下一步
 

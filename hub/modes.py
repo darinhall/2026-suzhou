@@ -96,6 +96,14 @@ class ModeEngine(SceneEngine):
         self.display_hook = None      # mock_hub 注入：显示模式变了要广播 {"t":"display"}
         self._names_try = 0.0
         self.alerts = AlertWatcher(personas.load(self.profile["persona"]))
+        self.hold_until = 0.0         # 问答 / 异动模拟在用屏幕：这之前模式循环不推卡、不提醒
+
+    def hold(self, seconds: float) -> None:
+        """问答 / 模拟占用屏幕 seconds 秒（0 = 立刻还给模式循环）。"""
+        self.hold_until = time.monotonic() + seconds if seconds > 0 else 0.0   # 到期后循环下一次刷新（REFRESH 秒内）自然推回自选卡
+
+    def holding(self) -> bool:
+        return time.monotonic() < self.hold_until
 
     # ---------- profile 读写 ----------
     def _load(self) -> dict:
@@ -400,6 +408,8 @@ class ModeEngine(SceneEngine):
         await self.bc(msg)
 
     async def _push(self, state: str, card: dict, page: int, of: int, label: str, **extra) -> None:
+        if self.holding():
+            return
         if self.sub:
             extra["booth"] = True
         await self._state(self.sub or self.name, page, of, label=label, item=label, **extra)
@@ -523,7 +533,7 @@ class ModeEngine(SceneEngine):
                 day = await self._day_for(P["codes"])
                 n = len(day["stocks"])
             # 回放里的异动：提醒阶梯（brain/alerts.py，阈值由人格决定）
-            if i is not None and open_k is None:
+            if i is not None and open_k is None and not self.holding():
                 big = await self._alerts(day, i, n, nbars)
                 if big:
                     await self._wait(self.opts["alert_hold"])

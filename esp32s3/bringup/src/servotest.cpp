@@ -75,7 +75,7 @@ void wiggle(uint8_t id, int times) {
     saveHome(id, p0);
     report("info", "SERVO_HOME_SET", "ID%d 记下基准位置 %d（第一次开机）", id, p0);
   } else if (abs(p0 - home[id]) > DRIFT) {
-    report("warn", "SERVO_DRIFT", "ID%d 开机时偏离基准 %+d 步（%+.1f°）：现在 %d，基准 %d → 拉回", id, p0 - home[id], (p0 - home[id]) * 360.0f / 4096, p0, home[id]);
+    report("warn", "SERVO_DRIFT", "ID%d 开机时偏离基准 %+d 步（约 %+d°）：现在 %d，基准 %d → 拉回", id, p0 - home[id], (p0 - home[id]) * 360 / 4096, p0, home[id]);
     goAndRead(id, home[id]);
   }
   p0 = home[id];   // 原位 = 基准：摆动、动作都围着它
@@ -129,7 +129,7 @@ void gesture(const char *name, int times, float ampDeg, float holdS) {
     return;
   }
   nextAt = millis();
-  report("info", "SERVO_GESTURE", "%s ×%d（幅度 %.0f°，停 %.1f 秒）", name, times, ampDeg, holdS);
+  report("info", "SERVO_GESTURE", "%s ×%d（幅度 %d°，停 %d ms）", name, times, (int)ampDeg, (int)(holdS * 1000));
 }
 
 void reportPos() {
@@ -175,7 +175,7 @@ void tick() {
         // 舵机有加速度，算出来的时间不一定够：最多再等 1 秒，等它真的回到基准附近再放松
         for (uint32_t t0 = millis(); readPosRetry(id, p) && rest[id] >= 0 && abs(p - rest[id]) > 8 && millis() - t0 < 1000;) delay(30);
         if (p >= 0 && rest[id] >= 0 && abs(p - rest[id]) > DRIFT)
-          report("warn", "SERVO_DRIFT", "ID%d 动作做完没回到基准：%d，基准 %d（差 %+.1f°）", id, p, rest[id], (p - rest[id]) * 360.0f / 4096);
+          report("warn", "SERVO_DRIFT", "ID%d 动作做完没回到基准：%d，基准 %d（差约 %+d°）", id, p, rest[id], (p - rest[id]) * 360 / 4096);
         servo::setTorqueEnable(id, false);
         torqueOn[id] = false;
       }
