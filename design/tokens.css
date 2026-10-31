@@ -52,11 +52,12 @@
   --font-mono: "Geist Mono", ui-monospace, Menlo, monospace;
   --font-dot: Doto, "Geist Mono", monospace;
 }
-.numeral-xl { font-family: var(--font-dot); font-size: 120px; line-height: 0.85; font-weight: 800; letter-spacing: -2px; }
-.numeral-md { font-family: var(--font-dot); font-size: 48px; line-height: 1; font-weight: 800; }
-.numeral-lg { font-family: var(--font-sans); font-size: 72px; line-height: 1; font-weight: 300; letter-spacing: -2px; }
-.title { font-family: var(--font-sans); font-size: 28px; line-height: 1.05; font-weight: 500; letter-spacing: -0.5px; }
-.headline { font-family: var(--font-sans); font-size: 20px; line-height: 24px; font-weight: 600; }
-.body { font-family: var(--font-sans); font-size: 15px; line-height: 20px; font-weight: 400; }
-.caption { font-family: var(--font-sans); font-size: 11px; line-height: 14px; font-weight: 400; }
-.label { font-family: var(--font-mono); font-size: 12px; line-height: 16px; font-weight: 400; letter-spacing: 0.2px; }
+.numeral-xl { font-family: var(--font-dot); font-size: 150px; line-height: 0.85; font-weight: 800; letter-spacing: -2px; }
+.numeral-md { font-family: var(--font-dot); font-size: 60px; line-height: 1; font-weight: 800; }
+.numeral-lg { font-family: var(--font-sans); font-size: 112px; line-height: 1; font-weight: 300; letter-spacing: -2px; }
+.display { font-family: var(--font-sans); font-size: 55px; line-height: 1.08; font-weight: 500; letter-spacing: -1px; }
+.title { font-family: var(--font-sans); font-size: 38px; line-height: 1.1; font-weight: 500; letter-spacing: -0.5px; }
+.headline { font-family: var(--font-sans); font-size: 26px; line-height: 32px; font-weight: 600; }
+.body { font-family: var(--font-sans); font-size: 20px; line-height: 27px; font-weight: 400; }
+.caption { font-family: var(--font-sans); font-size: 13px; line-height: 17px; font-weight: 400; }
+.label { font-family: var(--font-mono); font-size: 15px; line-height: 20px; font-weight: 400; letter-spacing: 0.2px; }

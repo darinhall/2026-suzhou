@@ -50,11 +50,12 @@
 #define DB_RADIUS_PILL LV_RADIUS_CIRCLE
 
 // ---- type sizes (px) — convert fonts at exactly these sizes with lv_font_conv
-#define DB_FONT_NUMERAL_XL_SIZE 120  // dot 800
-#define DB_FONT_NUMERAL_MD_SIZE 48  // dot 800
-#define DB_FONT_NUMERAL_LG_SIZE 72  // sans 300
-#define DB_FONT_TITLE_SIZE 28  // sans 500
-#define DB_FONT_HEADLINE_SIZE 20  // sans 600
-#define DB_FONT_BODY_SIZE 15  // sans 400
-#define DB_FONT_CAPTION_SIZE 11  // sans 400
-#define DB_FONT_LABEL_SIZE 12  // mono 400
+#define DB_FONT_NUMERAL_XL_SIZE 150  // dot 800
+#define DB_FONT_NUMERAL_MD_SIZE 60  // dot 800
+#define DB_FONT_NUMERAL_LG_SIZE 112  // sans 300
+#define DB_FONT_DISPLAY_SIZE 55  // sans 500
+#define DB_FONT_TITLE_SIZE 38  // sans 500
+#define DB_FONT_HEADLINE_SIZE 26  // sans 600
+#define DB_FONT_BODY_SIZE 20  // sans 400
+#define DB_FONT_CAPTION_SIZE 13  // sans 400
+#define DB_FONT_LABEL_SIZE 15  // mono 400
