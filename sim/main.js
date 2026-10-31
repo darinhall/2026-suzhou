@@ -10,30 +10,65 @@ const $ = (s) => document.querySelector(s);
 
 const body = new Body($('#robot'));
 const link = new Link({ onMessage: (m) => onHub(m), onStatus });
+const params = new URLSearchParams(location.search);
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const store = {   // localStorage 可能被禁用，读写都包一层
+  get: (k, d) => { try { return localStorage.getItem(`deskbot.sim.${k}`) ?? d; } catch { return d; } },
+  set: (k, v) => { try { localStorage.setItem(`deskbot.sim.${k}`, v); } catch {} },
+};
+
+// 主屏：中间那块 480×320，真机上的屏幕就是这个。3D 机身头里那块（body.screen）是它的镜像，只负责跟着换。
+const flatEl = $('#flat');
+const heroScreen = document.createElement('div');
+heroScreen.className = 'screen flat-screen';
+flatEl.querySelector('.flat-inner').appendChild(heroScreen);
+
 // 双击屏幕 = 老板键。在机器人本地处理，不等笔记本，保证瞬间切换
 let lastTap = 0;
 // ?idle=秒数：安静多久开始玩球（默认 25，之后再玩 12 秒就睡）；?idle=0 关掉
-const idleParam = new URLSearchParams(location.search).get('idle');
-const face = new Face(body.screen, (x, y) => {
+const idleParam = params.get('idle');
+const face = new Face(heroScreen, (x, y) => {
   const now = performance.now();
   if (now - lastTap < 350) toggleBoss();
   lastTap = now;
   up({ t: 'touch', x, y });
 }, { idleAfter: idleParam === null ? 25 : Number(idleParam) });
-follow(body.screen);   // 设计实验室里调的主题 / 字体等，这里实时跟着变
+const mirror = new Face(body.screen);   // 不自己导演（没有 idleAfter），完全跟主屏
+const showHero = face._show.bind(face);
+face._show = (state, card) => { showHero(state, card); mirror._show(state, card); };   // 主屏所有换屏（指令、触摸唤醒、待机导演）都会走这里
+follow(heroScreen, body.screen);   // 设计实验室里调的主题 / 字体等，这里实时跟着变
 window.deskbot = { face };   // 调试用：控制台里 deskbot.face.set('mkt', {...})
 // ?face=decoy 之类：直接打开某个表情，方便看屏幕设计
-face.set(new URLSearchParams(location.search).get('face') || 'idle');
+face.set(params.get('face') || 'idle');
 
-// ---------- 日志 ----------
-function log(kind, text) {
+// ---------- 日志尾巴：本机收发的消息 + 中枢日志，新的在最下面 ----------
+const logEl = $('#log');
+const hhmmss = (d = new Date()) => d.toTimeString().slice(0, 8);
+function addRow(cls, tag, html, time = hhmmss()) {
   const li = document.createElement('li');
-  li.className = kind;
-  li.textContent = text;
-  const ol = $('#log');
-  ol.prepend(li);
-  while (ol.children.length > 200) ol.lastChild.remove();
+  li.className = cls;
+  li.innerHTML = `<span class="tm">${time}</span><span class="tg">${tag}</span><span class="tx">${html}</span>`;
+  const stick = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 30;
+  logEl.appendChild(li);
+  while (logEl.children.length > 300) logEl.firstChild.remove();
+  if (stick) logEl.scrollTop = logEl.scrollHeight;
 }
+function log(kind, text) { addRow(kind, { up: '↑', down: '↓', sys: '·' }[kind] ?? '·', esc(text.length > 240 ? `${text.slice(0, 240)} …（${text.length} 字符）` : text)); }   // 卡片 JSON 很长，日志里只留开头
+const LVL_TAG = { info: 'info', warn: 'warn', error: 'err' };
+function hubLog(e, time) {
+  if (!e || typeof e.ts !== 'number') return;
+  const lvl = LVL_TAG[e.lvl] ? e.lvl : 'info';
+  addRow(`log ${lvl}`, LVL_TAG[lvl], `<b>${esc(e.code ?? '')}</b>${esc(e.msg ?? '')}`, hhmmss(new Date(e.ts)));
+}
+$('#tail-seg').onclick = (e) => {
+  const b = e.target.closest('[data-tail]');
+  if (!b) return;
+  $('#tail').dataset.show = b.dataset.tail;
+  $('#tail-seg').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+  logEl.scrollTop = logEl.scrollHeight;
+};
+$('#tail').dataset.show = 'all';
+$('#tail-seg button[data-tail="all"]').classList.add('on');
 
 function up(msg) {
   log('up', JSON.stringify(msg));
@@ -44,11 +79,11 @@ function up(msg) {
 let pressWaiters = [];
 
 async function handle(msg) {
-  if (msg.t !== 'face' || msg.state !== 'mkt') log('down', JSON.stringify(msg));
+  if (msg.t !== 'face' || (msg.state !== 'mkt' && msg.state !== 'watch')) log('down', JSON.stringify(msg));   // 行情 / 自选每秒刷新，不进日志
   switch (msg.t) {
     case 'pose':
       // 眼睛先看过去，头再跟上（真机上 T5 屏也这么做，动作才显得有意图）
-      face.glance(Math.sign((msg.yaw ?? body.yaw) - body.yaw) * 14, Math.sign((msg.pitch ?? body.pitch) - body.pitch) * -8, msg.ms ?? 500);
+      for (const f of [face, mirror]) f.glance(Math.sign((msg.yaw ?? body.yaw) - body.yaw) * 14, Math.sign((msg.pitch ?? body.pitch) - body.pitch) * -8, msg.ms ?? 500);
       return body.moveTo(msg.yaw, msg.pitch, msg.ms ?? 500);
     case 'gesture': return body.gesture(msg.name, msg.times ?? 1);
     case 'face':
@@ -76,9 +111,16 @@ let peers = { face: 0, body: 0, view: 0 };
 function onHub(m) {
   if (m.t === 'peers') {
     peers = m;
-    $('#peers').textContent = `真机：脸 ${m.face} · 身体 ${m.body}`;
+    for (const id of ['face', 'body', 'view']) {
+      const el = $(`#pr-${id}`);
+      el.classList.toggle('on', (m[id] | 0) > 0);
+      el.querySelector('b').textContent = m[id] | 0;
+    }
+    $('#peers-note').textContent = `真机：脸 ${m.face} · 身体 ${m.body}`;
     return;
   }
+  if (m.t === 'log') return hubLog(m);
+  if (m.t === 'logs') { if (Array.isArray(m.items)) m.items.slice(-12).forEach((e) => hubLog(e)); return; }   // 刚连上：补最近几条
   if (m.t === 'scene_state') return showScene(m);   // 中枢的场景引擎：现在在第几页
   if (m.t === 'notice') {
     if (m.level === 'error') link.report('error', 'REQ_FAILED', String(m.text).slice(0, 200));
@@ -89,7 +131,7 @@ function onHub(m) {
     return;
   }
   if (m.t === 'head_press') {   // 真机被按了头：等按头的演示脚本继续往下走
-    if (flatOn) { flatEl.classList.add('pressed'); setTimeout(() => flatEl.classList.remove('pressed'), 260); }
+    flatEl.classList.add('pressed'); setTimeout(() => flatEl.classList.remove('pressed'), 260);
     pressWaiters.forEach((r) => r(true));
     pressWaiters = [];
     return;
@@ -106,7 +148,7 @@ const act = (msg) => { if (control) up({ t: 'relay', msg }); return handle(msg);
 async function pressHead() {
   face.poke();
   if (!(await body.press())) return log('sys', `扭矩 ${body.torque}% 太大，按不动（需 ≤ 60%）`);
-  if (flatOn) { flatEl.classList.add('pressed'); setTimeout(() => flatEl.classList.remove('pressed'), 260); }   // 屏幕视图里没有头，让整块屏幕往下压一下
+  flatEl.classList.add('pressed'); setTimeout(() => flatEl.classList.remove('pressed'), 260);   // 主屏上没有头，让整块屏幕往下压一下
   up({ t: 'head_press' });
   pressWaiters.forEach((r) => r(true));
   pressWaiters = [];
@@ -139,30 +181,46 @@ const bot = {
 };
 
 // ---------- 状态上报，和真机一样每秒一次 ----------
+function paintTele() {
+  $('#telemetry').innerHTML =
+    `yaw <b>${body.yaw.toFixed(1)}°</b> · pitch <b>${body.pitch.toFixed(1)}°</b> · 扭矩 <b>${body.torque}%</b> · 表情 <b>${esc(face.state)}</b>`;
+}
 setInterval(() => {
-  const s = { t: 'state', yaw: +body.yaw.toFixed(1), pitch: +body.pitch.toFixed(1), volt: 7.4, temp: 38 };
-  $('#telemetry').textContent =
-    `yaw   ${s.yaw.toFixed(1).padStart(6)}°\npitch ${s.pitch.toFixed(1).padStart(6)}°\n扭矩  ${String(body.torque).padStart(5)}%\n表情  ${face.state.padStart(6)}`;
-  if (link.connected) link.send(s);
+  paintTele();
+  if (link.connected) link.send({ t: 'state', yaw: +body.yaw.toFixed(1), pitch: +body.pitch.toFixed(1), volt: 7.4, temp: 38 });
 }, 1000);
+// 当前屏幕状态在按钮上高亮（状态可能是导演、中枢、场景换的，不只是点按钮）
+setInterval(() => document.querySelectorAll('[data-face]').forEach((b) => b.classList.toggle('on', b.dataset.face === face.state)), 300);
+paintTele();
+// 当前屏幕的状态和卡片数据（中枢推来的真数据一目了然）
+let lastCard = '';
+setInterval(() => {
+  const key = face.state + JSON.stringify(face.card ?? null);
+  if (key === lastCard) return;
+  lastCard = key;
+  $('#card-state').textContent = face.state;
+  $('#card-json').textContent = face.card ? JSON.stringify(face.card, null, 1) : '（这个状态没有卡片数据）';
+}, 400);
 
 // ---------- 一天的场景 ----------
 // 连着中枢：场景由中枢调度（它联网拿真数据，也会推给真机）；没连：模拟器用 scenes.js 的示例数据自己播
 const sceneRunner = createSceneRunner({ handle: act, onState: (m) => showScene(m), caption: (t) => bot.caption(t) });
 function showScene(m) {
   const on = m.name && m.name !== 'stop';
-  const label = SCENES.find((s) => s.id === m.name)?.label ?? m.name;
+  const sc = SCENES.find((x) => x.id === m.name);
+  const label = sc?.label ?? m.name;
   const box = $('#scene-state'), chip = $('#scene-chip');
   box.hidden = chip.hidden = !on;
   document.querySelectorAll('[data-scene]').forEach((b) => b.classList.toggle('running', on && b.dataset.scene === m.name));
+  $('#scene-desc').textContent = on ? (sc?.desc ?? '') : '';
+  $('#scene-desc').hidden = !on;
   if (!on) return;
   box.querySelector('b').textContent = `${label} · ${m.page}/${m.of}`;
-  box.querySelector('.dots').innerHTML = Array.from({ length: m.of }, (_, i) => `<i class="${i + 1 === m.page ? 'on' : ''}"></i>`).join('');
+  box.querySelector('.pg').innerHTML = Array.from({ length: m.of }, (_, i) => `<i class="${i + 1 === m.page ? 'on' : ''}"></i>`).join('');
   chip.textContent = `${label} ${m.page}/${m.of}`;
 }
 document.querySelectorAll('[data-scene]').forEach((b) => (b.onclick = () => {
   const name = b.dataset.scene;
-  $('#scene-src').textContent = link.connected ? '（中枢调度）' : '（离线示例数据）';
   if (link.connected) { sceneRunner.stop(); up({ t: 'scene', name }); }
   else if (name === 'stop') sceneRunner.stop();
   else sceneRunner.start(name);
@@ -172,6 +230,10 @@ document.querySelectorAll('[data-scene]').forEach((b) => (b.onclick = () => {
 function onStatus(kind, text) {
   $('#conn').className = `conn ${kind}`;
   $('#conn span').textContent = kind === 'on' ? '已连接' : kind === 'wait' ? '连接中' : '离线（单机模式）';
+  $('#scene-src').textContent = kind === 'on' ? '中枢调度 · 真数据' : '示例数据';
+  $('#hub-note').textContent = kind === 'on' ? '已连接' : kind === 'wait' ? '连接中…' : '离线';
+  if (kind === 'off') for (const id of ['face', 'body', 'view']) { $(`#pr-${id}`).classList.remove('on'); $(`#pr-${id} b`).textContent = 0; }
+  if (kind === 'off' && /拒绝|令牌/.test(text)) setTokenPop(true);   // 令牌不对：把令牌框弹出来
   log('sys', text);
 }
 
@@ -179,13 +241,17 @@ $('#ws-url').value = defaultUrl();
 link.token = defaultToken();
 $('#ws-token').value = link.token;
 $('#btn-connect').onclick = () => link.connect($('#ws-url').value.trim(), $('#ws-token').value.trim());
+function setTokenPop(open) { $('#token-pop').hidden = !open; $('#btn-token').setAttribute('aria-expanded', String(open)); if (open) $('#ws-token').focus({ preventScroll: true }); }
+$('#btn-token').onclick = () => setTokenPop($('#token-pop').hidden);
+$('#ws-token').onkeydown = (e) => { if (e.key === 'Enter') $('#btn-connect').click(); };
+$('#ws-url').onkeydown = (e) => { if (e.key === 'Enter') $('#btn-connect').click(); };
 // https 页面（比如部署出去的 H5）连不了 ws:// 的笔记本，默认只在本地打开时自动连
-if (location.protocol !== 'https:' || new URLSearchParams(location.search).has('ws')) link.connect($('#ws-url').value);
+if (location.protocol !== 'https:' || params.has('ws')) link.connect($('#ws-url').value);
 
 // ---------- 控件 ----------
 // 场景卡片：标题 + 谁在用，来自 usecases.js
 $('#scenes').innerHTML =
-  USECASES.map((uc) => `<button class="scene" data-demo="${uc.id}"><b>${uc.name}</b><span>${uc.who}</span><i>▶</i></button>`).join('') +
+  USECASES.map((uc) => `<button class="scene" data-demo="${uc.id}" title="${esc(uc.who)}"><b>${uc.name}</b><span>${uc.who}</span><i>▶</i></button>`).join('') +
   `<button class="all" data-demo="all">▶ ${USECASES.length} 个连播</button>`;
 let running = false;
 document.querySelectorAll('[data-demo]').forEach((b) => (b.onclick = async () => {
@@ -221,52 +287,100 @@ $('#btn-inject').onclick = () => {
   } catch (e) { log('sys', `JSON 解析失败：${e.message}`); }
 };
 
-// 视角：微侧（默认，有立体感又看得清屏） → 正面 → 3/4 侧视（看结构） → 屏幕（只看屏幕，手机默认）
-const cams = ['rotateX(-10deg) rotateY(-14deg)', 'rotateX(-6deg)', 'rotateX(-20deg) rotateY(-36deg)', 'flat'];
-const stage = $('#stage'), flatEl = $('#flat');
-let cam = 0, flatOn = false;
+// ---------- 主屏缩放：自适应（填满中间区域）或固定倍数（放不下就缩） ----------
+let scaleMode = store.get('scale', 'auto');
+if (!['auto', '1', '1.5', '2'].includes(scaleMode)) scaleMode = 'auto';
+function fitHero() {
+  const sw = heroScreen.offsetWidth, sh = heroScreen.offsetHeight;
+  if (!sw || !sh || body_big()) return;
+  const main = $('#hero-main'), phone = matchMedia('(max-width: 820px)').matches;
+  const aw = main.clientWidth - (phone ? 28 : 24) - 24;          // 左右内边距 + 黑色边框 12×2
+  const ah = phone ? Infinity : main.clientHeight - 24 - 24;     // 手机上高度不限，只看宽度
+  let k = Math.min(aw / sw, ah / sh);
+  if (scaleMode !== 'auto') k = Math.min(k, Number(scaleMode));
+  k = Math.max(0.5, Math.floor(Math.min(k, phone ? 3 : 2.5) * 20) / 20);
+  heroScreen.style.transform = `scale(${k})`;
+  flatEl.style.width = `${sw * k + 24}px`;
+  flatEl.style.height = `${sh * k + 24}px`;
+  $('#scale-seg').title = `当前 ${k.toFixed(2)}×`;
+}
+function setScale(m) {
+  scaleMode = m;
+  store.set('scale', m);
+  $('#scale-seg').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.scale === m));
+  fitHero();
+}
+$('#scale-seg').onclick = (e) => { const b = e.target.closest('[data-scale]'); if (b) setScale(b.dataset.scale); };
+const cycleScale = () => { const o = ['auto', '1', '1.5', '2']; setScale(o[(o.indexOf(scaleMode) + 1) % o.length]); };
+new ResizeObserver(fitHero).observe($('#hero-main'));
+// 设计实验室里切了屏幕尺寸（320×240 ↔ 480×320），主屏要重新算比例
+new MutationObserver(fitHero).observe(heroScreen, { attributes: true, attributeFilter: ['data-size'] });
 
-// 屏幕视图：把屏幕从 3D 头里摘出来，等比放大到整行宽度，外面一圈黑色边框
-function fitFlat() {
-  if (!flatOn) return;
-  const s = body.screen, w = flatEl.clientWidth - 24;      // 24 = 左右边框
-  const k = w / s.offsetWidth;
-  s.style.transform = `scale(${k})`;
-  flatEl.style.height = `${s.offsetHeight * k + 24}px`;
-}
-function setView(i) {
-  cam = i;
-  const flat = cams[i] === 'flat', s = body.screen;
-  if (flat !== flatOn) {
-    flatOn = flat;
-    stage.classList.toggle('flat', flat);
-    s.classList.toggle('in-head', !flat);
-    s.classList.toggle('flat-screen', flat);
-    if (flat) flatEl.querySelector('.flat-inner').appendChild(s);
-    else { s.style.transform = ''; body.screenHome.appendChild(s); }
-  }
-  if (!flat) $('#robot').style.transform = cams[i];
-  fit();
-  fitFlat();
-}
-$('#btn-cam').onclick = () => setView((cam + 1) % cams.length);
-// 窗口窄（手机）默认只看屏幕；?view=3d 可以强制 3D
-const phone = matchMedia('(max-width: 820px)').matches && new URLSearchParams(location.search).get('view') !== '3d';
+// ---------- 3D 机身：右栏小预览（头里是主屏的镜像），可以放大到屏幕的位置 ----------
+// 视角：微侧（默认，有立体感又看得清屏） → 正面 → 3/4 侧视（看结构）
+const cams = ['rotateX(-10deg) rotateY(-14deg)', 'rotateX(-6deg)', 'rotateX(-20deg) rotateY(-36deg)'];
+const stage = $('#stage');
+let cam = 0;
+const body_big = () => document.body.classList.contains('big3d');
 $('#robot').style.transform = cams[0];
+$('#btn-cam').onclick = () => { cam = (cam + 1) % cams.length; $('#robot').style.transform = cams[cam]; };
 
 // 整机约 800px 高，按舞台大小缩放
 function fit() {
-  if (flatOn) return;
   const r = stage.getBoundingClientRect();
-  const narrow = r.width < 700;   // 手机：机身只有 640 宽，不用留那么多边
-  const k = Math.min(r.width / (narrow ? 820 : 1150), r.height / 1320);   // 留出上下边距，底座不再被裁掉
-  $('#fit').style.transform = `translateY(${110 * k}px) scale(${k})`;
-  stage.style.perspective = `${1800 * k}px`;  // 透视随缩放走，手机上不会显得特别近
+  if (!r.width || !r.height) return;
+  const narrow = r.width < 700;   // 小预览 / 手机：机身只有 640 宽，不用留那么多边
+  const k = Math.min(r.width / (narrow ? 820 : 1150), r.height / 1320);   // 留出上下边距，底座不被裁掉
+  $('#fit').style.transform = `translateY(${110 * k}px) scale3d(${k}, ${k}, ${k})`;   // scale3d：深度也等比缩，透视才不会在小预览里夸张
+  stage.style.perspective = `${1800 * k}px`;  // 透视随缩放走，小预览里不会显得特别近
 }
-new ResizeObserver(() => { fit(); fitFlat(); }).observe(stage);
-// 设计实验室里切了屏幕尺寸（320×240 ↔ 480×320），屏幕视图要重新算比例
-new MutationObserver(fitFlat).observe(body.screen, { attributes: true, attributeFilter: ['data-size'] });
-setView(phone ? cams.indexOf('flat') : 0);
+new ResizeObserver(fit).observe(stage);
+function setBig(on) {
+  document.body.classList.toggle('big3d', on);
+  (on ? $('#hero-3d') : $('#sec-3d')).appendChild(stage);
+  $('#btn-big').textContent = on ? '还原' : '放大';
+  fit();
+  if (!on) fitHero();
+}
+$('#btn-big').onclick = () => setBig(!body_big());
+function setPreview(on) {   // 右栏 3D 预览整块显示 / 隐藏（身体已停用，默认显示，可收起腾出空间给演示列表）
+  $('#sec-3d').classList.toggle('off', !on);
+  store.set('3d', on ? '1' : '0');
+  if (on) fit();
+}
+setPreview(store.get('3d', '1') === '1');
+if (params.get('view') === '3d') setBig(true);
+setScale(scaleMode);
+
+// ---------- 快捷键 ----------
+const helpEl = $('#help');
+const setHelp = (on) => { helpEl.hidden = !on; };
+$('#btn-help').onclick = () => setHelp(helpEl.hidden);
+$('#help-close').onclick = () => setHelp(false);
+helpEl.onclick = (e) => { if (e.target === helpEl) setHelp(false); };
+// 鼠标点完按钮就让它失焦，不然接着按空格会再点一次那个按钮（键盘操作产生的 click，detail 是 0，不受影响）
+document.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b && e.detail > 0) b.blur(); });
+const FACE_KEYS = { i: 'idle', p: 'play', z: 'sleep', h: 'happy', t: 'today', s: 'sky', w: 'watch', m: 'mkt' };
+const SCENE_KEYS = ['morning', 'watch', 'close', 'booth', 'stop'];
+window.addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
+  if (e.key === 'Escape') return setHelp(false);
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (k === '?') return setHelp(helpEl.hidden);
+  if (/^[1-5]$/.test(k)) return document.querySelector(`[data-scene="${SCENE_KEYS[k - 1]}"]`).click();
+  if (k === '[' || k === ']') {
+    const states = [...document.querySelectorAll('[data-face]')].map((b) => b.dataset.face);
+    const i = states.indexOf(face.state);
+    return act({ t: 'face', state: states[(i + (k === ']' ? 1 : -1) + states.length) % states.length] });
+  }
+  if (FACE_KEYS[k]) return act({ t: 'face', state: FACE_KEYS[k] });
+  if (k === ' ') { e.preventDefault(); return pressHead(); }
+  if (k === 'b') return toggleBoss();
+  if (k === 'f') return cycleScale();
+  if (k === 'd') return setPreview($('#sec-3d').classList.contains('off'));
+  if (k === 'l') return window.open('logs.html', '_blank');
+});
 
 // ?demo=moyu 打开就自动播放，方便录 Demo 视频
 const autoplay = new URLSearchParams(location.search).get('demo');
