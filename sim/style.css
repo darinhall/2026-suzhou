@@ -231,7 +231,7 @@ details.dev textarea { width: calc(100% - 28px); }
   .hero { display: contents; }
   .hero-main { order: 0; padding: 14px 14px 6px; overflow: visible; }
   .hero-bar { order: 1; border: 0; background: none; padding: 4px 14px 8px; }
-  .hero-bar .seg { display: none; }
+  .hero-bar .seg:not(.keep) { display: none; }
   .tele { order: 3; flex-basis: 100%; font-size: 11px; white-space: normal; }
   .tools { flex: 1; margin-left: 0; }
   .tools button { flex: 1; min-height: 44px; font-size: 15px; }
