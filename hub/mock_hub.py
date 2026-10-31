@@ -614,7 +614,7 @@ async def main(port: int):
         if not PROXY:
             await start_discovery(port)
         print(f"mock hub  ws://{lan_ip()}:{port}/robot   （本机 ws://localhost:{port}/robot）")
-        print(f"令牌：{TOKEN}（也在 hub/.token；本机连接不用）" if AUTH
+        print(f"令牌：{TOKEN}（也在 hub/.token；" + ("--proxy：所有连接都要）" if PROXY else "本机连接不用）") if AUTH
               else "⚠️ 令牌检查已关闭（--no-auth）：同一个 WiFi 里的任何人都能连上来控制机器人")
         print("输入 JSON、demo、weather、today、market、mode <watch|list|idle|booth>、profile、scene <…>、logs 或 token")
         await hub_log("info", "HUB_START", f"中枢启动 ws://{lan_ip()}:{port}/robot" + ("" if AUTH else "（无令牌）"))

@@ -38,7 +38,7 @@ static bool linkUp() { return WiFi.status() == WL_CONNECTED || (apMode && WiFi.s
 
 
 // ---------- 日志 ----------
-struct LogItem { char lvl[6], code[24], msg[96]; uint32_t up; };
+struct LogItem { char lvl[6], code[24], msg[192]; uint32_t up; };
 static LogItem pend[16];
 static int pendN = 0;
 
@@ -55,12 +55,23 @@ static void sendLog(const LogItem &it) {
   ws.sendTXT(out);
 }
 
+// 截断可能把一个中文字切成两半：把结尾不完整的 UTF-8 字符去掉，否则中枢会因为"不是合法 UTF-8"断开连接（1007）
+static void utf8Trim(char *s) {
+  size_t n = strlen(s), i = n;
+  while (i > 0 && (s[i - 1] & 0xC0) == 0x80) i--;   // 往回跳过续字节
+  if (i == 0) return;
+  const unsigned char lead = s[i - 1];
+  const size_t need = lead >= 0xF0 ? 4 : lead >= 0xE0 ? 3 : lead >= 0xC0 ? 2 : 1;
+  if (n - (i - 1) < need) s[i - 1] = 0;
+}
+
 void log(const char *lvl, const char *code, const char *msg) {
   Serial.printf("[%s] %s %s\n", lvl, code, msg);
   LogItem it;
   strlcpy(it.lvl, lvl, sizeof it.lvl);
   strlcpy(it.code, code, sizeof it.code);
   strlcpy(it.msg, msg, sizeof it.msg);
+  utf8Trim(it.msg);
   it.up = millis();
   if (wsUp) { sendLog(it); return; }
   if (pendN == 16) { memmove(pend, pend + 1, sizeof(LogItem) * 15); pendN = 15; }   // 满了丢最旧的
