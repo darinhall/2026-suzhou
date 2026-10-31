@@ -102,7 +102,7 @@ const VIEWS = {
     return `
     <div class="pane">
       <div class="row label">市场天气 · ${esc(c.time ?? '09:15')}</div>
-      <div class="row" style="align-items:flex-end;gap:16px"><span class="numeral-xl">${share}</span><div style="padding-bottom:6px"><div class="title">${esc(c.word ?? '')}</div><div class="label">上涨家数占比 %</div></div></div>
+      <div class="row" style="align-items:flex-end;gap:16px"><span class="numeral-xl">${share}</span><div style="padding-bottom:6px"><div class="display">${esc(c.word ?? '')}</div><div class="label">上涨家数占比 %</div></div></div>
       <div class="grow"></div>
       <div class="split"><i style="width:${share}%;background:var(--up)"></i><i style="flex:1;background:var(--down)"></i></div>
       <div class="foot"><span class="label"><span class="up">▲ ${c.up}</span> · <span class="down">▼ ${c.down}</span></span>${LEGAL}</div>
@@ -113,7 +113,7 @@ const VIEWS = {
   brief: (c = {}) => `
     <div class="pane brief">
       <div class="label">${esc(c.title ?? '盘前简报')}</div>
-      <ol class="grow">${(c.items ?? []).map((t) => `<li class="body">${esc(t)}</li>`).join('')}</ol>
+      <ol class="grow">${(c.items ?? []).map((t) => `<li>${esc(t)}</li>`).join('')}</ol>
       <div class="foot"><span class="hint">${esc(c.hint ?? '')}</span>${c.legal === false ? '' : LEGAL}</div>
     </div>`,
 
@@ -122,7 +122,7 @@ const VIEWS = {
     <div class="pane">
       <div class="loud grow">
         <div class="label">${esc(c.why ?? '')}</div>
-        <div class="title grow">${esc(c.title ?? '确定吗？')}</div>
+        <div class="display grow">${esc(c.title ?? '确定吗？')}</div>
         ${c.meta ? `<div class="label meta">${esc(c.meta)}</div>` : ''}
       </div>
       <div class="hint">${esc(c.hint ?? '按头 = 确认 · 不动 = 算了')}</div>
