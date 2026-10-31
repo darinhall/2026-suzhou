@@ -154,21 +154,39 @@ void loop() {
     ui::wake();                   // 玩球 / 睡觉时摸一下就醒
     int x, y;
     mapTouch(tp.points[0].x, tp.points[0].y, x, y);
-    if (now - lastTap < 350) {    // 连点两下：老板键
+    Serial.printf("[touch] 原始 %d,%d → 屏幕 %d,%d\n", tp.points[0].x, tp.points[0].y, x, y);
+    if (now - lastTap < 600) {    // 连点两下：老板键
       ui::setBoss(!ui::boss());
       net::sendBoss(ui::boss());
       Serial.printf("[boss] %s\n", ui::boss() ? "开" : "关");
-    } else if (x > 380 && y < 44 && ui::isText()) {   // 点右上角：简洁 ↔ 专业
+    } else {
+      net::sendTouch(x, y);
+    }
+    lastTap = now;
+  }
+  // 长按右上角 0.7 秒：简洁 ↔ 专业（不用单击，免得和"连点两下 = 老板键"撞上）
+  static uint32_t pressAt = 0;
+  static bool fired = false;
+  if (touched && !wasTouched) { pressAt = now; fired = false; }
+  if (touched && !fired && pressAt && now - pressAt > 1500 && ui::boss()) {   // 老板键开着时长按 1.5 秒也能退出（连点两下不容易点准）
+    fired = true;
+    ui::setBoss(false);
+    net::sendBoss(false);
+    Serial.println("[boss] 长按退出");
+  }
+  if (touched && !fired && pressAt && now - pressAt > 700 && ui::isText()) {
+    int lx, ly;
+    mapTouch(tp.points[0].x, tp.points[0].y, lx, ly);
+    if (lx > 380 && ly < 60) {
+      fired = true;
       const char *next = !strcmp(screens::mode(), "simple") ? "pro" : "simple";
       screens::setMode(next);
       JsonDocument dd;
       dd["t"] = "display";
       dd["mode"] = next;
       net::send(dd);
-    } else {
-      net::sendTouch(x, y);
+      Serial.printf("[display] 长按右上角 → %s\n", next);
     }
-    lastTap = now;
   }
   wasTouched = touched;
 

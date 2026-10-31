@@ -140,8 +140,16 @@ static bool discoverOnce() {
 
 // 现场同一个 SSID 有很多 AP，板子天线又弱：自己扫一遍（每个信道多停一会儿，不漏 beacon），
 // 挑信号最强的那个，按信道 + BSSID 去连，比让系统"边扫边连"快得多也稳得多。
-static void joinBest() {
-  const int n = WiFi.scanNetworks(false, true, false, 350);
+static bool scanning = false;
+
+// 异步扫描：扫的时候主循环照常跑（触摸、动画不能被 5 秒的阻塞扫描卡住）
+static void startScan() {
+  WiFi.scanDelete();
+  WiFi.scanNetworks(true, true, false, 350);
+  scanning = true;
+}
+
+static void joinBest(int n) {
   int best = -1;
   for (int i = 0; i < n; i++)
     if (WiFi.SSID(i) == DB_WIFI_SSID && (best < 0 || WiFi.RSSI(i) > WiFi.RSSI(best))) best = i;
@@ -208,11 +216,16 @@ void begin(MessageCb cb) {
   WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);      // 而不是连上第一个扫到的（可能是远处那个，连得慢甚至连不上）
   WiFi.setAutoReconnect(true);
   Serial.printf("[wifi] 连接 %s …\n", DB_WIFI_SSID);
-  joinBest();
+  startScan();
 }
 
 void loop() {
   const uint32_t now = millis();
+
+  if (scanning) {   // 扫完了就挑最强的 AP 去连
+    const int n = WiFi.scanComplete();
+    if (n != WIFI_SCAN_RUNNING) { scanning = false; lastTry = now; joinBest(n < 0 ? 0 : n); }
+  }
 
   if (WiFi.status() != WL_CONNECTED) {
     if (phase != Phase::Wifi) {
@@ -229,7 +242,7 @@ void loop() {
     if (now - lastTry > 12000) {   // 12 秒还没连上就重来一次
       lastTry = now;
       WiFi.disconnect();
-      joinBest();
+      if (!scanning) startScan();
     }
     return;
   }

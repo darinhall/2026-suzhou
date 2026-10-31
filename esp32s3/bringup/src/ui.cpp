@@ -116,6 +116,12 @@ static void clockFace(bool full) {
   char hh[3] = "--", mm[4] = ":--";
   int minute = -2;
   if (getLocalTime(&tm, 0) && tm.tm_year > 120) { snprintf(hh, sizeof hh, "%02d", tm.tm_hour); snprintf(mm, sizeof mm, ":%02d", tm.tm_min); minute = tm.tm_hour * 60 + tm.tm_min; }
+  else {   // 没联网校时：用"编译时间 + 开机后经过的时间"凑一个大致的时间，总比一直显示 --:-- 强
+    int bh = 0, bm = 0;
+    sscanf(__TIME__, "%d:%d", &bh, &bm);
+    const int t = (bh * 60 + bm + (int)(millis() / 60000)) % 1440;
+    snprintf(hh, sizeof hh, "%02d", t / 60); snprintf(mm, sizeof mm, ":%02d", t % 60); minute = t;
+  }
   if (!full && minute == clockMin) return;
   clockMin = minute;
   if (full) T->fillScreen(C(GROUND));
