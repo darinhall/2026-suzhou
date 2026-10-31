@@ -22,7 +22,6 @@ static int cnt = 0;
 static float pct = 0, vol = 0.3f;
 static bool alertFlag = false, bossOn = false;
 static char label[24] = "";
-static String statusLine;
 static uint32_t nextBlink = 3000, lastAnim = 0, winkUntil = 0, lastClock = 0, lastActive = 0, stateSince = 0;
 
 static int W() { return T->width(); }
@@ -121,27 +120,6 @@ static void clockFace() {
   T->drawString(mm, x0 + wh, y0, 8);
 }
 
-// ---------- 右上角连接图标：连上中枢 = 实心三道弧，没连上 = 淡色加一道斜线 ----------
-static bool linkOk = false;
-static const int ICON_W = 48, ICON_H = 36, ICON_PAD = 4;   // 图标占的方块，右上角
-static int iconX() { return W() - ICON_W - ICON_PAD; }
-
-static void drawLink(TFT_eSPI &g, int ox, int oy) {   // ox/oy：目标的左上角在屏幕上的位置（画进 sprite 时用）
-  const int cx = iconX() + ICON_W / 2 - ox, cy0 = ICON_PAD + ICON_H - 5 - oy;   // 底部那个点
-  const uint16_t fg = C(linkOk ? MUTED : RULE);
-  g.fillCircle(cx, cy0, 3, fg);
-  for (int r = 10; r <= 26; r += 8)   // 三道向上张开的弧（±45°），用小圆点一圈圈点出来
-    for (int a = -45; a <= 45; a += 3) g.fillCircle(cx + (int)(r * sinf(a * DEG_TO_RAD)), cy0 - (int)(r * cosf(a * DEG_TO_RAD)), 1, fg);
-  if (!linkOk) {
-    for (int o = -1; o <= 1; o++) g.drawLine(cx - 18 + o, cy0 + 2, cx + 18 + o, cy0 - 26, C(INK));
-  }
-}
-
-static void paintLink() {
-  T->fillRect(iconX(), ICON_PAD, ICON_W, ICON_H, C(GROUND));
-  drawLink(*T, 0, 0);
-}
-
 // ---------- 待机小动画 ----------
 // 玩球：橙色小球重力 + 反弹，眼睛跟着它（小球是这一屏的 accent，所以不画嘴）
 static const int BALL_R = 20;
@@ -175,7 +153,6 @@ static void drawBallInto(TFT_eSPI &g, int ox, int oy) {
 static void composeAndPush(TFT_eSprite *sp, int x, int y, int w, int h, bool withBall) {
   sp->fillSprite(C(GROUND));
   drawEyesInto(*sp, x, y);
-  drawLink(*sp, x, y);
   if (withBall) drawBallInto(*sp, x, y);
   sp->pushSprite(x, y);
 }
@@ -237,7 +214,7 @@ static void sleepEyes() {
 }
 
 static void zzz(uint32_t now) {
-  T->fillRect(366, 50, 114, 124, C(GROUND));   // 避开右上角的连接图标
+  T->fillRect(366, 24, 114, 150, C(GROUND));
   for (int i = 0; i < 3; i++) {
     const float ph = fmodf(now / 1000.0f + i * 1.2f, 3.6f) / 3.6f;
     const float a = ph < 0.22f ? ph / 0.22f : ph > 0.8f ? (1 - ph) / 0.2f : 1;
@@ -276,11 +253,6 @@ static void render() {
       T->drawCentreString(String("[") + label + "]  text screens: next step", W() / 2, H() - 22, 2);
       break;
   }
-  if (statusLine.length()) {
-    T->setTextColor(C(MUTED), C(GROUND));
-    T->drawCentreString(statusLine, W() / 2, H() - 22, 2);
-  }
-  if (cur != State::Play) paintLink();   // 玩球时图标由 sprite 一起画
 }
 
 void begin(TFT_eSPI *tft) {
@@ -310,17 +282,6 @@ void wake() {
   const bool wasSleep = cur == State::Sleep;
   apply(State::Idle, 0, 0, 0.3f, false, nullptr);
   if (wasSleep) startle();
-}
-
-void status(const char *line) {
-  statusLine = line;
-  if (!bossOn) render();
-}
-
-void setLink(bool ok) {
-  if (ok == linkOk) return;
-  linkOk = ok;
-  if (!bossOn && cur != State::Play) paintLink();   // 玩球时下一帧 sprite 里会带上
 }
 
 void setBoss(bool on) {
