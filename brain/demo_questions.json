@@ -1,15 +1,42 @@
 {
   "zh": [
-    {"demo": 1, "text": "宁德时代今天涨了吗？"},
-    {"demo": 2, "text": "比较一下宁德时代和比亚迪最近一个月"},
-    {"demo": 2, "text": "为什么？"},
-    {"demo": 3, "text": "我应该全仓买入中芯国际吗？"},
-    {"demo": 0, "text": "今天大盘怎么样？"},
-    {"demo": 0, "text": "我的自选股今天谁最强？"}
+    {
+      "demo": 0,
+      "text": "今天怎么样？"
+    },
+    {
+      "demo": 1,
+      "text": "宁德时代为什么涨？"
+    },
+    {
+      "demo": 2,
+      "text": "宁德时代今天涨了吗？"
+    },
+    {
+      "demo": 2,
+      "text": "和比亚迪比呢？"
+    },
+    {
+      "demo": 3,
+      "text": "我应该全仓买入中芯国际吗？"
+    },
+    {
+      "demo": 0,
+      "text": "我的自选股今天谁最强？"
+    }
   ],
   "en": [
-    {"demo": 1, "text": "Did CATL go up today?"},
-    {"demo": 2, "text": "Compare CATL and BYD over the last month"},
-    {"demo": 3, "text": "Should I go all in on SMIC?"}
+    {
+      "demo": 1,
+      "text": "Did CATL go up today?"
+    },
+    {
+      "demo": 2,
+      "text": "Compare CATL and BYD over the last month"
+    },
+    {
+      "demo": 3,
+      "text": "Should I go all in on SMIC?"
+    }
   ]
 }
