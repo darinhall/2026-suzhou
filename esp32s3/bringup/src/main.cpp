@@ -38,8 +38,6 @@ static void mapTouch(int rx, int ry, int &x, int &y) {
 #endif
 }
 
-static bool bossFromHub = false;   // 时钟是中枢让进的（模式 = 时钟）：中枢换了别的模式就跟着退出；自己长按进的时钟只能自己长按退出
-
 // 中枢发来的消息：这块板只管脸，pose / gesture / torque 之类给身体的直接忽略
 static void onMessage(JsonDocument &d) {
   const char *t = d["t"] | "";
@@ -54,15 +52,6 @@ static void onMessage(JsonDocument &d) {
   if (strcmp(t, "face") != 0) return;
   const char *st = d["state"] | "idle";
   JsonVariantConst card = d["card"];
-  if (bossFromHub && strcmp(st, "decoy")) {   // 中枢从"时钟"模式切走了
-    bossFromHub = false;
-    if (ui::boss()) { ui::setBoss(false); net::sendBoss(false); }
-  }
-  if (screens::handles(st) && ui::boss()) {   // 老板键开着：卡片先存着，退出后再画（不然新卡片会盖掉时钟）
-    screens::store(st, card);
-    ui::setText();
-    return;
-  }
   if (screens::handles(st)) {   // 文字屏
     const uint32_t t0 = millis();
     if (screens::show(st, card)) {
@@ -88,7 +77,6 @@ static void onMessage(JsonDocument &d) {
   else if (!strcmp(st, "stealth")) ui::set(ui::State::Stealth, 0, card["pct"] | 0.0f, card["vol"] | 0.3f, card["alert"] | false);
   else if (!strcmp(st, "play")) ui::set(ui::State::Play);
   else if (!strcmp(st, "sleep")) ui::set(ui::State::Sleep);
-  else if (!strcmp(st, "decoy")) { ui::setBoss(true); bossFromHub = true; }
   else ui::set(ui::State::Unsupported, 0, 0, 0, false, st);
 }
 
@@ -153,7 +141,7 @@ static void offlineDemo(uint32_t now) {
   static int idx = 0;
   static bool running = false;
   if (net::connected()) { lastHub = now; running = false; return; }
-  if (now - lastHub < 25000 || ui::boss() || (lastTouchAt && now - lastTouchAt < 20000)) return;
+  if (now - lastHub < 25000 || (lastTouchAt && now - lastTouchAt < 20000)) return;
   if (running && now - lastCard < 9000) return;
   running = true;
   lastCard = now;
@@ -180,7 +168,7 @@ void loop() {
     Serial.printf("[touch] 原始 %d,%d → 屏幕 %d,%d\n", tp.points[0].x, tp.points[0].y, x, y);
     JsonDocument detail;
     char code[16];
-    if (!ui::boss() && screens::openRowAt(x, y, detail, code, sizeof code)) {   // 盯盘列表里点了一只股票：打开它的详情
+    if (screens::openRowAt(x, y, detail, code, sizeof code)) {   // 盯盘列表里点了一只股票：打开它的详情
       if (net::connected()) {   // 连着中枢：让中枢发带完整数据的详情（成交量、涨跌停价、20 日区间…），12 秒后自动回来
         JsonDocument od;
         od["t"] = "open";
@@ -191,28 +179,11 @@ void loop() {
       }
     } else net::sendTouch(x, y);   // 其他单击：上报中枢（场景里 = 下一项）
   }
-  // 手势：长按右上角 0.7 秒 = 简洁 ↔ 专业；长按左上角 1.2 秒 = 老板键；老板键开着时长按 1 秒退出
+  // 手势：单击 = 下一项；点自选里的一只股票 = 看详情；长按右上角 0.7 秒 = 简洁 ↔ 专业
   static uint32_t pressAt = 0;
   static bool fired = false;
   if (touched && !wasTouched) { pressAt = now; fired = false; }
-  if (touched && !fired && pressAt && now - pressAt > 1000 && ui::boss()) {   // 老板键开着：长按 1 秒退出
-    fired = true;
-    ui::setBoss(false);
-    bossFromHub = false;
-    net::sendBoss(false);
-    Serial.println("[boss] 长按退出");
-  }
-  if (touched && !fired && pressAt && now - pressAt > 1200 && !ui::boss()) {   // 长按左上角 1.2 秒 = 老板键（连点太容易误触：评委一快点就进时钟）
-    int lx, ly;
-    mapTouch(tp.points[0].x, tp.points[0].y, lx, ly);
-    if (lx < 110 && ly < 70) {
-      fired = true;
-      ui::setBoss(true);
-      net::sendBoss(true);
-      Serial.println("[boss] 开（长按左上角）");
-    }
-  }
-  if (touched && !fired && pressAt && now - pressAt > 700 && ui::isText() && !ui::boss()) {
+  if (touched && !fired && pressAt && now - pressAt > 700 && ui::isText()) {
     int lx, ly;
     mapTouch(tp.points[0].x, tp.points[0].y, lx, ly);
     if (lx > 380 && ly < 60) {

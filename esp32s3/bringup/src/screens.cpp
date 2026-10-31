@@ -625,68 +625,6 @@ static void drawBrief(JsonVariantConst c) {
   if (!(c["legal"].is<bool>() && !(bool)c["legal"])) legalLine();
 }
 
-static void drawMarketWeather(JsonVariantConst c) {
-  const int up = c["up"] | 0, down = c["down"] | 0, tot = max(1, up + down);
-  const int share = (int)lroundf(up * 100.0f / tot);
-  txtf(CJK14, 14, 15, TL_DATUM, MUTED, GROUND, "市场天气 · %s", (const char *)(c["time"] | ""));
-  txtf(M56, 14, 44, TL_DATUM, INK, GROUND, "%d", share);
-  txt(CJK26, 150, 60, TL_DATUM, INK, GROUND, c["word"] | "");
-  txt(CJK14, 150, 96, TL_DATUM, MUTED, GROUND, "上涨家数占比 %");
-  fb->fillRoundRect(14, 200, 452, 14, 4, C(DOWNC));
-  fb->fillRoundRect(14, 200, max(8, 452 * share / 100), 14, 4, C(UPC));
-  tri(14, 228, true, UPC);
-  txtf(M14, 28, 225, TL_DATUM, UPC, GROUND, "%d", up);
-  tri(110, 228, false, DOWNC);
-  txtf(M14, 124, 225, TL_DATUM, DOWNC, GROUND, "%d", down);
-  if (!c["limit_up_n"].isNull()) txtf(CJK14, 466, 225, TR_DATUM, MUTED, GROUND, "涨停 %d · 跌停 %d", (int)c["limit_up_n"], (int)(c["limit_down_n"] | 0));
-  txt(CJK14, 14, 301, TL_DATUM, MUTED, GROUND, !strcmp(c["mode"] | "", "sample") ? "示例数据 · 不构成投资建议" : "行情数据仅供参考 · 不构成投资建议");
-}
-
-static void drawSky(JsonVariantConst c, bool pro) {
-  const float temp = c["temp"] | 0.0f;
-  const char *advice = c["advice"] | "";
-  if (!pro) {
-    txtf(CJK14, 14, 15, TL_DATUM, MUTED, GROUND, "%s · %s", (const char *)(c["city"] | ""), (const char *)(c["time"] | ""));
-    txtf(M56, 14, 40, TL_DATUM, INK, GROUND, "%d", (int)lroundf(temp));
-    txt(CJK18, 100, 50, TL_DATUM, MUTED, GROUND, "°C");
-    txt(CJK26, 466, 48, TR_DATUM, INK, GROUND, c["text"] | "");
-    txtf(CJK14, 466, 86, TR_DATUM, MUTED, GROUND, "体感 %d° · 湿度 %d%%", (int)(c["feels"] | 0), (int)(c["humidity"] | 0));
-    fb->fillRoundRect(14, 160, 452, 130, 16, C(CARD));
-    char b[80];
-    snprintf(b, sizeof b, "今天 %d-%d° · 明天 %s %d-%d°", (int)(c["lo"] | 0), (int)(c["hi"] | 0), (const char *)(c["tmr_text"] | ""), (int)(c["tmr_lo"] | 0), (int)(c["tmr_hi"] | 0));
-    txt(CJK14, 30, 176, TL_DATUM, ON_CARD_MUTED, CARD, b);
-    char L[3][60];
-    const int n = wrapPx(advice, 26, 410, L, 2);
-    for (int i = 0; i < n; i++) txt(CJK26, 30, 206 + i * 36, TL_DATUM, ON_CARD, CARD, L[i]);
-    return;
-  }
-  // 专业：左栏大温度 + kv 行；右栏 24 小时气温曲线 + 降水概率柱
-  txtf(CJK12, 10, 25, TL_DATUM, MUTED, GROUND, "%s · %s", (const char *)(c["city"] | ""), (const char *)(c["time"] | ""));
-  txtf(M44, 10, 40, TL_DATUM, INK, GROUND, "%d°", (int)lroundf(temp));
-  txt(CJK17, 213, 56, TR_DATUM, INK, GROUND, c["text"] | "");
-  int y = 100;
-  char b[48];
-  snprintf(b, sizeof b, "%d° · 湿度 %d%%", (int)(c["feels"] | 0), (int)(c["humidity"] | 0)); kv(10, y, 213, "体感", b); y += 20;
-  snprintf(b, sizeof b, "%d-%d°", (int)(c["lo"] | 0), (int)(c["hi"] | 0)); kv(10, y, 213, "今天", b); y += 20;
-  if (!c["wind_dir"].isNull() || !c["wind"].isNull()) { kv(10, y, 213, "风", c["wind"].isNull() ? c["wind_dir"] : c["wind"]); y += 20; }
-  if (!c["aqi"].isNull()) { snprintf(b, sizeof b, "AQI %d · %s", (int)c["aqi"], (const char *)(c["aqi_text"] | "")); kv(10, y, 213, "空气", b); y += 20; }
-  if (!c["uv"].isNull()) { snprintf(b, sizeof b, "%d 级", (int)c["uv"]); kv(10, y, 213, "紫外线", b); y += 20; }
-  if (!c["sunrise"].isNull()) { snprintf(b, sizeof b, "%s / %s", (const char *)c["sunrise"], (const char *)(c["sunset"] | "")); kv(10, y, 213, "日出落", b); y += 20; }
-  snprintf(b, sizeof b, "%s %d-%d°", (const char *)(c["tmr_text"] | ""), (int)(c["tmr_lo"] | 0), (int)(c["tmr_hi"] | 0)); kv(10, y, 213, "明天", b);
-  JsonArrayConst h = c["hourly"];
-  txt(CJK12, 223, 25, TL_DATUM, MUTED, GROUND, "24 小时气温");
-  fb->drawFastHLine(223, 41, 247, C(INK));
-  if (h.size() >= 2) spark(h, 223, 47, 247, 158, INK, 0, false);
-  JsonArrayConst rn = c["rain_hourly"];
-  txt(CJK12, 223, 232, TL_DATUM, MUTED, GROUND, "降水概率");
-  fb->drawFastHLine(223, 248, 247, C(INK));
-  for (int i = 0; i < (int)min(rn.size(), (size_t)24); i++) {
-    const int hh = (int)(rn[i].as<float>() / 100.0f * 30);
-    fb->fillRect(223 + i * 10, 284 - hh, 8, max(1, hh), C(rn[i].as<float>() > 0 ? DB_LIGHT_LILAC : RULE));
-  }
-  txt(CJK12, 10, 296, TL_DATUM, INK, GROUND, advice);
-}
-
 // 色板测试：这块屏的白点偏冷，设计系统的米黄在上面会发蓝。画一组更暖的候选色，拍照对比着挑
 static void drawColorTest() {
   static const uint32_t SW[8] = {0xF1E8D2, 0xF6E6B8, 0xF7E2A8, 0xF3E4C0, 0xF8ECC8, 0xFBEFD0, 0xF5E9CF, 0xFFFFFF};
@@ -720,7 +658,7 @@ bool begin(TFT_eSPI *tft) {
 }
 
 bool handles(const char *state) {
-  static const char *const S[] = {"watch", "mkt", "today", "sky", "weather", "brief", "msg", "ask", "agent", "colortest"};
+  static const char *const S[] = {"watch", "mkt", "today", "brief", "msg", "ask", "agent", "colortest"};
   for (const char *x : S) if (!strcmp(state, x)) return true;
   return false;
 }
@@ -734,8 +672,6 @@ static void paint() {
   if (!strcmp(lastState, "watch")) simple ? drawWatchSimple(c) : drawWatch(c);
   else if (!strcmp(lastState, "mkt")) simple ? drawMktSimple(c) : drawMkt(c);
   else if (!strcmp(lastState, "today")) simple ? drawTodaySimple(c) : drawToday(c);
-  else if (!strcmp(lastState, "sky")) drawSky(c, !simple);
-  else if (!strcmp(lastState, "weather")) drawMarketWeather(c);
   else if (!strcmp(lastState, "brief")) drawBrief(c);
   else if (!strcmp(lastState, "msg")) drawMsg(c);
   else if (!strcmp(lastState, "ask")) drawAsk(c);
