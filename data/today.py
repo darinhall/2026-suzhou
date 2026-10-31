@@ -117,7 +117,7 @@ def get_fx() -> list[dict] | None:
         return c["items"] if c else None
 
 
-def get_today(now: datetime.datetime | None = None) -> dict:
+def get_today(now: datetime.datetime | None = None, place: dict | None = None, codes=None) -> dict:
     """"今天"卡（v2）：旧字段全部保留，另加
     lunar · next_open · open_in · last_idx{name,value,pct} · wx{…} · events[{time,title}]≤3 · fx[{pair,rate,pct}]≤3 · brief · overnight[{name,pct}] · sample{events,overnight}。
     某一项取不到就没有这个 key，不会用假值补；返回的 "warnings" 是 [(日志代码, 说明)]，中枢记进日志。"""
@@ -127,11 +127,11 @@ def get_today(now: datetime.datetime | None = None) -> dict:
     warnings: list[tuple[str, str]] = []
     with ThreadPoolExecutor(max_workers=6) as pool:
         f_trading = pool.submit(trading_day, now.date())
-        f_weather = pool.submit(get_weather)
+        f_weather = pool.submit(get_weather, place) if place else pool.submit(get_weather)
         f_open = pool.submit(next_open, now)
         f_fx = pool.submit(get_fx)
         f_over = pool.submit(lambda: __import__("overnight").get_overnight())
-        f_day = pool.submit(lambda: __import__("watch").load_day())
+        f_day = pool.submit(lambda: __import__("watch").load_day(codes=codes))
         is_trading, source = f_trading.result()
         w = f_weather.result()   # 天气是这一屏的主角：失败就整张卡失败，由调用方决定怎么办
         extras = {}
