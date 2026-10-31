@@ -107,13 +107,20 @@ static void stealth() {
 }
 
 // ---------- 老板键：办公助手时钟 ----------
-static void clockFace() {
-  T->fillScreen(C(GROUND));
+static int clockMin = -1;   // 屏幕上现在显示的分钟；-1 = 还没画
+
+// 只有分钟变了才重画，而且只重画数字那一块；以前每秒整屏清一次，所以每秒闪一下
+static void clockFace(bool full) {
   struct tm tm;
   char hh[3] = "--", mm[4] = ":--";
-  if (getLocalTime(&tm, 0) && tm.tm_year > 120) { snprintf(hh, sizeof hh, "%02d", tm.tm_hour); snprintf(mm, sizeof mm, ":%02d", tm.tm_min); }
+  int minute = -2;
+  if (getLocalTime(&tm, 0) && tm.tm_year > 120) { snprintf(hh, sizeof hh, "%02d", tm.tm_hour); snprintf(mm, sizeof mm, ":%02d", tm.tm_min); minute = tm.tm_hour * 60 + tm.tm_min; }
+  if (!full && minute == clockMin) return;
+  clockMin = minute;
+  if (full) T->fillScreen(C(GROUND));
   T->setTextDatum(TL_DATUM);
-  const int wh = T->textWidth(hh, 8), wm = T->textWidth(mm, 8), x0 = (W() - wh - wm) / 2, y0 = H() / 2 - 38;
+  const int wh = T->textWidth("00", 8), wm = T->textWidth(":00", 8), x0 = (W() - wh - wm) / 2, y0 = H() / 2 - 38;   // 用固定宽度排版，数字变了位置也不动
+  if (!full) T->fillRect(x0 - 4, y0 - 4, wh + wm + 8, 8 * 8 + 24, C(GROUND));
   T->setTextColor(C(INK), C(GROUND));
   T->drawString(hh, x0, y0, 8);
   T->setTextColor(C(MUTED), C(GROUND));
@@ -302,7 +309,7 @@ static void wakeUp(bool fromSleep) {
 
 // ---------- 整屏重画 ----------
 static void render() {
-  if (bossOn) return clockFace();
+  if (bossOn) return clockFace(true);
   T->fillScreen(C(GROUND));
   switch (cur) {
     case State::Idle: eyesPill(INK, EYE_H); mouth(); break;
@@ -356,6 +363,7 @@ void wake() {
 void setBoss(bool on) {
   bossOn = on;
   lastClock = 0;
+  clockMin = -1;
   render();
 }
 
@@ -363,7 +371,7 @@ bool boss() { return bossOn; }
 
 void tick(uint32_t now) {
   if (bossOn) {   // 每秒刷新一次时钟
-    if (now - lastClock > 1000) { lastClock = now; clockFace(); }
+    if (now - lastClock > 1000) { lastClock = now; clockFace(false); }
     return;
   }
   // 待机导演：idle 安静一阵 → 玩球 → 睡觉，直到有人动它
