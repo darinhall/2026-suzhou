@@ -143,6 +143,8 @@ void begin(MessageCb cb) {
   prefs.begin("deskbot", false);
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);   // 不省电，换低延迟
+  WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);          // 现场同一个 SSID 有很多个 AP：扫完所有信道，挑信号最强的，
+  WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);      // 而不是连上第一个扫到的（可能是远处那个，连得慢甚至连不上）
   WiFi.setAutoReconnect(true);
   WiFi.begin(DB_WIFI_SSID, DB_WIFI_PASS);
   Serial.printf("[wifi] 连接 %s …\n", DB_WIFI_SSID);
@@ -171,7 +173,7 @@ void loop() {
         for (int i = 0; i < n && i < 12; i++) Serial.printf("  %-24s ch%-2d %d dBm\n", WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i));
       }
     }
-    if (now - lastTry > 20000) {   // 20 秒还没连上就重来一次
+    if (now - lastTry > 12000) {   // 12 秒还没连上就重来一次
       lastTry = now;
       WiFi.disconnect();
       WiFi.begin(DB_WIFI_SSID, DB_WIFI_PASS);

@@ -1,0 +1,6 @@
+# 没有 OTA（现场用 USB 烧）：4 MB 给程序，剩下约 11.9 MB 给 中文字体（fonts 分区，tools/pack_fonts.py 打包）
+# Name,   Type, SubType, Offset,   Size
+nvs,      data, nvs,     0x9000,   0x5000
+phy_init, data, phy,     0xe000,   0x1000
+factory,  app,  factory, 0x10000,  0x400000
+fonts,    data, spiffs,  0x410000, 0xBE0000
