@@ -36,7 +36,7 @@
   --badge: 48px; --check: 112px; --check-fs: 64px; --live: 12px;
   --spark-h: 72px; --ruler-h: 22px; --tick-h: 12px; --split-h: 10px;
   --blush-top: 214px; --blush-x: 112px; --blush-w: 64px; --blush-h: 18px;
-  --fx-bottom: 40px; --wave-h: 30px; --dot-d: 12px;
+  --fx-bottom: 40px; --wave-h: 30px; --dot-d: 12px; --ball: 40px;
 
   --r-sm: calc(var(--rb-sm) * var(--rk)); --r-md: calc(var(--rb-md) * var(--rk)); --r-lg: calc(var(--rb-lg) * var(--rk));
   position: absolute; left: 20px; top: 20px; width: var(--W); height: var(--H); overflow: hidden;
@@ -55,7 +55,7 @@
   --badge: 32px; --check: 74px; --check-fs: 42px; --live: 9px;
   --spark-h: 44px; --ruler-h: 16px; --tick-h: 9px; --split-h: 8px;
   --blush-top: 144px; --blush-x: 76px; --blush-w: 42px; --blush-h: 12px;
-  --fx-bottom: 26px; --wave-h: 20px; --dot-d: 8px;
+  --fx-bottom: 26px; --wave-h: 20px; --dot-d: 8px; --ball: 28px;
 }
 
 .screen[data-theme="dark"] {
@@ -196,3 +196,40 @@
 
 /* 装在头里时：像真机一样有一圈黑色边框（TFT 模组的黑边），屏幕和外壳才分得开 */
 .screen.in-head { box-shadow: 0 0 0 12px #111, 0 0 0 13px rgba(0,0,0,.4); }   /* 实物上的黑色边框比较宽 */
+
+/* ---------- 待机小动画 ---------- */
+/* 玩球 */
+.ball { position: absolute; inset: auto; left: 0; top: 0; width: var(--ball); height: var(--ball); border-radius: 50%; background: var(--accent); will-change: transform; animation: none; }
+
+/* 睡觉：眼睛是向下弯的两条线，整张脸慢慢呼吸 */
+.screen > .sleep { animation: screen-enter .16s ease-out, breath 4.8s ease-in-out .2s infinite; }
+.sleep .eyes { position: absolute; inset: 0; }
+.eyes.sleepy .eye { height: calc(var(--arc-h) * .78); background: transparent; border: var(--eye-line) solid var(--ink); border-top: 0; border-radius: 0 0 var(--arc-h) var(--arc-h); margin-top: calc(var(--eye-h) * .14); }
+.z { position: absolute; right: 13%; top: 34%; font: 500 var(--t-title)/1 var(--sans); font-style: normal; color: var(--ink-muted); opacity: 0; animation: zfloat 3.6s ease-in-out infinite; }
+.z1 { font-size: calc(var(--t-title) * .6); }
+.z2 { font-size: calc(var(--t-title) * .85); animation-delay: 1.2s; }
+.z3 { font-size: calc(var(--t-title) * 1.1); animation-delay: 2.4s; }
+@keyframes zfloat {
+  0% { opacity: 0; transform: translate(0, 8px); }
+  22% { opacity: 1; }
+  80% { opacity: .85; }
+  100% { opacity: 0; transform: translate(calc(var(--s6) * 1.5), calc(var(--t-title) * -1.7)); }
+}
+
+/* 梦泡泡：左上角一个大泡泡，两个小圆点连向脸 */
+.dream { position: absolute; left: 5%; top: 6%; width: 42%; height: 31%; }
+.bubble { position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden; background: var(--surface); border: 2px solid var(--rule); border-radius: var(--r-md); }
+.dream .d1, .dream .d2 { position: absolute; border-radius: 50%; background: var(--surface); border: 2px solid var(--rule); }
+.dream .d2 { width: calc(var(--s3) + 2px); height: calc(var(--s3) + 2px); left: 62%; top: calc(100% + 4px); }
+.dream .d1 { width: calc(var(--s2) + 1px); height: calc(var(--s2) + 1px); left: 72%; top: calc(100% + var(--s4) + 6px); }
+.dream-item { display: grid; place-items: center; gap: 4px; width: 76%; animation: dreamin .5s ease-out; }
+.dream-item svg { width: 100%; height: auto; display: block; }
+.dream-big { font: 600 calc(var(--t-title) * 1.05)/1 var(--sans); }
+.dream-sub { font: 500 var(--t-body)/1 var(--sans); color: var(--ink-muted); }
+.dream-coin { width: calc(var(--ball) * 1.1); height: calc(var(--ball) * 1.1); border-radius: 50%; background: var(--accent); animation: coin .55s ease-in-out infinite alternate; }
+@keyframes dreamin { from { opacity: 0; transform: translateY(6px) scale(.9); } }
+@keyframes coin { to { transform: translateY(-18%) scaleY(.92); } }
+
+/* 被吵醒：眼睛一下睁大 */
+.screen.waking .eye { animation: startle .3s ease-out; }
+@keyframes startle { 0% { transform: scaleY(.12); } 55% { transform: scaleY(1.15); } 100% { transform: none; } }

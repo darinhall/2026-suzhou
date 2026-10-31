@@ -63,3 +63,17 @@ uvx --from esptool esptool --port /dev/cu.usbmodem101 flash-id                  
 uvx --from esptool esptool --port /dev/cu.usbmodem101 read-flash 0 0x200000 backup/factory_0x0_2MB.bin
 uvx --from esptool esptool --port /dev/cu.usbmodem101 write-flash 0 backup/factory_0x0_2MB.bin   # 还原出厂 demo
 ```
+
+## 固件 v2：联网的脸（10-31）
+
+`bringup/` 现在会连 `NAMI-guest`，用 UDP 广播找到中枢，用令牌握手后接收 `face` 指令。
+
+```bash
+./hub/run.sh                      # 先起中枢，生成 hub/.token
+python3 config/build_net.py       # 生成 config/deskbot_net_local.h（带令牌，已 gitignore）
+uvx --python 3.12 --from platformio pio run -d esp32s3/bringup -t upload --upload-port /dev/cu.usbmodem101
+```
+
+状态：`idle blink happy listening thinking ok stealth play sleep`；安静 25 秒玩球，玩 12 秒后睡觉，摸一下就醒；连点两下 = 老板键。文字屏（今天 / 天气 / 行情）还要 CJK 字体，目前显示待机脸。
+
+串口会打印 `[wifi]`、`[hub]`、`[ws]`。找不到 SSID（状态 1）时 12 秒后会扫描并列出板子看到的网络；信号 -70 dBm 偏弱，展台上把板子放在靠近路由的一侧。
