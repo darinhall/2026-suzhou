@@ -278,7 +278,7 @@ static void voiceTick(uint32_t now) {
       e["t"] = "mic_end";
       net::send(e);
       ui::set(ui::State::Thinking);
-      waitReplyUntil = millis() + 15000;
+      waitReplyUntil = millis() + 30000;   // 自由提问要查 PandaAI MCP：最长十几秒
     } else {
       restoreFace();
     }

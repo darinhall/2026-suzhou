@@ -25,7 +25,7 @@ ASR_FIX = [(re.compile(r"(移动|一动|易动|意动|异洞)"), "异动"),
 
 @dataclass
 class Intent:
-    kind: str                 # quote yesno compare overview watchlist advice control explain watch_add watch_remove watch_list sim_start sim_stop unknown
+    kind: str                 # quote yesno compare overview watchlist advice control explain research watch_add watch_remove watch_list sim_start sim_stop unknown
     codes: list[str] = field(default_factory=list)
     period_days: int = 1
     text: str = ""
@@ -121,6 +121,8 @@ class Router:
             return it("watchlist", [])
         if not codes and re.search(r"大盘|指数|市场|上证|深证|创业板|沪深|a股|A股", t):
             return it("overview", [])
+        if codes and re.search(r"概念|行业|板块|题材|业绩|财报|预告|快报|营收|利润|净利|龙虎榜|融资|融券|两融|北向|股东|解禁|估值|市盈率|市净率|分红|港股|美股|主营|做什么的", t):
+            return it("research")   # 要查更多数据：交给大模型 + PandaAI MCP（brain/agent.py）
         if codes and re.search(r"涨了吗|跌了吗|涨了没|跌了没|涨没涨|跌没跌|是不是[涨跌]|[涨跌]了没有|有没有[涨跌]", t):
             return it("yesno")
         if codes:
