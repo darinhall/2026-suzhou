@@ -210,12 +210,19 @@ void selfTest() {
 // ================= 语音检测 =================
 static const float VOICE_RATIO = 4.0f;          // 超过背景 4 倍才算说话
 static const int WIN = RATE / 20;               // 50 ms 一个窗口
-static const int START_WINS = 6, END_WINS = 12; // 连续 300 ms 超过 = 开始（短于这个的敲桌子、拍手不算）；连续 600 ms 低于 = 结束
+static const int START_WINS = 4, END_WINS = 16; // 连续 200 ms 超过 = 开始录；连续 800 ms 低于 = 这句说完
+static const int MIN_VOICED = 12;               // 一句话里至少 600 ms 是"有声音"的，才算一句命令（敲桌子、咳嗽、一声"嗯"都不算）
+static const int PRE_WINS = 8;                  // 开始前多留 400 ms，第一个字不会被切掉
+static const int MAX_WINS = 160;                // 一句最长 8 秒
 static float bg = 0;
-static bool talking = false;
-static int above = 0, below = 0;
+static bool talking = false, announced = false;
+static int above = 0, below = 0, voiced = 0;
 static uint32_t talkStart = 0;
 static float talkPeak = 0, lastRms = 0;
+// 录音缓冲都在 PSRAM：rec = 24 位样本（去掉低 8 位），pre = 开始前的环形缓冲，utt = 录好的一句（16 位，已归一化）
+static int32_t *rec = nullptr, *pre = nullptr;
+static int16_t *utt = nullptr;
+static int recN = 0, preHead = 0, preN = 0, uttN = 0;
 
 static float windowRms(const int32_t *buf, int frames) {   // 只算左声道（INMP441 的 L/R 接地）
   double sum = 0, sq = 0;
@@ -260,28 +267,61 @@ int listenTick() {
   filled = 0;
   lastRms = windowRms(buf, WIN);
   const float ratio = lastRms / bg;
-  if (!talking) {
-    above = ratio >= VOICE_RATIO ? above + 1 : 0;
-    if (above >= START_WINS) {
-      talking = true; below = 0; talkStart = millis() - START_WINS * 50; talkPeak = ratio;
-      Serial.printf("[voice] 有人说话（音量 %d.%d 倍背景）\n", (int)ratio, (int)(ratio * 10) % 10);
-      return 1;
-    }
-  } else {
-    talkPeak = max(talkPeak, ratio);
-    below = ratio < VOICE_RATIO ? below + 1 : 0;
-    if (below >= END_WINS) {
-      talking = false; above = 0;
-      const uint32_t dur = millis() - talkStart - END_WINS * 50;
-      char m[96];
-      // 这里只用整数格式化：开机时用 %f 打印后再画卡片会触发 newlib dtoa 的崩溃（10-31 实测），原因还没查清
-      snprintf(m, sizeof m, "说完了：时长 %lu.%lu 秒，最大音量 %d.%d 倍背景", (unsigned long)(dur / 1000), (unsigned long)(dur % 1000 / 100), (int)talkPeak, (int)(talkPeak * 10) % 10);
-      Serial.printf("[voice] %s\n", m);
-      net::log("info", "VOICE_SEGMENT", m);
-      return 2;
-    }
+  if (!rec) {   // 第一次用：在 PSRAM 里分配录音缓冲（约 0.8 MB）
+    rec = (int32_t *)ps_malloc((MAX_WINS + PRE_WINS) * WIN * 4);
+    pre = (int32_t *)ps_malloc(PRE_WINS * WIN * 4);
+    utt = (int16_t *)ps_malloc((MAX_WINS + PRE_WINS) * WIN * 2);
+    if (!rec || !pre || !utt) { Serial.println("[voice] PSRAM 不够，录不了音"); bg = 0; return 0; }
   }
-  return 0;
+  if (!talking) {
+    for (int i = 0; i < WIN; i++) pre[preHead * WIN + i] = buf[i * 2] >> 8;   // 只要左声道
+    preHead = (preHead + 1) % PRE_WINS;
+    preN = min(preN + 1, PRE_WINS);
+    above = ratio >= VOICE_RATIO ? above + 1 : 0;
+    if (above >= START_WINS) {   // 开始录：先把开始前的 400 ms 拷进来
+      talking = true; announced = false; below = 0; voiced = above; talkStart = millis(); talkPeak = ratio; recN = 0;
+      for (int w = 0; w < preN; w++) {
+        const int slot = (preHead - preN + w + PRE_WINS) % PRE_WINS;
+        memcpy(rec + recN, pre + slot * WIN, WIN * 4);
+        recN += WIN;
+      }
+    }
+    return 0;
+  }
+  for (int i = 0; i < WIN; i++) rec[recN + i] = buf[i * 2] >> 8;
+  recN += WIN;
+  talkPeak = max(talkPeak, ratio);
+  if (ratio >= VOICE_RATIO) voiced++;
+  below = ratio < VOICE_RATIO ? below + 1 : 0;
+  if (!announced && voiced >= MIN_VOICED) { announced = true; return 1; }   // 确认是一句话了：换"在听"的表情（不动）
+  if (below < END_WINS && recN < (MAX_WINS + PRE_WINS - 1) * WIN) return 0;
+  // 说完了（或到 8 秒）
+  talking = false; above = 0; preN = 0;
+  const uint32_t dur = millis() - talkStart;
+  char m[120];
+  // 这里只用整数格式化：开机时用 %f 打印后再画卡片会触发 newlib dtoa 的崩溃（10-31 实测），原因还没查清
+  if (voiced < MIN_VOICED) {
+    snprintf(m, sizeof m, "忽略一段声音：有声 %d ms，不到 %d ms（噪音 / 敲桌子 / 一声嗯）", voiced * 50, MIN_VOICED * 50);
+    Serial.printf("[voice] %s\n", m);
+    return 0;
+  }
+  recN -= max(0, below - 4) * WIN;   // 结尾的静音只留 200 ms
+  double mean = 0;
+  int32_t peak = 1;
+  for (int i = 0; i < recN; i++) mean += rec[i];
+  mean /= recN;
+  for (int i = 0; i < recN; i++) peak = max(peak, (int32_t)abs(rec[i] - (int32_t)mean));
+  const float g = min(22000.0f / peak, 0.25f);   // 归一化到约 -3 dB；最多放大到 24 位 → 16 位的 64 倍
+  for (int i = 0; i < recN; i++) utt[i] = (int16_t)constrain((rec[i] - mean) * g, -32767.0, 32767.0);
+  uttN = recN;
+  snprintf(m, sizeof m, "录到一句：%lu.%lu 秒，有声 %d ms，最大音量 %d.%d 倍背景", (unsigned long)(dur / 1000), (unsigned long)(dur % 1000 / 100),
+           voiced * 50, (int)talkPeak, (int)(talkPeak * 10) % 10);
+  Serial.printf("[voice] %s\n", m);
+  net::log("info", "VOICE_SEGMENT", m);
+  return 2;
 }
+
+const int16_t *utterance(int &n) { n = uttN; return utt; }
+bool busyPlaying() { return playing; }
 
 }  // namespace audio

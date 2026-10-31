@@ -61,9 +61,15 @@ from websockets.asyncio.server import serve
 import netutil
 import modes
 import scenes
+from assistant import Assistant
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "data"))   # data/weather.py
+try:   # 密钥（PandaAI、火山语音、方舟）：data/.env，不进 git
+    from dotenv import load_dotenv
+    load_dotenv(HERE.parent / "data" / ".env")
+except ImportError:
+    pass
 
 NET = json.loads((HERE.parent / "config" / "network.json").read_text())["hub"]
 LOCAL = {"127.0.0.1", "::1"}
@@ -79,6 +85,7 @@ AUTH = True
 PROXY = False   # --proxy：在 nginx 后面（云端），见文件头「令牌」
 
 engine = None   # 场景引擎（main() 里创建）
+assistant = None   # 语音问答 + 异动模拟（main() 里创建）
 
 ROUTE = {"face": "face", "audio": "face", "pose": "body", "torque": "body"}   # gesture 发给所有人：整机只有一块板（role=face），点头 / 摇头 / 转头都由它做
 
@@ -271,6 +278,9 @@ async def handler(ws):
         await hub_log("info", "CLIENT_UP", f"{ip} 已连上（{robots[ws] or 'view'}，固件 {str(hello.get('fw', '?'))[:20]}）")
     try:
         async for raw in ws:
+            if isinstance(raw, bytes):   # 板子麦克风的一句话（mic_start 和 mic_end 之间）
+                assistant.mic_data(ws, raw)
+                continue
             try:
                 msg = json.loads(raw)
             except json.JSONDecodeError:
@@ -280,6 +290,15 @@ async def handler(ws):
             t = msg.get("t")
             if t == "log":
                 await client_log(ws, ip, msg)
+                continue
+            if t == "mic_start":
+                assistant.mic_start(ws, msg)
+                continue
+            if t == "mic_end":
+                asyncio.create_task(assistant.mic_end(ws, msg))   # 识别 + 取数要几秒，别堵住这个连接
+                continue
+            if t == "ask" and str(msg.get("text", "")).strip():   # 打字问答（模拟器 / 脚本）
+                asyncio.create_task(assistant.ask(str(msg["text"])[:100], src=str(msg.get("src", "sim"))))
                 continue
             if t == "profile":                                          # 设置：深度合并 → 保存 → 广播完整设置
                 asyncio.create_task(handle_profile(ws, msg))   # 查城市要联网（几秒），别堵住这个连接的其他消息
@@ -606,6 +625,8 @@ async def main(port: int):
         DISPLAY["mode"] = mode
         await broadcast({"t": "display", "mode": mode})
     engine.display_hook = on_display
+    global assistant
+    assistant = Assistant(robots, broadcast, hub_log, engine)
     asyncio.create_task(engine.boot())
     asyncio.create_task(desync_watch())
     # 保活：每 20 秒 ping 一次，60 秒没回才断（默认是 20 秒）。真机的 WebSocketsClient 只在 ws.loop() 里回 pong，

@@ -5,3 +5,4 @@ numpy
 openai>=1.40
 pypinyin
 python-dotenv
+requests
